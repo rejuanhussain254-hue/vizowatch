@@ -690,7 +690,7 @@ function Index() {
 
 
       {toast && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-28 z-40 flex justify-center">
+        <div className="pointer-events-none fixed inset-x-0 bottom-6 z-40 flex justify-center">
           <span className="rounded-full bg-foreground px-4 py-2 text-[12px] font-semibold text-background shadow-primary">{toast}</span>
         </div>
       )}
