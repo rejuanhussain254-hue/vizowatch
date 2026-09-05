@@ -348,7 +348,7 @@ function Index() {
         <div className="animate-glow absolute -bottom-16 right-6 size-60 rounded-full bg-lilac/60 blur-3xl" style={{ animationDelay: "-9s" }} />
       </div>
 
-      <main className="relative mx-auto flex min-h-screen max-w-[420px] flex-col px-5 pb-32">
+      <main className="relative mx-auto flex min-h-screen max-w-[420px] flex-col px-5 pb-10">
         <header className="flex items-center justify-between pt-6">
           <div className="flex items-center gap-2.5">
             <div className="grid size-10 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-primary">
