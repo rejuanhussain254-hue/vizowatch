@@ -70,9 +70,42 @@ function Index() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searched, setSearched] = useState(false);
   const player = usePlayer(queue, PLAYER_ID);
   const search = Route.useSearch();
   const navigate = useNavigate();
+  const runSearch = useServerFn(searchYouTube);
+
+  async function doSearch(q: string) {
+    setSearching(true);
+    setSearched(true);
+    try {
+      setResults(await runSearch({ data: { q } }));
+    } catch {
+      setResults([]);
+    }
+    setSearching(false);
+  }
+
+  // Load trending on first open so the app feels like YouTube right away
+  useEffect(() => {
+    doSearch("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function playResult(r: SearchResult) {
+    const track: Track = { id: r.id, title: r.title, author: r.author, thumbnail: r.thumbnail };
+    const existingIdx = queue.findIndex((t) => t.id === r.id);
+    if (existingIdx !== -1) {
+      player.playAt(existingIdx);
+    } else {
+      setQueue((q) => [...q, track]);
+      setTimeout(() => player.playAt(queue.length), 50);
+    }
+    setOpen(true);
+  }
 
   useEffect(() => {
     setQueue(loadQueue());
