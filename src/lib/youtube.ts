@@ -57,6 +57,52 @@ export function saveQueue(queue: Track[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(queue));
 }
 
+// ---- Recent history + resume position ----
+export type HistoryItem = Track & { at: number; position: number; duration: number };
+export const HISTORY_KEY = "echo.history.v1";
+const HISTORY_MAX = 30;
+
+export function loadHistory(): HistoryItem[] {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    return raw ? (JSON.parse(raw) as HistoryItem[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function pushHistory(track: Track): HistoryItem[] {
+  const prev = loadHistory().filter((h) => h.id !== track.id);
+  const old = loadHistory().find((h) => h.id === track.id);
+  const item: HistoryItem = { ...track, at: Date.now(), position: old?.position ?? 0, duration: old?.duration ?? 0 };
+  const next = [item, ...prev].slice(0, HISTORY_MAX);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+  return next;
+}
+
+export function updateHistoryPosition(id: string, position: number, duration: number) {
+  const list = loadHistory();
+  const item = list.find((h) => h.id === id);
+  if (!item) return;
+  // Treat the last few seconds as "finished" so resume restarts from the top.
+  item.position = duration && duration - position < 8 ? 0 : Math.floor(position);
+  item.duration = Math.floor(duration);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+}
+
+export function clearHistory() {
+  localStorage.removeItem(HISTORY_KEY);
+}
+
+export function timeAgo(ts: number) {
+  const m = Math.round((Date.now() - ts) / 60000);
+  if (m < 1) return "এইমাত্র";
+  if (m < 60) return `${m} মিনিট আগে`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h} ঘণ্টা আগে`;
+  return `${Math.round(h / 24)} দিন আগে`;
+}
+
 export function formatTime(sec: number) {
   if (!Number.isFinite(sec) || sec < 0) sec = 0;
   const m = Math.floor(sec / 60);

@@ -62,17 +62,30 @@ async function fetchResults(url: string): Promise<SearchResult[]> {
   return out.filter((r) => r.title).slice(0, 30);
 }
 
+export type SearchResponse = { ok: true; results: SearchResult[] } | { ok: false; error: string };
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 export const searchYouTube = createServerFn({ method: "GET" })
   .inputValidator((d: { q: string }) => {
     if (typeof d?.q !== "string") throw new Error("q required");
     return { q: d.q.slice(0, 200) };
   })
-  .handler(async ({ data }) => {
+  .handler(async ({ data }): Promise<SearchResponse> => {
     const q = data.q.trim() || "trending videos bangladesh today";
     const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}&sp=EgIQAQ%253D%253D&gl=BD&hl=en`;
-    try {
-      return await fetchResults(url);
-    } catch {
-      return [] as SearchResult[];
+    let lastErr = "";
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const results = await fetchResults(url);
+        // An empty parse on a real query usually means YouTube served a consent/bot page — retry.
+        if (results.length || attempt === 2) return { ok: true, results };
+        lastErr = "empty";
+      } catch (e) {
+        lastErr = e instanceof Error ? e.message : "fetch failed";
+        console.error("searchYouTube attempt", attempt + 1, lastErr);
+      }
+      await sleep(400 * (attempt + 1));
     }
+    return { ok: false, error: lastErr || "unavailable" };
   });
