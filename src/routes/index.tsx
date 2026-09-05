@@ -360,7 +360,16 @@ function Index() {
               <p className="text-[11px] text-muted-foreground">শোনো, বিরতি ছাড়া</p>
             </div>
           </div>
-          <span className="rounded-full bg-glass px-3 py-1 text-[11px] font-medium ring-1 ring-border">সাইন-ইন লাগে না</span>
+          {user ? (
+            <div className="flex items-center gap-1.5">
+              <span className="max-w-[120px] truncate rounded-full bg-mint/50 px-3 py-1 text-[11px] font-medium ring-1 ring-border" title={user.email ?? ""}>
+                {syncing ? "সিঙ্ক হচ্ছে…" : "✓ সিঙ্ক চালু"}
+              </span>
+              <button onClick={() => signOut()} className="rounded-full bg-glass px-3 py-1 text-[11px] font-medium ring-1 ring-border">সাইন-আউট</button>
+            </div>
+          ) : (
+            <Link to="/auth" className="rounded-full bg-primary px-3 py-1.5 text-[11px] font-semibold text-primary-foreground shadow-primary">সাইন-ইন</Link>
+          )}
         </header>
 
         <section className="glass mt-5 rounded-3xl p-4">
