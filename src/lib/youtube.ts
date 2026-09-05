@@ -18,7 +18,7 @@ export function extractVideoId(input: string): string | null {
       const v = url.searchParams.get("v");
       if (v) return v.slice(0, 11);
       const m = url.pathname.match(/\/(?:shorts|embed|live|v)\/([\w-]{11})/);
-      if (m) return m[1];
+      if (m) return m[1] ?? null;
     }
   } catch {
     /* not a url */

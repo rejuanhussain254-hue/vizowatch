@@ -48,7 +48,7 @@ export function usePlayer(queue: Track[], containerId: string) {
     const next = ((i % q.length) + q.length) % q.length;
     setIndex(next);
     indexRef.current = next;
-    playerRef.current?.loadVideoById(q[next].id);
+    playerRef.current?.loadVideoById(q[next]!.id);
     setPlaying(true);
   }, []);
 
