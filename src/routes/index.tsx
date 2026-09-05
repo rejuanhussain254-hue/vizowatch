@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
 import { usePlayer } from "@/hooks/usePlayer";
 import {
@@ -18,6 +18,11 @@ export const Route = createFileRoute("/")({
       { property: "og:title", content: "Echo — ইউটিউব ব্যাকগ্রাউন্ড প্লেয়ার" },
       { property: "og:description", content: "সাইন-ইন ছাড়াই ইউটিউব গান ব্যাকগ্রাউন্ডে শুনুন।" },
     ],
+  }),
+  validateSearch: (s: Record<string, unknown>) => ({
+    url: typeof s.url === "string" ? s.url : undefined,
+    text: typeof s.text === "string" ? s.text : undefined,
+    title: typeof s.title === "string" ? s.title : undefined,
   }),
   component: Index,
 });
@@ -62,6 +67,8 @@ function Index() {
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const player = usePlayer(queue, PLAYER_ID);
+  const search = Route.useSearch();
+  const navigate = useNavigate();
 
   useEffect(() => {
     setQueue(loadQueue());
@@ -70,6 +77,28 @@ function Index() {
   useEffect(() => {
     if (hydrated) saveQueue(queue);
   }, [queue, hydrated]);
+
+  // Shared from YouTube (Share → Echo) or opened with ?url=
+  useEffect(() => {
+    if (!hydrated || !player.ready) return;
+    const shared = [search.url, search.text, search.title].filter(Boolean).join(" ");
+    const id = shared ? extractVideoId(shared) ?? extractVideoId(shared.match(/https?:\/\/\S+/)?.[0] ?? "") : null;
+    if (!id) return;
+    navigate({ to: "/", search: {}, replace: true });
+    (async () => {
+      const existing = loadQueue();
+      let idx = existing.findIndex((t) => t.id === id);
+      if (idx === -1) {
+        const track = await fetchTrack(id);
+        existing.push(track);
+        idx = existing.length - 1;
+        setQueue(existing);
+      }
+      setTimeout(() => player.playAt(idx), 100);
+      setOpen(true);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, player.ready, search.url, search.text, search.title]);
 
   async function addTrack(e: FormEvent) {
     e.preventDefault();
@@ -126,7 +155,22 @@ function Index() {
           <span className="rounded-full bg-glass px-3 py-1 text-[11px] font-medium ring-1 ring-border">সাইন-ইন লাগে না</span>
         </header>
 
-        <section className="glass mt-5 rounded-3xl p-4">
+        <section className="mt-5 rounded-3xl bg-primary p-4 text-primary-foreground shadow-primary">
+          <p className="font-display text-lg font-bold leading-tight">ইউটিউবে গিয়ে যেকোনো ভিডিও বাছুন</p>
+          <p className="mt-1 text-[13px] opacity-80">
+            ভিডিওতে <b>Share</b> চাপুন → <b>Echo</b> বেছে নিন — ভিডিওটি এখানে ব্যাকগ্রাউন্ডে বাজবে। (Share মেনুতে Echo পেতে অ্যাপটি Home screen-এ যোগ করুন)
+          </p>
+          <a
+            href="https://m.youtube.com"
+            target="_blank"
+            rel="noopener"
+            className="mt-3 block w-full rounded-2xl bg-primary-foreground py-3 text-center font-display text-[15px] font-semibold text-primary transition active:scale-[0.98]"
+          >
+            ইউটিউব খুলুন →
+          </a>
+        </section>
+
+        <section className="glass mt-4 rounded-3xl p-4">
           <label htmlFor="yt" className="font-display text-base font-semibold">নতুন গান যোগ করুন</label>
           <p className="text-[13px] text-muted-foreground">ইউটিউব লিংক পেস্ট করুন বা গানের নাম লিখুন</p>
           <form onSubmit={addTrack}>
