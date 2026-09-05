@@ -1,6 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState, type FormEvent } from "react";
 import { usePlayer } from "@/hooks/usePlayer";
+import { searchYouTube, type SearchResult } from "@/lib/search.functions";
 import {
   extractVideoId,
   fetchTrack,
