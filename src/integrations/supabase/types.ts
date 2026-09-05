@@ -14,7 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      watch_history: {
+        Row: {
+          author: string
+          created_at: string
+          duration: number
+          id: string
+          position: number
+          thumbnail: string
+          title: string
+          updated_at: string
+          user_id: string
+          video_id: string
+          watched_at: string
+        }
+        Insert: {
+          author?: string
+          created_at?: string
+          duration?: number
+          id?: string
+          position?: number
+          thumbnail?: string
+          title?: string
+          updated_at?: string
+          user_id: string
+          video_id: string
+          watched_at?: string
+        }
+        Update: {
+          author?: string
+          created_at?: string
+          duration?: number
+          id?: string
+          position?: number
+          thumbnail?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+          video_id?: string
+          watched_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
