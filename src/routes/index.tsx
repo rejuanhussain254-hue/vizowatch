@@ -605,6 +605,32 @@ function Index() {
             </div>
             <p className="mt-3 text-center text-[11px] text-muted-foreground">স্ক্রিন অফ করলেও চলতে থাকবে · লক-স্ক্রিন থেকে কন্ট্রোল করুন</p>
 
+            {current && player.captionTracks.length > 0 && (
+              <div className="mt-3 flex items-center gap-2 rounded-2xl bg-glass px-3 py-2 ring-1 ring-border">
+                <button
+                  onClick={() => player.setCaptions(!player.captionsOn)}
+                  aria-pressed={player.captionsOn}
+                  aria-label="সাবটাইটেল"
+                  className={`grid h-8 min-w-10 place-items-center rounded-xl px-2 font-display text-[12px] font-bold transition ${player.captionsOn ? "bg-primary text-primary-foreground shadow-primary" : "bg-background text-muted-foreground ring-1 ring-border"}`}
+                >
+                  CC
+                </button>
+                <span className="flex-1 text-[12px]">{player.captionsOn ? "সাবটাইটেল চালু" : "সাবটাইটেল বন্ধ"}</span>
+                {player.captionsOn && player.captionTracks.length > 1 && (
+                  <select
+                    value={player.captionLang ?? ""}
+                    onChange={(e) => player.setCaptions(true, e.target.value)}
+                    aria-label="সাবটাইটেল ভাষা"
+                    className="max-w-[140px] rounded-xl bg-background px-2 py-1 text-[12px] ring-1 ring-border outline-none"
+                  >
+                    {player.captionTracks.map((t) => (
+                      <option key={t.code} value={t.code}>{t.name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
+
             {current && (
               <div className="mt-3 flex gap-2">
                 <button
