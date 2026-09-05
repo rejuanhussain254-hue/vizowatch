@@ -1,7 +1,9 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { usePlayer } from "@/hooks/usePlayer";
+import { useAuth } from "@/hooks/useAuth";
+import { clearCloudHistory, mergeHistoryOnSignIn, updateCloudPosition, upsertCloudHistory } from "@/lib/history-sync";
 import { searchYouTube, type SearchResult } from "@/lib/search.functions";
 import {
   clearHistory,
@@ -151,6 +153,9 @@ function Index() {
   const search = Route.useSearch();
   const navigate = useNavigate();
   const runSearch = useServerFn(searchYouTube);
+  const { user, signOut } = useAuth();
+  const userId = user?.id ?? null;
+  const [syncing, setSyncing] = useState(false);
   const { current, playing, time, duration } = player;
   const open = !!search.v;
 
@@ -197,9 +202,26 @@ function Index() {
     if (hydrated) saveQueue(queue);
   }, [queue, hydrated]);
 
-  // record history + keep resume position fresh
+  // signed in → merge local history with the cloud copy and use the merged list
   useEffect(() => {
-    if (current) setHistory(pushHistory(current));
+    if (!userId || !hydrated) return;
+    let cancelled = false;
+    setSyncing(true);
+    mergeHistoryOnSignIn(userId)
+      .then((merged) => { if (!cancelled) setHistory(merged); })
+      .catch(() => { if (!cancelled) flash("ইতিহাস সিঙ্ক হয়নি"); })
+      .finally(() => { if (!cancelled) setSyncing(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, hydrated]);
+
+  // record history + keep resume position fresh (locally, and in the cloud when signed in)
+  useEffect(() => {
+    if (!current) return;
+    const next = pushHistory(current);
+    setHistory(next);
+    const item = next.find((h) => h.id === current.id);
+    if (userId && item) upsertCloudHistory(userId, item);
   }, [current?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const lastSaved = useRef(0);
   useEffect(() => {
@@ -207,7 +229,11 @@ function Index() {
     if (Math.abs(time - lastSaved.current) < 5) return;
     lastSaved.current = time;
     updateHistoryPosition(current.id, time, duration);
-  }, [time, duration, current]);
+    if (userId) {
+      const item = loadHistory().find((h) => h.id === current.id);
+      if (item) updateCloudPosition(userId, current.id, item.position, item.duration);
+    }
+  }, [time, duration, current, userId]);
 
   // ---- watch page (?v=ID) ----
   const openWatch = (id: string) => navigate({ to: "/", search: { v: id } });
@@ -334,7 +360,16 @@ function Index() {
               <p className="text-[11px] text-muted-foreground">শোনো, বিরতি ছাড়া</p>
             </div>
           </div>
-          <span className="rounded-full bg-glass px-3 py-1 text-[11px] font-medium ring-1 ring-border">সাইন-ইন লাগে না</span>
+          {user ? (
+            <div className="flex items-center gap-1.5">
+              <span className="max-w-[120px] truncate rounded-full bg-mint/50 px-3 py-1 text-[11px] font-medium ring-1 ring-border" title={user.email ?? ""}>
+                {syncing ? "সিঙ্ক হচ্ছে…" : "✓ সিঙ্ক চালু"}
+              </span>
+              <button onClick={() => signOut()} className="rounded-full bg-glass px-3 py-1 text-[11px] font-medium ring-1 ring-border">সাইন-আউট</button>
+            </div>
+          ) : (
+            <Link to="/auth" className="rounded-full bg-primary px-3 py-1.5 text-[11px] font-semibold text-primary-foreground shadow-primary">সাইন-ইন</Link>
+          )}
         </header>
 
         <section className="glass mt-5 rounded-3xl p-4">
@@ -413,7 +448,7 @@ function Index() {
             <button onClick={() => { setQueue([]); player.setIndex(null); }} className="text-[12px] text-muted-foreground">সব মুছুন</button>
           )}
           {tab === "history" && history.length > 0 && (
-            <button onClick={() => { clearHistory(); setHistory([]); }} className="text-[12px] text-muted-foreground">সব মুছুন</button>
+            <button onClick={() => { clearHistory(); setHistory([]); if (userId) clearCloudHistory(userId); }} className="text-[12px] text-muted-foreground">সব মুছুন</button>
           )}
         </div>
 
@@ -451,6 +486,12 @@ function Index() {
 
         {tab === "history" && (
           <>
+            {hydrated && !user && (
+              <Link to="/auth" className="mt-3 flex items-center justify-between rounded-3xl bg-primary-soft/70 px-4 py-3 text-[13px] ring-1 ring-primary/25">
+                <span>সাইন-ইন করলে ইতিহাস সব ডিভাইসে সিঙ্ক হবে</span>
+                <b className="text-primary">সাইন-ইন →</b>
+              </Link>
+            )}
             {hydrated && history.length === 0 && (
               <p className="glass mt-3 rounded-3xl p-5 text-center text-[13px] text-muted-foreground">এখনো কিছু দেখা হয়নি। যা চালাবেন তা এখানে জমা থাকবে।</p>
             )}
