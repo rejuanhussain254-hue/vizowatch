@@ -1,6 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState, type FormEvent } from "react";
 import { usePlayer } from "@/hooks/usePlayer";
+import { searchYouTube, type SearchResult } from "@/lib/search.functions";
 import {
   extractVideoId,
   fetchTrack,
@@ -68,9 +70,42 @@ function Index() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searched, setSearched] = useState(false);
   const player = usePlayer(queue, PLAYER_ID);
   const search = Route.useSearch();
   const navigate = useNavigate();
+  const runSearch = useServerFn(searchYouTube);
+
+  async function doSearch(q: string) {
+    setSearching(true);
+    setSearched(true);
+    try {
+      setResults(await runSearch({ data: { q } }));
+    } catch {
+      setResults([]);
+    }
+    setSearching(false);
+  }
+
+  // Load trending on first open so the app feels like YouTube right away
+  useEffect(() => {
+    doSearch("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function playResult(r: SearchResult) {
+    const track: Track = { id: r.id, title: r.title, author: r.author, thumbnail: r.thumbnail };
+    const existingIdx = queue.findIndex((t) => t.id === r.id);
+    if (existingIdx !== -1) {
+      player.playAt(existingIdx);
+    } else {
+      setQueue((q) => [...q, track]);
+      setTimeout(() => player.playAt(queue.length), 50);
+    }
+    setOpen(true);
+  }
 
   useEffect(() => {
     setQueue(loadQueue());
@@ -107,10 +142,8 @@ function Index() {
     setError(null);
     const id = extractVideoId(input);
     if (!id) {
-      if (input.trim()) {
-        window.open(`https://m.youtube.com/results?search_query=${encodeURIComponent(input.trim())}`, "_blank");
-        setError("ইউটিউবে সার্চ খুলেছে — পছন্দের ভিডিওর লিংক কপি করে এখানে পেস্ট করুন।");
-      } else setError("একটি ইউটিউব লিংক দিন।");
+      if (input.trim()) await doSearch(input.trim());
+      else setError("গানের নাম বা ইউটিউব লিংক দিন।");
       return;
     }
     if (queue.some((t) => t.id === id)) {
@@ -157,47 +190,68 @@ function Index() {
           <span className="rounded-full bg-glass px-3 py-1 text-[11px] font-medium ring-1 ring-border">সাইন-ইন লাগে না</span>
         </header>
 
-        <section className="mt-5 rounded-3xl bg-primary p-4 text-primary-foreground shadow-primary">
-          <p className="font-display text-lg font-bold leading-tight">ইউটিউবে গিয়ে যেকোনো ভিডিও বাছুন</p>
-          <p className="mt-1 text-[13px] opacity-80">
-            ভিডিওতে <b>Share</b> চাপুন → <b>Echo</b> বেছে নিন — ভিডিওটি এখানে ব্যাকগ্রাউন্ডে বাজবে। (Share মেনুতে Echo পেতে অ্যাপটি Home screen-এ যোগ করুন)
-          </p>
-          <a
-            href="https://m.youtube.com"
-            target="_blank"
-            rel="noopener"
-            className="mt-3 block w-full rounded-2xl bg-primary-foreground py-3 text-center font-display text-[15px] font-semibold text-primary transition active:scale-[0.98]"
-          >
-            ইউটিউব খুলুন →
-          </a>
-        </section>
-
-        <section className="glass mt-4 rounded-3xl p-4">
-          <label htmlFor="yt" className="font-display text-base font-semibold">নতুন গান যোগ করুন</label>
-          <p className="text-[13px] text-muted-foreground">ইউটিউব লিংক পেস্ট করুন বা গানের নাম লিখুন</p>
-          <form onSubmit={addTrack}>
-            <div className="mt-3 flex items-center gap-2 rounded-2xl bg-background px-3 py-2.5 ring-1 ring-border focus-within:ring-2 focus-within:ring-ring">
+        <section className="glass mt-5 rounded-3xl p-4">
+          <label htmlFor="yt" className="font-display text-base font-semibold">ইউটিউবে খুঁজুন</label>
+          <p className="text-[13px] text-muted-foreground">গানের নাম লিখুন বা ইউটিউব লিংক পেস্ট করুন</p>
+          <form onSubmit={addTrack} className="mt-3 flex gap-2">
+            <div className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl bg-background px-3 py-2.5 ring-1 ring-border focus-within:ring-2 focus-within:ring-ring">
               <span className="block size-2.5 shrink-0 rounded-full ring-2 ring-lilac" aria-hidden />
               <input
                 id="yt"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="https://youtu.be/…"
+                placeholder="যেমন: Arijit Singh"
                 className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted-foreground"
-                inputMode="url"
+                inputMode="search"
                 autoComplete="off"
               />
             </div>
-            {error && <p className="mt-2 text-[12px] text-muted-foreground">{error}</p>}
             <button
               type="submit"
-              disabled={busy}
-              className="mt-3 w-full rounded-2xl bg-primary py-3 font-display text-[15px] font-semibold text-primary-foreground shadow-primary transition active:scale-[0.98] disabled:opacity-60"
+              disabled={busy || searching}
+              className="shrink-0 rounded-2xl bg-primary px-4 font-display text-[15px] font-semibold text-primary-foreground shadow-primary transition active:scale-[0.98] disabled:opacity-60"
             >
-              {busy ? "যোগ হচ্ছে…" : "কুইতে যোগ করুন"}
+              {busy ? "…" : "খুঁজুন"}
             </button>
           </form>
+          {error && <p className="mt-2 text-[12px] text-muted-foreground">{error}</p>}
         </section>
+
+        <div className="mt-6 flex items-center justify-between">
+          <h2 className="font-display text-xl font-semibold">{input.trim() && searched ? "ফলাফল" : "এখন জনপ্রিয়"}</h2>
+          {searching && <span className="text-[12px] text-muted-foreground">খোঁজা হচ্ছে…</span>}
+        </div>
+        {searched && !searching && results.length === 0 && (
+          <p className="glass mt-3 rounded-3xl p-5 text-center text-[13px] text-muted-foreground">কিছু পাওয়া যায়নি — অন্য নামে খুঁজে দেখুন।</p>
+        )}
+        <ul className="mt-3 space-y-2.5">
+          {results.map((r) => {
+            const active = current?.id === r.id;
+            return (
+              <li key={r.id}>
+                <button
+                  onClick={() => playResult(r)}
+                  className={`flex w-full items-center gap-3 rounded-3xl p-2.5 text-left ring-1 ${active ? "bg-primary-soft/80 ring-primary/25" : "glass ring-border"}`}
+                >
+                  <span className="relative shrink-0">
+                    <img src={r.thumbnail} alt="" className="h-14 w-[88px] rounded-[14px] object-cover ring-1 ring-border" loading="lazy" />
+                    {r.duration && (
+                      <span className="absolute right-1 bottom-1 rounded-md bg-foreground/80 px-1 text-[10px] font-medium text-background">{r.duration}</span>
+                    )}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="line-clamp-2 font-display text-[14px] font-semibold leading-snug">{r.title}</span>
+                    <span className="block truncate text-[12px] text-muted-foreground">
+                      {r.author}
+                      {r.views ? ` · ${r.views}` : ""}
+                    </span>
+                  </span>
+                  {active && playing ? <Eq /> : <span className="text-primary"><PlayIcon playing={false} /></span>}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
 
         <div className="mt-6 flex items-center justify-between">
           <h2 className="font-display text-xl font-semibold">আজকের কুই</h2>
