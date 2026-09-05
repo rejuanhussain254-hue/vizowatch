@@ -35,6 +35,9 @@ export function usePlayer(queue: Track[], containerId: string) {
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [repeat, setRepeat] = useState(false);
+  const [captionTracks, setCaptionTracks] = useState<CaptionTrack[]>([]);
+  const [captionsOn, setCaptionsOn] = useState(false);
+  const [captionLang, setCaptionLang] = useState<string | null>(null);
   const indexRef = useRef<number | null>(null);
   const queueRef = useRef(queue);
   const repeatRef = useRef(repeat);
@@ -87,9 +90,6 @@ export function usePlayer(queue: Track[], containerId: string) {
   }, []);
 
   // ---- captions (only offered when the video actually has tracks) ----
-  const [captionTracks, setCaptionTracks] = useState<CaptionTrack[]>([]);
-  const [captionsOn, setCaptionsOn] = useState(false);
-  const [captionLang, setCaptionLang] = useState<string | null>(null);
 
   const readTracks = useCallback(() => {
     const p = playerRef.current;
