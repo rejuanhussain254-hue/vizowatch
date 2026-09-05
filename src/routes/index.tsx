@@ -1,37 +1,64 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { usePlayer } from "@/hooks/usePlayer";
 import { searchYouTube, type SearchResult } from "@/lib/search.functions";
 import {
+  clearHistory,
   extractVideoId,
   fetchTrack,
   formatTime,
+  loadHistory,
   loadQueue,
+  pushHistory,
   saveQueue,
+  timeAgo,
+  updateHistoryPosition,
+  type HistoryItem,
   type Track,
 } from "@/lib/youtube";
+
+type Search = { url?: string; text?: string; title?: string; v?: string };
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "Echo — ইউটিউব ব্যাকগ্রাউন্ড প্লেয়ার" },
-      { name: "description", content: "ইউটিউব লিংক পেস্ট করুন, সাইন-ইন ছাড়াই ব্যাকগ্রাউন্ডে গান শুনুন। কুই, লক-স্ক্রিন কন্ট্রোল ও রিপিট সহ।" },
+      { name: "description", content: "অ্যাপের ভেতরেই ইউটিউব খুঁজুন, সাইন-ইন ছাড়াই যেকোনো ভিডিও ব্যাকগ্রাউন্ডে চালান। কুই, ইতিহাস, লক-স্ক্রিন কন্ট্রোল সহ।" },
       { property: "og:title", content: "Echo — ইউটিউব ব্যাকগ্রাউন্ড প্লেয়ার" },
-      { property: "og:description", content: "সাইন-ইন ছাড়াই ইউটিউব গান ব্যাকগ্রাউন্ডে শুনুন।" },
+      { property: "og:description", content: "সাইন-ইন ছাড়াই ইউটিউব ভিডিও ব্যাকগ্রাউন্ডে শুনুন।" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
-  validateSearch: (s: Record<string, unknown>): { url?: string; text?: string; title?: string } => {
-    const out: { url?: string; text?: string; title?: string } = {};
-    if (typeof s["url"] === "string") out.url = s["url"];
-    if (typeof s["text"] === "string") out.text = s["text"];
-    if (typeof s["title"] === "string") out.title = s["title"];
+  validateSearch: (s: Record<string, unknown>): Search => {
+    const out: Search = {};
+    for (const k of ["url", "text", "title", "v"] as const) if (typeof s[k] === "string") out[k] = s[k] as string;
     return out;
   },
   component: Index,
 });
 
 const PLAYER_ID = "echo-yt-player";
+
+const CATEGORIES: { label: string; q: string }[] = [
+  { label: "ট্রেন্ডিং", q: "" },
+  { label: "নাটক", q: "bangla natok new" },
+  { label: "খবর", q: "bangla news today live" },
+  { label: "গান", q: "new bangla hindi songs" },
+  { label: "ইসলামিক", q: "bangla waz islamic" },
+  { label: "খেলা", q: "cricket football highlights today" },
+  { label: "কমেডি", q: "bangla funny video comedy" },
+  { label: "রান্না", q: "bangla recipe cooking" },
+  { label: "ভ্লগ", q: "bangla vlog" },
+  { label: "পডকাস্ট", q: "bangla podcast" },
+  { label: "শিক্ষা", q: "bangla tutorial education" },
+  { label: "প্রযুক্তি", q: "bangla tech review" },
+  { label: "সিনেমা", q: "bangla movie full hd" },
+  { label: "কার্টুন", q: "bangla cartoon kids" },
+  { label: "ভ্রমণ", q: "bangladesh travel vlog" },
+  { label: "গেমিং", q: "bangla gaming" },
+];
 
 function Eq({ className = "bg-primary" }: { className?: string }) {
   return (
@@ -63,57 +90,184 @@ function SkipIcon({ back = false }: { back?: boolean }) {
   );
 }
 
+function Skeleton() {
+  return (
+    <ul className="mt-3 space-y-2.5" aria-label="লোড হচ্ছে">
+      {[0, 1, 2, 3, 4].map((i) => (
+        <li key={i} className="glass flex animate-pulse items-center gap-3 rounded-3xl p-2.5 ring-1 ring-border">
+          <span className="h-14 w-[88px] shrink-0 rounded-[14px] bg-lilac/50" />
+          <span className="flex-1 space-y-2">
+            <span className="block h-3.5 w-4/5 rounded-full bg-lilac/50" />
+            <span className="block h-3 w-1/2 rounded-full bg-lilac/40" />
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+type Row = Track & { duration?: string | number; views?: string };
+function VideoRow({ r, active, playing, onPlay, onQueue, sub }: { r: Row; active: boolean; playing: boolean; onPlay: () => void; onQueue?: () => void; sub?: string }) {
+  return (
+    <li className={`flex items-center gap-2 rounded-3xl p-2.5 ring-1 ${active ? "bg-primary-soft/80 ring-primary/25" : "glass ring-border"}`}>
+      <button onClick={onPlay} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+        <span className="relative shrink-0">
+          <img src={r.thumbnail} alt="" className="h-14 w-[88px] rounded-[14px] object-cover ring-1 ring-border" loading="lazy" />
+          {typeof r.duration === "string" && r.duration && <span className="absolute right-1 bottom-1 rounded-md bg-foreground/80 px-1 text-[10px] font-medium text-background">{r.duration}</span>}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="line-clamp-2 font-display text-[14px] font-semibold leading-snug">{r.title}</span>
+          <span className="block truncate text-[12px] text-muted-foreground">{sub ?? `${r.author}${r.views ? ` · ${r.views}` : ""}`}</span>
+        </span>
+      </button>
+      {active && playing ? (
+        <span className="px-2"><Eq /></span>
+      ) : onQueue ? (
+        <button onClick={onQueue} aria-label="কুইতে যোগ" title="কুইতে যোগ" className="grid size-9 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-background">
+          <span className="relative block size-3"><span className="absolute inset-x-0 top-1/2 h-[2px] -translate-y-1/2 rounded-full bg-current" /><span className="absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2 rounded-full bg-current" /></span>
+        </button>
+      ) : null}
+    </li>
+  );
+}
+
 function Index() {
   const [queue, setQueue] = useState<Track[]>([]);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<"queue" | "history">("queue");
   const [results, setResults] = useState<SearchResult[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [searched, setSearched] = useState(false);
+  const [lastQuery, setLastQuery] = useState("");
+  const [category, setCategory] = useState<string | null>("");
+  const [searchState, setSearchState] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [related, setRelated] = useState<SearchResult[]>([]);
+  const [relatedState, setRelatedState] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [relatedTick, setRelatedTick] = useState(0);
+  const [toast, setToast] = useState<string | null>(null);
   const player = usePlayer(queue, PLAYER_ID);
   const search = Route.useSearch();
   const navigate = useNavigate();
   const runSearch = useServerFn(searchYouTube);
+  const { current, playing, time, duration } = player;
+  const open = !!search.v;
 
-  async function doSearch(q: string) {
-    setSearching(true);
-    setSearched(true);
-    try {
-      setResults(await runSearch({ data: { q } }));
-    } catch {
+  const flash = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2200);
+  };
+
+  // ---- search with client-side retry ----
+  const doSearch = useCallback(
+    async (q: string) => {
+      setLastQuery(q);
+      setSearchState("loading");
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const res = await runSearch({ data: { q } });
+          if (res.ok) {
+            setResults(res.results);
+            setSearchState("ok");
+            return;
+          }
+        } catch {
+          /* retry */
+        }
+        await new Promise((r) => setTimeout(r, 600));
+      }
       setResults([]);
-    }
-    setSearching(false);
-  }
+      setSearchState("error");
+    },
+    [runSearch],
+  );
 
-  // Load trending on first open so the app feels like YouTube right away
   useEffect(() => {
     doSearch("");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [doSearch]);
 
-  function playResult(r: SearchResult) {
-    const track: Track = { id: r.id, title: r.title, author: r.author, thumbnail: r.thumbnail };
-    const existingIdx = queue.findIndex((t) => t.id === r.id);
-    if (existingIdx !== -1) {
-      player.playAt(existingIdx);
-    } else {
-      setQueue((q) => [...q, track]);
-      setTimeout(() => player.playAt(queue.length), 50);
-    }
-    setOpen(true);
-  }
-
+  // ---- persistence ----
   useEffect(() => {
     setQueue(loadQueue());
+    setHistory(loadHistory());
     setHydrated(true);
   }, []);
   useEffect(() => {
     if (hydrated) saveQueue(queue);
   }, [queue, hydrated]);
+
+  // record history + keep resume position fresh
+  useEffect(() => {
+    if (current) setHistory(pushHistory(current));
+  }, [current?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const lastSaved = useRef(0);
+  useEffect(() => {
+    if (!current || !duration) return;
+    if (Math.abs(time - lastSaved.current) < 5) return;
+    lastSaved.current = time;
+    updateHistoryPosition(current.id, time, duration);
+  }, [time, duration, current]);
+
+  // ---- watch page (?v=ID) ----
+  const openWatch = (id: string) => navigate({ to: "/", search: { v: id } });
+  const closeWatch = () => navigate({ to: "/", search: {}, replace: true });
+
+  const playTrack = useCallback(
+    (track: Track, startAt = 0) => {
+      const q = loadQueue();
+      let idx = q.findIndex((t) => t.id === track.id);
+      if (idx === -1) {
+        q.push(track);
+        idx = q.length - 1;
+        setQueue(q);
+        saveQueue(q);
+      }
+      setTimeout(() => player.playAt(idx, startAt), 60);
+      openWatch(track.id);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [player.playAt],
+  );
+
+  // ?v= present (deep link / reload / back-forward) but not playing that video → start it
+  useEffect(() => {
+    if (!hydrated || !player.ready || !search.v) return;
+    if (current?.id === search.v) return;
+    const id = search.v;
+    (async () => {
+      const known = loadQueue().find((t) => t.id === id) ?? loadHistory().find((t) => t.id === id) ?? (await fetchTrack(id));
+      const pos = loadHistory().find((h) => h.id === id)?.position ?? 0;
+      playTrack(known, pos);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, player.ready, search.v]);
+
+  // related videos for the watch page
+  useEffect(() => {
+    if (!open || !current) return;
+    let cancelled = false;
+    setRelatedState("loading");
+    (async () => {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const res = await runSearch({ data: { q: `${current.title.split(/[|(\[-]/)[0]!.trim()} ${current.author}` } });
+          if (cancelled) return;
+          if (res.ok) {
+            setRelated(res.results.filter((r) => r.id !== current.id).slice(0, 12));
+            setRelatedState("ok");
+            return;
+          }
+        } catch {
+          /* retry */
+        }
+      }
+      if (!cancelled) setRelatedState("error");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, current?.id, relatedTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Shared from YouTube (Share → Echo) or opened with ?url=
   useEffect(() => {
@@ -121,41 +275,31 @@ function Index() {
     const shared = [search.url, search.text, search.title].filter(Boolean).join(" ");
     const id = shared ? extractVideoId(shared) ?? extractVideoId(shared.match(/https?:\/\/\S+/)?.[0] ?? "") : null;
     if (!id) return;
-    navigate({ to: "/", search: {}, replace: true });
-    (async () => {
-      const existing = loadQueue();
-      let idx = existing.findIndex((t) => t.id === id);
-      if (idx === -1) {
-        const track = await fetchTrack(id);
-        existing.push(track);
-        idx = existing.length - 1;
-        setQueue(existing);
-      }
-      setTimeout(() => player.playAt(idx), 100);
-      setOpen(true);
-    })();
+    (async () => playTrack(loadQueue().find((t) => t.id === id) ?? (await fetchTrack(id))))();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated, player.ready, search.url, search.text, search.title]);
 
-  async function addTrack(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    const id = extractVideoId(input);
+    const q = input.trim();
+    if (!q) return setError("ভিডিওর নাম বা ইউটিউব লিংক দিন।");
+    const id = extractVideoId(q);
     if (!id) {
-      if (input.trim()) await doSearch(input.trim());
-      else setError("গানের নাম বা ইউটিউব লিংক দিন।");
-      return;
-    }
-    if (queue.some((t) => t.id === id)) {
-      setError("এই গানটি আগেই কুইতে আছে।");
-      return;
+      setCategory(null);
+      return doSearch(q);
     }
     setBusy(true);
     const track = await fetchTrack(id);
-    setQueue((q) => [...q, track]);
-    setInput("");
     setBusy(false);
-    if (player.index === null) setTimeout(() => player.playAt(queue.length), 50);
+    setInput("");
+    playTrack(track);
+  }
+
+  function addToQueue(t: Track) {
+    if (queue.some((x) => x.id === t.id)) return flash("আগেই কুইতে আছে");
+    setQueue((q) => [...q, { id: t.id, title: t.title, author: t.author, thumbnail: t.thumbnail }]);
+    flash("কুইতে যোগ হয়েছে");
   }
 
   function remove(i: number) {
@@ -164,8 +308,11 @@ function Index() {
     else if (player.index === i) player.setIndex(null);
   }
 
-  const { current, playing, time, duration } = player;
   const pct = duration ? (time / duration) * 100 : 0;
+  const resume = history.find((h) => h.position > 10 && h.id !== current?.id);
+  const upNext = player.index !== null ? queue.slice(player.index + 1, player.index + 6) : queue.slice(0, 5);
+  const isSearch = lastQuery.trim().length > 0;
+  const catLabel = CATEGORIES.find((c) => c.q === category)?.label ?? null;
 
   return (
     <div className="relative min-h-screen overflow-hidden font-body">
@@ -193,7 +340,7 @@ function Index() {
         <section className="glass mt-5 rounded-3xl p-4">
           <label htmlFor="yt" className="font-display text-base font-semibold">ইউটিউবে খুঁজুন</label>
           <p className="text-[13px] text-muted-foreground">যেকোনো ভিডিওর নাম লিখুন বা ইউটিউব লিংক পেস্ট করুন</p>
-          <form onSubmit={addTrack} className="mt-3 flex gap-2">
+          <form onSubmit={submit} className="mt-3 flex gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl bg-background px-3 py-2.5 ring-1 ring-border focus-within:ring-2 focus-within:ring-ring">
               <span className="block size-2.5 shrink-0 rounded-full ring-2 ring-lilac" aria-hidden />
               <input
@@ -205,10 +352,13 @@ function Index() {
                 inputMode="search"
                 autoComplete="off"
               />
+              {input && (
+                <button type="button" onClick={() => { setInput(""); setCategory(""); doSearch(""); }} aria-label="মুছুন" className="text-[12px] text-muted-foreground">✕</button>
+              )}
             </div>
             <button
               type="submit"
-              disabled={busy || searching}
+              disabled={busy || searchState === "loading"}
               className="shrink-0 rounded-2xl bg-primary px-4 font-display text-[15px] font-semibold text-primary-foreground shadow-primary transition active:scale-[0.98] disabled:opacity-60"
             >
               {busy ? "…" : "খুঁজুন"}
@@ -217,98 +367,163 @@ function Index() {
           {error && <p className="mt-2 text-[12px] text-muted-foreground">{error}</p>}
         </section>
 
-        <div className="mt-6 flex items-center justify-between">
-          <h2 className="font-display text-xl font-semibold">{input.trim() && searched ? "ফলাফল" : "এখন ট্রেন্ডিং"}</h2>
-          {searching && <span className="text-[12px] text-muted-foreground">খোঁজা হচ্ছে…</span>}
-        </div>
-        {searched && !searching && results.length === 0 && (
-          <p className="glass mt-3 rounded-3xl p-5 text-center text-[13px] text-muted-foreground">কিছু পাওয়া যায়নি — অন্য নামে খুঁজে দেখুন।</p>
-        )}
-        <ul className="mt-3 space-y-2.5">
-          {results.map((r) => {
-            const active = current?.id === r.id;
+        <nav aria-label="ক্যাটাগরি" className="-mx-5 mt-4 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {CATEGORIES.map((c) => {
+            const on = category === c.q;
             return (
-              <li key={r.id}>
-                <button
-                  onClick={() => playResult(r)}
-                  className={`flex w-full items-center gap-3 rounded-3xl p-2.5 text-left ring-1 ${active ? "bg-primary-soft/80 ring-primary/25" : "glass ring-border"}`}
-                >
-                  <span className="relative shrink-0">
-                    <img src={r.thumbnail} alt="" className="h-14 w-[88px] rounded-[14px] object-cover ring-1 ring-border" loading="lazy" />
-                    {r.duration && (
-                      <span className="absolute right-1 bottom-1 rounded-md bg-foreground/80 px-1 text-[10px] font-medium text-background">{r.duration}</span>
-                    )}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="line-clamp-2 font-display text-[14px] font-semibold leading-snug">{r.title}</span>
-                    <span className="block truncate text-[12px] text-muted-foreground">
-                      {r.author}
-                      {r.views ? ` · ${r.views}` : ""}
-                    </span>
-                  </span>
-                  {active && playing ? <Eq /> : <span className="text-primary"><PlayIcon playing={false} /></span>}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-
-        <div className="mt-6 flex items-center justify-between">
-          <h2 className="font-display text-xl font-semibold">আজকের কুই</h2>
-          <span className="rounded-full bg-mint/70 px-3 py-1 text-[12px] font-medium ring-1 ring-border">{queue.length} টি গান</span>
-        </div>
-
-        {hydrated && queue.length === 0 && (
-          <p className="glass mt-3 rounded-3xl p-5 text-center text-[13px] text-muted-foreground">
-            কুই খালি। উপরে খুঁজে যেকোনো ভিডিওতে ট্যাপ করলেই শুরু হবে।
-          </p>
-        )}
-
-        <ul className="mt-3 space-y-2.5">
-          {queue.map((t, i) => {
-            const active = player.index === i;
-            return (
-              <li
-                key={t.id}
-                className={`flex items-center gap-3 rounded-3xl p-2.5 ring-1 ${active ? "bg-primary-soft/80 ring-primary/25" : "glass ring-border"}`}
+              <button
+                key={c.label}
+                onClick={() => { setCategory(c.q); setInput(""); doSearch(c.q); }}
+                className={`shrink-0 rounded-full px-3.5 py-1.5 font-display text-[13px] font-semibold ring-1 transition active:scale-95 ${on ? "bg-primary text-primary-foreground ring-primary shadow-primary" : "bg-glass text-foreground ring-border"}`}
               >
-                <button onClick={() => player.playAt(i)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-                  <img src={t.thumbnail} alt="" className="size-14 shrink-0 rounded-[14px] object-cover ring-1 ring-border" loading="lazy" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-display text-[15px] font-semibold">{t.title}</span>
-                    <span className="block truncate text-[12px] text-muted-foreground">{t.author}</span>
-                  </span>
-                </button>
-                {active && playing ? (
-                  <span className="pr-1"><Eq /></span>
-                ) : (
-                  <button onClick={() => remove(i)} aria-label="মুছুন" className="grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-background">
-                    <span className="block h-[2px] w-3 rounded-full bg-current" />
-                  </button>
-                )}
-              </li>
+                {c.label}
+              </button>
             );
           })}
-        </ul>
+        </nav>
+
+        {resume && !open && (
+          <button
+            onClick={() => playTrack(resume, resume.position)}
+            className="mt-4 flex w-full items-center gap-3 rounded-3xl bg-primary p-3 text-left text-primary-foreground shadow-primary transition active:scale-[0.99]"
+          >
+            <img src={resume.thumbnail} alt="" className="h-12 w-[76px] rounded-xl object-cover" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[11px] opacity-80">যেখানে ছেড়েছিলেন · {formatTime(resume.position)} থেকে চালু করুন</span>
+              <span className="block truncate font-display text-[14px] font-semibold">{resume.title}</span>
+            </span>
+            <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-primary-foreground text-primary"><PlayIcon playing={false} /></span>
+          </button>
+        )}
+
+        {/* Queue / History */}
+        <div className="mt-6 flex items-center justify-between">
+          <div className="flex gap-1 rounded-2xl bg-glass p-1 ring-1 ring-border">
+            {(["queue", "history"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`rounded-xl px-3 py-1.5 font-display text-[13px] font-semibold transition ${tab === t ? "bg-primary text-primary-foreground shadow-primary" : "text-muted-foreground"}`}
+              >
+                {t === "queue" ? `কুই · ${queue.length}` : `ইতিহাস · ${history.length}`}
+              </button>
+            ))}
+          </div>
+          {tab === "queue" && queue.length > 0 && (
+            <button onClick={() => { setQueue([]); player.setIndex(null); }} className="text-[12px] text-muted-foreground">সব মুছুন</button>
+          )}
+          {tab === "history" && history.length > 0 && (
+            <button onClick={() => { clearHistory(); setHistory([]); }} className="text-[12px] text-muted-foreground">সব মুছুন</button>
+          )}
+        </div>
+
+        {tab === "queue" && (
+          <>
+            {hydrated && queue.length === 0 && (
+              <p className="glass mt-3 rounded-3xl p-5 text-center text-[13px] text-muted-foreground">কুই খালি। নিচের যেকোনো ভিডিওর <b className="text-foreground">+</b> চাপলে কুইতে যোগ হবে।</p>
+            )}
+            <ul className="mt-3 space-y-2.5">
+              {queue.map((t, i) => {
+                const active = player.index === i;
+                return (
+                  <li key={t.id} className={`flex items-center gap-2 rounded-3xl p-2.5 ring-1 ${active ? "bg-primary-soft/80 ring-primary/25" : "glass ring-border"}`}>
+                    <span className="w-5 shrink-0 text-center text-[11px] text-muted-foreground">{i + 1}</span>
+                    <button onClick={() => { player.playAt(i); openWatch(t.id); }} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                      <img src={t.thumbnail} alt="" className="size-12 shrink-0 rounded-[12px] object-cover ring-1 ring-border" loading="lazy" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-display text-[14px] font-semibold">{t.title}</span>
+                        <span className="block truncate text-[12px] text-muted-foreground">{t.author}</span>
+                      </span>
+                    </button>
+                    {active && playing ? (
+                      <span className="pr-1"><Eq /></span>
+                    ) : (
+                      <button onClick={() => remove(i)} aria-label="মুছুন" className="grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-background">
+                        <span className="block h-[2px] w-3 rounded-full bg-current" />
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
+
+        {tab === "history" && (
+          <>
+            {hydrated && history.length === 0 && (
+              <p className="glass mt-3 rounded-3xl p-5 text-center text-[13px] text-muted-foreground">এখনো কিছু দেখা হয়নি। যা চালাবেন তা এখানে জমা থাকবে।</p>
+            )}
+            <ul className="mt-3 space-y-2.5">
+              {history.map((h) => (
+                <VideoRow
+                  key={h.id}
+                  r={h}
+                  active={current?.id === h.id}
+                  playing={playing}
+                  onPlay={() => playTrack(h, h.position)}
+                  onQueue={() => addToQueue(h)}
+                  sub={`${timeAgo(h.at)}${h.position > 10 ? ` · ${formatTime(h.position)} থেকে` : ""}`}
+                />
+              ))}
+            </ul>
+          </>
+        )}
+
+        {/* Search / trending */}
+        <div className="mt-8 flex items-center justify-between">
+          <h2 className="font-display text-xl font-semibold">{catLabel ? (catLabel === "ট্রেন্ডিং" ? "এখন ট্রেন্ডিং" : catLabel) : isSearch ? `"${lastQuery}"` : "এখন ট্রেন্ডিং"}</h2>
+          {searchState === "loading" && <span className="text-[12px] text-muted-foreground">খোঁজা হচ্ছে…</span>}
+        </div>
+
+        {searchState === "loading" && <Skeleton />}
+
+        {searchState === "error" && (
+          <div className="glass mt-3 rounded-3xl p-5 text-center">
+            <p className="font-display text-sm font-semibold">ইউটিউব থেকে ফলাফল আনা যায়নি</p>
+            <p className="mt-1 text-[12.5px] text-muted-foreground">ইন্টারনেট দেখুন বা একটু পরে আবার চেষ্টা করুন।</p>
+            <button onClick={() => doSearch(lastQuery)} className="mt-3 rounded-2xl bg-primary px-4 py-2 font-display text-[13px] font-semibold text-primary-foreground shadow-primary">
+              আবার চেষ্টা করুন
+            </button>
+          </div>
+        )}
+
+        {searchState === "ok" && results.length === 0 && (
+          <div className="glass mt-3 rounded-3xl p-5 text-center">
+            <p className="font-display text-sm font-semibold">{catLabel ?? `"${lastQuery}"`} — কিছু পাওয়া যায়নি</p>
+            <p className="mt-1 text-[12.5px] text-muted-foreground">বানান বদলে দেখুন, বা ইউটিউব লিংক সরাসরি পেস্ট করুন।</p>
+            <button onClick={() => { setInput(""); setCategory(""); doSearch(""); }} className="mt-3 rounded-2xl bg-glass px-4 py-2 font-display text-[13px] font-semibold ring-1 ring-border">
+              ট্রেন্ডিং দেখুন
+            </button>
+          </div>
+        )}
+
+        {searchState === "ok" && results.length > 0 && (
+          <ul className="mt-3 space-y-2.5">
+            {results.map((r) => (
+              <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} onPlay={() => playTrack(r)} onQueue={() => addToQueue(r)} />
+            ))}
+          </ul>
+        )}
 
         <section className="glass mt-8 rounded-3xl p-4 text-[12.5px] leading-relaxed text-muted-foreground">
           <p className="font-display text-sm font-semibold text-foreground">ব্যাকগ্রাউন্ডে চালাতে</p>
           <ul className="mt-1.5 list-disc space-y-1 pl-4">
             <li>ব্রাউজারের মেনু থেকে <b className="text-foreground">Add to Home screen</b> করে অ্যাপের মতো খুলুন।</li>
-            <li>প্লে চালু রেখে স্ক্রিন অফ করুন — লক-স্ক্রিন থেকেই প্লে/পজ, পরের গান করা যাবে।</li>
-            <li>ইউটিউবে সাইন-ইন লাগবে না; শুধু লিংক পেস্ট করলেই চলবে।</li>
+            <li>প্লে চালু রেখে স্ক্রিন অফ করুন — লক-স্ক্রিন থেকেই প্লে/পজ, পরের ভিডিও করা যাবে।</li>
+            <li>ইউটিউবে সাইন-ইন লাগবে না।</li>
           </ul>
         </section>
       </main>
 
-      {/* Player iframe: hidden inside the now-playing sheet's artwork */}
+      {/* Watch page (?v=ID) — the player iframe lives here permanently so audio never stops */}
       <div
         className={`fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-[420px] flex-col bg-background/95 backdrop-blur-xl transition-transform duration-500 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)] ${open ? "translate-y-0" : "translate-y-full"}`}
         style={{ height: "100dvh" }}
         aria-hidden={!open}
       >
         <div className="flex items-center justify-between px-5 pt-5">
-          <button onClick={() => setOpen(false)} aria-label="বন্ধ" className="grid size-10 place-items-center rounded-2xl bg-glass ring-1 ring-border">
+          <button onClick={closeWatch} aria-label="বন্ধ" className="grid size-10 place-items-center rounded-2xl bg-glass ring-1 ring-border">
             <span className="block h-[2px] w-4 rounded-full bg-foreground" />
           </button>
           <p className="font-display text-sm font-semibold">এখন চলছে</p>
@@ -319,31 +534,90 @@ function Index() {
             রিপিট
           </button>
         </div>
-        <div className="mx-5 mt-6 aspect-video overflow-hidden rounded-3xl bg-lilac/40 ring-1 ring-border">
-          <div id={PLAYER_ID} className="size-full" />
-        </div>
-        <div className="px-5 pt-6">
-          <p className="truncate font-display text-xl font-bold">{current?.title ?? "কোনো গান বাছাই হয়নি"}</p>
-          <p className="truncate text-sm text-muted-foreground">{current?.author ?? "কুই থেকে একটি গান বেছে নিন"}</p>
-          <input
-            type="range"
-            min={0}
-            max={duration || 0}
-            value={Math.min(time, duration || 0)}
-            onChange={(e) => player.seek(Number(e.target.value))}
-            className="mt-5 w-full accent-primary"
-            aria-label="সিক"
-          />
-          <div className="flex justify-between text-[11px] text-muted-foreground">
-            <span>{formatTime(time)}</span>
-            <span>{formatTime(duration)}</span>
+
+        <div className="min-h-0 flex-1 overflow-y-auto pb-8">
+          <div className="mx-5 mt-4 aspect-video overflow-hidden rounded-3xl bg-lilac/40 ring-1 ring-border">
+            <div id={PLAYER_ID} className="size-full" />
           </div>
-          <div className="mt-6 flex items-center justify-center gap-5">
-            <button onClick={player.prev} aria-label="আগের গান" className="grid size-14 place-items-center rounded-2xl bg-glass ring-1 ring-border"><SkipIcon back /></button>
-            <button onClick={player.toggle} aria-label={playing ? "পজ" : "প্লে"} className="grid size-[72px] place-items-center rounded-3xl bg-primary text-primary-foreground shadow-primary">
-              <PlayIcon playing={playing} />
-            </button>
-            <button onClick={player.next} aria-label="পরের গান" className="grid size-14 place-items-center rounded-2xl bg-glass ring-1 ring-border"><SkipIcon /></button>
+          <div className="px-5 pt-4">
+            <p className="line-clamp-2 font-display text-lg font-bold leading-snug">{current?.title ?? "কোনো ভিডিও বাছাই হয়নি"}</p>
+            <p className="mt-0.5 truncate text-sm text-muted-foreground">{current?.author ?? "কুই থেকে একটি ভিডিও বেছে নিন"}</p>
+            <input
+              type="range"
+              min={0}
+              max={duration || 0}
+              value={Math.min(time, duration || 0)}
+              onChange={(e) => player.seek(Number(e.target.value))}
+              className="mt-4 w-full accent-primary"
+              aria-label="সিক"
+            />
+            <div className="flex justify-between text-[11px] text-muted-foreground">
+              <span>{formatTime(time)}</span>
+              <span>{formatTime(duration)}</span>
+            </div>
+            <div className="mt-4 flex items-center justify-center gap-5">
+              <button onClick={player.prev} aria-label="আগের ভিডিও" className="grid size-14 place-items-center rounded-2xl bg-glass ring-1 ring-border"><SkipIcon back /></button>
+              <button onClick={player.toggle} aria-label={playing ? "পজ" : "প্লে"} className="grid size-[72px] place-items-center rounded-3xl bg-primary text-primary-foreground shadow-primary">
+                <PlayIcon playing={playing} />
+              </button>
+              <button onClick={player.next} aria-label="পরের ভিডিও" className="grid size-14 place-items-center rounded-2xl bg-glass ring-1 ring-border"><SkipIcon /></button>
+            </div>
+            <p className="mt-3 text-center text-[11px] text-muted-foreground">স্ক্রিন অফ করলেও চলতে থাকবে · লক-স্ক্রিন থেকে কন্ট্রোল করুন</p>
+
+            {current && (
+              <div className="mt-3 flex gap-2">
+                <button
+                  onClick={() => navigator.share?.({ url: `https://youtu.be/${current.id}`, title: current.title }).catch(() => {})}
+                  className="flex-1 rounded-2xl bg-glass py-2 text-[12px] font-semibold ring-1 ring-border"
+                >
+                  শেয়ার
+                </button>
+                <a href={`https://www.youtube.com/watch?v=${current.id}`} target="_blank" rel="noopener" className="flex-1 rounded-2xl bg-glass py-2 text-center text-[12px] font-semibold ring-1 ring-border">
+                  ইউটিউবে দেখুন
+                </a>
+              </div>
+            )}
+
+            {upNext.length > 0 && (
+              <>
+                <h3 className="mt-6 font-display text-base font-semibold">পরে বাজবে</h3>
+                <ul className="mt-2 space-y-2">
+                  {upNext.map((t) => {
+                    const i = queue.findIndex((x) => x.id === t.id);
+                    return (
+                      <li key={t.id} className="glass flex items-center gap-3 rounded-2xl p-2 ring-1 ring-border">
+                        <button onClick={() => { player.playAt(i); openWatch(t.id); }} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                          <img src={t.thumbnail} alt="" className="size-10 shrink-0 rounded-xl object-cover ring-1 ring-border" loading="lazy" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-[13px] font-semibold">{t.title}</span>
+                            <span className="block truncate text-[11px] text-muted-foreground">{t.author}</span>
+                          </span>
+                        </button>
+                        <button onClick={() => remove(i)} aria-label="কুই থেকে মুছুন" className="grid size-8 place-items-center rounded-full text-muted-foreground"><span className="block h-[2px] w-3 rounded-full bg-current" /></button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            )}
+
+            <h3 className="mt-6 font-display text-base font-semibold">সম্পর্কিত ভিডিও</h3>
+            {relatedState === "loading" && <Skeleton />}
+            {relatedState === "error" && (
+              <p className="glass mt-2 rounded-2xl p-4 text-center text-[12.5px] text-muted-foreground">
+                সম্পর্কিত ভিডিও আনা যায়নি। <button onClick={() => setRelatedTick((t) => t + 1)} className="font-semibold text-primary">আবার চেষ্টা</button>
+              </p>
+            )}
+            {relatedState === "ok" && related.length === 0 && (
+              <p className="glass mt-2 rounded-2xl p-4 text-center text-[12.5px] text-muted-foreground">এই ভিডিওর সাথে মেলে এমন কিছু পাওয়া যায়নি।</p>
+            )}
+            {relatedState === "ok" && related.length > 0 && (
+              <ul className="mt-2 space-y-2">
+                {related.map((r) => (
+                  <VideoRow key={r.id} r={r} active={false} playing={false} onPlay={() => playTrack(r)} onQueue={() => addToQueue(r)} />
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       </div>
@@ -354,7 +628,7 @@ function Index() {
           <div className="glass relative overflow-hidden rounded-3xl p-2.5 pr-3">
             <div className="absolute inset-x-0 top-0 h-[3px] bg-primary/15"><div className="h-full bg-primary transition-[width]" style={{ width: `${pct}%` }} /></div>
             <div className="flex items-center gap-3">
-              <button onClick={() => setOpen(true)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+              <button onClick={() => current && openWatch(current.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
                 {current ? (
                   <img src={current.thumbnail} alt="" className="size-12 shrink-0 rounded-[12px] object-cover ring-1 ring-border" />
                 ) : (
@@ -362,15 +636,21 @@ function Index() {
                 )}
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-display text-[14px] font-semibold">{current?.title ?? "Echo"}</span>
-                  <span className="block truncate text-[11px] text-muted-foreground">{current?.author ?? "গান বেছে নিন"}</span>
+                  <span className="block truncate text-[11px] text-muted-foreground">{current?.author ?? "ভিডিও বেছে নিন"}</span>
                 </span>
               </button>
               <button onClick={player.toggle} aria-label={playing ? "পজ" : "প্লে"} className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-primary">
                 <PlayIcon playing={playing} />
               </button>
-              <button onClick={player.next} aria-label="পরের গান" className="grid size-11 shrink-0 place-items-center rounded-2xl bg-background ring-1 ring-border"><SkipIcon /></button>
+              <button onClick={player.next} aria-label="পরের ভিডিও" className="grid size-11 shrink-0 place-items-center rounded-2xl bg-background ring-1 ring-border"><SkipIcon /></button>
             </div>
           </div>
+        </div>
+      )}
+
+      {toast && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-28 z-40 flex justify-center">
+          <span className="rounded-full bg-foreground px-4 py-2 text-[12px] font-semibold text-background shadow-primary">{toast}</span>
         </div>
       )}
     </div>
