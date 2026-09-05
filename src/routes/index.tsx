@@ -202,9 +202,26 @@ function Index() {
     if (hydrated) saveQueue(queue);
   }, [queue, hydrated]);
 
-  // record history + keep resume position fresh
+  // signed in → merge local history with the cloud copy and use the merged list
   useEffect(() => {
-    if (current) setHistory(pushHistory(current));
+    if (!userId || !hydrated) return;
+    let cancelled = false;
+    setSyncing(true);
+    mergeHistoryOnSignIn(userId)
+      .then((merged) => { if (!cancelled) setHistory(merged); })
+      .catch(() => { if (!cancelled) flash("ইতিহাস সিঙ্ক হয়নি"); })
+      .finally(() => { if (!cancelled) setSyncing(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, hydrated]);
+
+  // record history + keep resume position fresh (locally, and in the cloud when signed in)
+  useEffect(() => {
+    if (!current) return;
+    const next = pushHistory(current);
+    setHistory(next);
+    const item = next.find((h) => h.id === current.id);
+    if (userId && item) upsertCloudHistory(userId, item);
   }, [current?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const lastSaved = useRef(0);
   useEffect(() => {
@@ -212,7 +229,11 @@ function Index() {
     if (Math.abs(time - lastSaved.current) < 5) return;
     lastSaved.current = time;
     updateHistoryPosition(current.id, time, duration);
-  }, [time, duration, current]);
+    if (userId) {
+      const item = loadHistory().find((h) => h.id === current.id);
+      if (item) updateCloudPosition(userId, current.id, item.position, item.duration);
+    }
+  }, [time, duration, current, userId]);
 
   // ---- watch page (?v=ID) ----
   const openWatch = (id: string) => navigate({ to: "/", search: { v: id } });
