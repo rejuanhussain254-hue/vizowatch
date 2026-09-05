@@ -42,13 +42,13 @@ export function usePlayer(queue: Track[], containerId: string) {
 
   const current = index !== null ? queue[index] ?? null : null;
 
-  const playAt = useCallback((i: number) => {
+  const playAt = useCallback((i: number, startAt = 0) => {
     const q = queueRef.current;
     if (!q.length) return;
     const next = ((i % q.length) + q.length) % q.length;
     setIndex(next);
     indexRef.current = next;
-    playerRef.current?.loadVideoById(q[next]!.id);
+    playerRef.current?.loadVideoById({ videoId: q[next]!.id, startSeconds: startAt });
     setPlaying(true);
   }, []);
 
