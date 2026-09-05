@@ -19,11 +19,13 @@ export const Route = createFileRoute("/")({
       { property: "og:description", content: "সাইন-ইন ছাড়াই ইউটিউব গান ব্যাকগ্রাউন্ডে শুনুন।" },
     ],
   }),
-  validateSearch: (s: Record<string, unknown>) => ({
-    url: typeof s.url === "string" ? s.url : undefined,
-    text: typeof s.text === "string" ? s.text : undefined,
-    title: typeof s.title === "string" ? s.title : undefined,
-  }),
+  validateSearch: (s: Record<string, unknown>): { url?: string; text?: string; title?: string } => {
+    const out: { url?: string; text?: string; title?: string } = {};
+    if (typeof s["url"] === "string") out.url = s["url"];
+    if (typeof s["text"] === "string") out.text = s["text"];
+    if (typeof s["title"] === "string") out.title = s["title"];
+    return out;
+  },
   component: Index,
 });
 
