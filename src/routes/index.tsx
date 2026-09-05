@@ -486,6 +486,12 @@ function Index() {
 
         {tab === "history" && (
           <>
+            {hydrated && !user && (
+              <Link to="/auth" className="mt-3 flex items-center justify-between rounded-3xl bg-primary-soft/70 px-4 py-3 text-[13px] ring-1 ring-primary/25">
+                <span>সাইন-ইন করলে ইতিহাস সব ডিভাইসে সিঙ্ক হবে</span>
+                <b className="text-primary">সাইন-ইন →</b>
+              </Link>
+            )}
             {hydrated && history.length === 0 && (
               <p className="glass mt-3 rounded-3xl p-5 text-center text-[13px] text-muted-foreground">এখনো কিছু দেখা হয়নি। যা চালাবেন তা এখানে জমা থাকবে।</p>
             )}
