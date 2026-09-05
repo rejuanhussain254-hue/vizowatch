@@ -439,7 +439,7 @@ function Index() {
             <button onClick={() => { setQueue([]); player.setIndex(null); }} className="text-[12px] text-muted-foreground">সব মুছুন</button>
           )}
           {tab === "history" && history.length > 0 && (
-            <button onClick={() => { clearHistory(); setHistory([]); }} className="text-[12px] text-muted-foreground">সব মুছুন</button>
+            <button onClick={() => { clearHistory(); setHistory([]); if (userId) clearCloudHistory(userId); }} className="text-[12px] text-muted-foreground">সব মুছুন</button>
           )}
         </div>
 
