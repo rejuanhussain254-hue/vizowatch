@@ -153,6 +153,9 @@ function Index() {
   const search = Route.useSearch();
   const navigate = useNavigate();
   const runSearch = useServerFn(searchYouTube);
+  const { user, signOut } = useAuth();
+  const userId = user?.id ?? null;
+  const [syncing, setSyncing] = useState(false);
   const { current, playing, time, duration } = player;
   const open = !!search.v;
 
