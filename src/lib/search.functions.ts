@@ -68,10 +68,8 @@ export const searchYouTube = createServerFn({ method: "GET" })
     return { q: d.q.slice(0, 200) };
   })
   .handler(async ({ data }) => {
-    const q = data.q.trim();
-    const url = q
-      ? `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}&sp=EgIQAQ%253D%253D`
-      : "https://www.youtube.com/feed/trending?bp=4gINGgt5dG1hX2NoYXJ0cw%3D%3D&gl=BD&hl=en";
+    const q = data.q.trim() || "new bangla hindi songs this week";
+    const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}&sp=EgIQAQ%253D%253D&gl=BD&hl=en`;
     try {
       return await fetchResults(url);
     } catch {
