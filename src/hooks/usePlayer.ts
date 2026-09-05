@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Track } from "@/lib/youtube";
 
+export type CaptionTrack = { code: string; name: string };
+
 declare global {
   interface Window {
     YT?: any;
@@ -49,6 +51,7 @@ export function usePlayer(queue: Track[], containerId: string) {
     setIndex(next);
     indexRef.current = next;
     playerRef.current?.loadVideoById({ videoId: q[next]!.id, startSeconds: startAt });
+    setCaptionTracks([]);
     setPlaying(true);
   }, []);
 
@@ -86,8 +89,7 @@ export function usePlayer(queue: Track[], containerId: string) {
   // ---- captions (only offered when the video actually has tracks) ----
   const [captionTracks, setCaptionTracks] = useState<CaptionTrack[]>([]);
   const [captionsOn, setCaptionsOn] = useState(false);
-  const captionsOnRef = useRef(false);
-  captionsOnRef.current = captionsOn;
+  const [captionLang, setCaptionLang] = useState<string | null>(null);
 
   const readTracks = useCallback(() => {
     const p = playerRef.current;
@@ -95,8 +97,8 @@ export function usePlayer(queue: Track[], containerId: string) {
       const list = (p?.getOption?.("captions", "tracklist") ?? []) as { languageCode: string; displayName: string }[];
       setCaptionTracks(list.map((t) => ({ code: t.languageCode, name: t.displayName })));
       const track = p?.getOption?.("captions", "track") as { languageCode?: string } | undefined;
-      if (list.length === 0) setCaptionsOn(false);
-      else if (track?.languageCode) setCaptionsOn(true);
+      if (list.length === 0) { setCaptionsOn(false); setCaptionLang(null); }
+      else if (track?.languageCode) { setCaptionsOn(true); setCaptionLang(track.languageCode); }
     } catch {
       setCaptionTracks([]);
     }
@@ -110,24 +112,19 @@ export function usePlayer(queue: Track[], containerId: string) {
         p.loadModule?.("captions");
         const lang = code ?? captionTracks[0]?.code;
         if (lang) p.setOption("captions", "track", { languageCode: lang });
+        setCaptionLang(lang ?? null);
         setCaptionsOn(true);
       } else {
         p.setOption?.("captions", "track", {});
         p.unloadModule?.("captions");
         setCaptionsOn(false);
+        setCaptionLang(null);
       }
     } catch {
       /* captions module unavailable */
     }
   }, [captionTracks]);
 
-  const activeCaption = (() => {
-    try {
-      return (playerRef.current?.getOption?.("captions", "track") as { languageCode?: string } | undefined)?.languageCode ?? null;
-    } catch {
-      return null;
-    }
-  })();
 
   useEffect(() => {
     let cancelled = false;
@@ -139,10 +136,16 @@ export function usePlayer(queue: Track[], containerId: string) {
         playerVars: { playsinline: 1, rel: 0, modestbranding: 1, controls: 0 },
         events: {
           onReady: () => setReady(true),
+          onApiChange: () => readTracks(),
           onStateChange: (e: any) => {
             const st = e.data;
             setPlaying(st === 1);
-            if (st === 1) setDuration(e.target.getDuration());
+            if (st === 1) {
+              setDuration(e.target.getDuration());
+              // Ask the player to load the captions module so it reports available tracks.
+              try { e.target.loadModule?.("captions"); } catch { /* noop */ }
+              setTimeout(readTracks, 800);
+            }
             if (st === 0) {
               if (repeatRef.current) e.target.seekTo(0, true);
               else next();
@@ -163,7 +166,7 @@ export function usePlayer(queue: Track[], containerId: string) {
       cancelled = true;
       clearInterval(tick);
     };
-  }, [containerId, next]);
+  }, [containerId, next, readTracks]);
 
   // Lock-screen / notification controls
   useEffect(() => {
@@ -203,5 +206,5 @@ export function usePlayer(queue: Track[], containerId: string) {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [playing]);
 
-  return { ready, current, index, playing, time, duration, repeat, setRepeat, playAt, next, prev, toggle, seek, setIndex };
+  return { ready, current, index, playing, time, duration, repeat, setRepeat, playAt, next, prev, toggle, seek, setIndex, captionTracks, captionsOn, captionLang, setCaptions };
 }
