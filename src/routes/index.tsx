@@ -192,7 +192,7 @@ function Index() {
 
         <section className="glass mt-5 rounded-3xl p-4">
           <label htmlFor="yt" className="font-display text-base font-semibold">ইউটিউবে খুঁজুন</label>
-          <p className="text-[13px] text-muted-foreground">গানের নাম লিখুন বা ইউটিউব লিংক পেস্ট করুন</p>
+          <p className="text-[13px] text-muted-foreground">যেকোনো ভিডিওর নাম লিখুন বা ইউটিউব লিংক পেস্ট করুন</p>
           <form onSubmit={addTrack} className="mt-3 flex gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl bg-background px-3 py-2.5 ring-1 ring-border focus-within:ring-2 focus-within:ring-ring">
               <span className="block size-2.5 shrink-0 rounded-full ring-2 ring-lilac" aria-hidden />
@@ -200,7 +200,7 @@ function Index() {
                 id="yt"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="যেমন: Arijit Singh"
+                placeholder="যেমন: নাটক, খবর, গান, পডকাস্ট…"
                 className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted-foreground"
                 inputMode="search"
                 autoComplete="off"
@@ -218,7 +218,7 @@ function Index() {
         </section>
 
         <div className="mt-6 flex items-center justify-between">
-          <h2 className="font-display text-xl font-semibold">{input.trim() && searched ? "ফলাফল" : "এখন জনপ্রিয়"}</h2>
+          <h2 className="font-display text-xl font-semibold">{input.trim() && searched ? "ফলাফল" : "এখন ট্রেন্ডিং"}</h2>
           {searching && <span className="text-[12px] text-muted-foreground">খোঁজা হচ্ছে…</span>}
         </div>
         {searched && !searching && results.length === 0 && (
@@ -260,7 +260,7 @@ function Index() {
 
         {hydrated && queue.length === 0 && (
           <p className="glass mt-3 rounded-3xl p-5 text-center text-[13px] text-muted-foreground">
-            কুই খালি। উপরে একটি ইউটিউব লিংক পেস্ট করলেই গান শুরু হবে।
+            কুই খালি। উপরে খুঁজে যেকোনো ভিডিওতে ট্যাপ করলেই শুরু হবে।
           </p>
         )}
 

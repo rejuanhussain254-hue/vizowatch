@@ -68,7 +68,7 @@ export const searchYouTube = createServerFn({ method: "GET" })
     return { q: d.q.slice(0, 200) };
   })
   .handler(async ({ data }) => {
-    const q = data.q.trim() || "new bangla hindi songs this week";
+    const q = data.q.trim() || "trending videos bangladesh today";
     const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}&sp=EgIQAQ%253D%253D&gl=BD&hl=en`;
     try {
       return await fetchResults(url);
