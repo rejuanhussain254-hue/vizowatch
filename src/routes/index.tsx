@@ -334,7 +334,6 @@ function Index() {
     else if (player.index === i) player.setIndex(null);
   }
 
-  const pct = duration ? (time / duration) * 100 : 0;
   const resume = history.find((h) => h.position > 10 && h.id !== current?.id);
   const upNext = player.index !== null ? queue.slice(player.index + 1, player.index + 6) : queue.slice(0, 5);
   const isSearch = lastQuery.trim().length > 0;
