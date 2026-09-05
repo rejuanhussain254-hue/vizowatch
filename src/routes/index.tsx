@@ -142,10 +142,8 @@ function Index() {
     setError(null);
     const id = extractVideoId(input);
     if (!id) {
-      if (input.trim()) {
-        window.open(`https://m.youtube.com/results?search_query=${encodeURIComponent(input.trim())}`, "_blank");
-        setError("ইউটিউবে সার্চ খুলেছে — পছন্দের ভিডিওর লিংক কপি করে এখানে পেস্ট করুন।");
-      } else setError("একটি ইউটিউব লিংক দিন।");
+      if (input.trim()) await doSearch(input.trim());
+      else setError("গানের নাম বা ইউটিউব লিংক দিন।");
       return;
     }
     if (queue.some((t) => t.id === id)) {
