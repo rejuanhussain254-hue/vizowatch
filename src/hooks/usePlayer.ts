@@ -1,0 +1,161 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { Track } from "@/lib/youtube";
+
+declare global {
+  interface Window {
+    YT?: any;
+    onYouTubeIframeAPIReady?: () => void;
+  }
+}
+
+let apiPromise: Promise<any> | null = null;
+function loadYouTubeApi(): Promise<any> {
+  if (apiPromise) return apiPromise;
+  apiPromise = new Promise((resolve) => {
+    if (window.YT?.Player) return resolve(window.YT);
+    const prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
+      prev?.();
+      resolve(window.YT);
+    };
+    const s = document.createElement("script");
+    s.src = "https://www.youtube.com/iframe_api";
+    document.head.appendChild(s);
+  });
+  return apiPromise;
+}
+
+export function usePlayer(queue: Track[], containerId: string) {
+  const playerRef = useRef<any>(null);
+  const [ready, setReady] = useState(false);
+  const [index, setIndex] = useState<number | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [time, setTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [repeat, setRepeat] = useState(false);
+  const indexRef = useRef<number | null>(null);
+  const queueRef = useRef(queue);
+  const repeatRef = useRef(repeat);
+  queueRef.current = queue;
+  repeatRef.current = repeat;
+  indexRef.current = index;
+
+  const current = index !== null ? queue[index] ?? null : null;
+
+  const playAt = useCallback((i: number) => {
+    const q = queueRef.current;
+    if (!q.length) return;
+    const next = ((i % q.length) + q.length) % q.length;
+    setIndex(next);
+    indexRef.current = next;
+    playerRef.current?.loadVideoById(q[next].id);
+    setPlaying(true);
+  }, []);
+
+  const next = useCallback(() => {
+    if (indexRef.current === null) return;
+    playAt(indexRef.current + 1);
+  }, [playAt]);
+
+  const prev = useCallback(() => {
+    if (indexRef.current === null) return;
+    const p = playerRef.current;
+    if (p && p.getCurrentTime?.() > 4) {
+      p.seekTo(0, true);
+      return;
+    }
+    playAt(indexRef.current - 1);
+  }, [playAt]);
+
+  const toggle = useCallback(() => {
+    const p = playerRef.current;
+    if (!p) return;
+    if (indexRef.current === null) {
+      playAt(0);
+      return;
+    }
+    if (p.getPlayerState?.() === 1) p.pauseVideo();
+    else p.playVideo();
+  }, [playAt]);
+
+  const seek = useCallback((t: number) => {
+    playerRef.current?.seekTo(t, true);
+    setTime(t);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadYouTubeApi().then((YT) => {
+      if (cancelled) return;
+      playerRef.current = new YT.Player(containerId, {
+        width: "100%",
+        height: "100%",
+        playerVars: { playsinline: 1, rel: 0, modestbranding: 1, controls: 0 },
+        events: {
+          onReady: () => setReady(true),
+          onStateChange: (e: any) => {
+            const st = e.data;
+            setPlaying(st === 1);
+            if (st === 1) setDuration(e.target.getDuration());
+            if (st === 0) {
+              if (repeatRef.current) e.target.seekTo(0, true);
+              else next();
+            }
+          },
+        },
+      });
+    });
+    const tick = setInterval(() => {
+      const p = playerRef.current;
+      if (p?.getCurrentTime) {
+        setTime(p.getCurrentTime() || 0);
+        const d = p.getDuration?.();
+        if (d) setDuration(d);
+      }
+    }, 500);
+    return () => {
+      cancelled = true;
+      clearInterval(tick);
+    };
+  }, [containerId, next]);
+
+  // Lock-screen / notification controls
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+    const ms = navigator.mediaSession;
+    if (current) {
+      ms.metadata = new MediaMetadata({
+        title: current.title,
+        artist: current.author,
+        album: "Echo",
+        artwork: [{ src: current.thumbnail, sizes: "480x360", type: "image/jpeg" }],
+      });
+    }
+    ms.playbackState = playing ? "playing" : "paused";
+    ms.setActionHandler("play", () => playerRef.current?.playVideo());
+    ms.setActionHandler("pause", () => playerRef.current?.pauseVideo());
+    ms.setActionHandler("nexttrack", next);
+    ms.setActionHandler("previoustrack", prev);
+    try {
+      ms.setActionHandler("seekto", (d) => d.seekTime != null && seek(d.seekTime));
+    } catch {
+      /* unsupported */
+    }
+  }, [current, playing, next, prev, seek]);
+
+  // Keep playing when the tab goes to the background
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "hidden" && playing) {
+        setTimeout(() => {
+          const p = playerRef.current;
+          if (p && p.getPlayerState?.() === 2 && indexRef.current !== null) p.playVideo();
+        }, 400);
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [playing]);
+
+  return { ready, current, index, playing, time, duration, repeat, setRepeat, playAt, next, prev, toggle, seek, setIndex };
+}
