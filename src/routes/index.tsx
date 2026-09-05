@@ -41,6 +41,25 @@ export const Route = createFileRoute("/")({
 
 const PLAYER_ID = "echo-yt-player";
 
+const CATEGORIES: { label: string; q: string }[] = [
+  { label: "ট্রেন্ডিং", q: "" },
+  { label: "নাটক", q: "bangla natok new" },
+  { label: "খবর", q: "bangla news today live" },
+  { label: "গান", q: "new bangla hindi songs" },
+  { label: "ইসলামিক", q: "bangla waz islamic" },
+  { label: "খেলা", q: "cricket football highlights today" },
+  { label: "কমেডি", q: "bangla funny video comedy" },
+  { label: "রান্না", q: "bangla recipe cooking" },
+  { label: "ভ্লগ", q: "bangla vlog" },
+  { label: "পডকাস্ট", q: "bangla podcast" },
+  { label: "শিক্ষা", q: "bangla tutorial education" },
+  { label: "প্রযুক্তি", q: "bangla tech review" },
+  { label: "সিনেমা", q: "bangla movie full hd" },
+  { label: "কার্টুন", q: "bangla cartoon kids" },
+  { label: "ভ্রমণ", q: "bangladesh travel vlog" },
+  { label: "গেমিং", q: "bangla gaming" },
+];
+
 function Eq({ className = "bg-primary" }: { className?: string }) {
   return (
     <span className="flex h-4 items-end gap-[3px]" aria-hidden>
@@ -87,13 +106,14 @@ function Skeleton() {
   );
 }
 
-function VideoRow({ r, active, playing, onPlay, onQueue, sub }: { r: Track & Partial<SearchResult>; active: boolean; playing: boolean; onPlay: () => void; onQueue?: () => void; sub?: string }) {
+type Row = Track & { duration?: string | number; views?: string };
+function VideoRow({ r, active, playing, onPlay, onQueue, sub }: { r: Row; active: boolean; playing: boolean; onPlay: () => void; onQueue?: () => void; sub?: string }) {
   return (
     <li className={`flex items-center gap-2 rounded-3xl p-2.5 ring-1 ${active ? "bg-primary-soft/80 ring-primary/25" : "glass ring-border"}`}>
       <button onClick={onPlay} className="flex min-w-0 flex-1 items-center gap-3 text-left">
         <span className="relative shrink-0">
           <img src={r.thumbnail} alt="" className="h-14 w-[88px] rounded-[14px] object-cover ring-1 ring-border" loading="lazy" />
-          {r.duration && <span className="absolute right-1 bottom-1 rounded-md bg-foreground/80 px-1 text-[10px] font-medium text-background">{r.duration}</span>}
+          {typeof r.duration === "string" && r.duration && <span className="absolute right-1 bottom-1 rounded-md bg-foreground/80 px-1 text-[10px] font-medium text-background">{r.duration}</span>}
         </span>
         <span className="min-w-0 flex-1">
           <span className="line-clamp-2 font-display text-[14px] font-semibold leading-snug">{r.title}</span>
@@ -121,9 +141,11 @@ function Index() {
   const [tab, setTab] = useState<"queue" | "history">("queue");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [lastQuery, setLastQuery] = useState("");
+  const [category, setCategory] = useState<string | null>("");
   const [searchState, setSearchState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [related, setRelated] = useState<SearchResult[]>([]);
   const [relatedState, setRelatedState] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [relatedTick, setRelatedTick] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const player = usePlayer(queue, PLAYER_ID);
   const search = Route.useSearch();
@@ -245,7 +267,7 @@ function Index() {
     return () => {
       cancelled = true;
     };
-  }, [open, current?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, current?.id, relatedTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Shared from YouTube (Share → Echo) or opened with ?url=
   useEffect(() => {
@@ -263,7 +285,10 @@ function Index() {
     const q = input.trim();
     if (!q) return setError("ভিডিওর নাম বা ইউটিউব লিংক দিন।");
     const id = extractVideoId(q);
-    if (!id) return doSearch(q);
+    if (!id) {
+      setCategory(null);
+      return doSearch(q);
+    }
     setBusy(true);
     const track = await fetchTrack(id);
     setBusy(false);
@@ -287,6 +312,7 @@ function Index() {
   const resume = history.find((h) => h.position > 10 && h.id !== current?.id);
   const upNext = player.index !== null ? queue.slice(player.index + 1, player.index + 6) : queue.slice(0, 5);
   const isSearch = lastQuery.trim().length > 0;
+  const catLabel = CATEGORIES.find((c) => c.q === category)?.label ?? null;
 
   return (
     <div className="relative min-h-screen overflow-hidden font-body">
@@ -327,7 +353,7 @@ function Index() {
                 autoComplete="off"
               />
               {input && (
-                <button type="button" onClick={() => { setInput(""); doSearch(""); }} aria-label="মুছুন" className="text-[12px] text-muted-foreground">✕</button>
+                <button type="button" onClick={() => { setInput(""); setCategory(""); doSearch(""); }} aria-label="মুছুন" className="text-[12px] text-muted-foreground">✕</button>
               )}
             </div>
             <button
@@ -340,6 +366,21 @@ function Index() {
           </form>
           {error && <p className="mt-2 text-[12px] text-muted-foreground">{error}</p>}
         </section>
+
+        <nav aria-label="ক্যাটাগরি" className="-mx-5 mt-4 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {CATEGORIES.map((c) => {
+            const on = category === c.q;
+            return (
+              <button
+                key={c.label}
+                onClick={() => { setCategory(c.q); setInput(""); doSearch(c.q); }}
+                className={`shrink-0 rounded-full px-3.5 py-1.5 font-display text-[13px] font-semibold ring-1 transition active:scale-95 ${on ? "bg-primary text-primary-foreground ring-primary shadow-primary" : "bg-glass text-foreground ring-border"}`}
+              >
+                {c.label}
+              </button>
+            );
+          })}
+        </nav>
 
         {resume && !open && (
           <button
@@ -431,7 +472,7 @@ function Index() {
 
         {/* Search / trending */}
         <div className="mt-8 flex items-center justify-between">
-          <h2 className="font-display text-xl font-semibold">{isSearch ? `"${lastQuery}"` : "এখন ট্রেন্ডিং"}</h2>
+          <h2 className="font-display text-xl font-semibold">{catLabel ? (catLabel === "ট্রেন্ডিং" ? "এখন ট্রেন্ডিং" : catLabel) : isSearch ? `"${lastQuery}"` : "এখন ট্রেন্ডিং"}</h2>
           {searchState === "loading" && <span className="text-[12px] text-muted-foreground">খোঁজা হচ্ছে…</span>}
         </div>
 
@@ -449,9 +490,9 @@ function Index() {
 
         {searchState === "ok" && results.length === 0 && (
           <div className="glass mt-3 rounded-3xl p-5 text-center">
-            <p className="font-display text-sm font-semibold">"{lastQuery}" — কিছু পাওয়া যায়নি</p>
+            <p className="font-display text-sm font-semibold">{catLabel ?? `"${lastQuery}"`} — কিছু পাওয়া যায়নি</p>
             <p className="mt-1 text-[12.5px] text-muted-foreground">বানান বদলে দেখুন, বা ইউটিউব লিংক সরাসরি পেস্ট করুন।</p>
-            <button onClick={() => { setInput(""); doSearch(""); }} className="mt-3 rounded-2xl bg-glass px-4 py-2 font-display text-[13px] font-semibold ring-1 ring-border">
+            <button onClick={() => { setInput(""); setCategory(""); doSearch(""); }} className="mt-3 rounded-2xl bg-glass px-4 py-2 font-display text-[13px] font-semibold ring-1 ring-border">
               ট্রেন্ডিং দেখুন
             </button>
           </div>
@@ -564,7 +605,7 @@ function Index() {
             {relatedState === "loading" && <Skeleton />}
             {relatedState === "error" && (
               <p className="glass mt-2 rounded-2xl p-4 text-center text-[12.5px] text-muted-foreground">
-                সম্পর্কিত ভিডিও আনা যায়নি। <button onClick={() => setRelatedState("idle")} className="font-semibold text-primary">আবার চেষ্টা</button>
+                সম্পর্কিত ভিডিও আনা যায়নি। <button onClick={() => setRelatedTick((t) => t + 1)} className="font-semibold text-primary">আবার চেষ্টা</button>
               </p>
             )}
             {relatedState === "ok" && related.length === 0 && (
