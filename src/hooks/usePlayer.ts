@@ -38,6 +38,7 @@ export function usePlayer(queue: Track[], containerId: string) {
   const [captionTracks, setCaptionTracks] = useState<CaptionTrack[]>([]);
   const [captionsOn, setCaptionsOn] = useState(false);
   const [captionLang, setCaptionLang] = useState<string | null>(null);
+  const wantCaptionsRef = useRef(false);
   const indexRef = useRef<number | null>(null);
   const queueRef = useRef(queue);
   const repeatRef = useRef(repeat);
@@ -97,8 +98,10 @@ export function usePlayer(queue: Track[], containerId: string) {
       const list = (p?.getOption?.("captions", "tracklist") ?? []) as { languageCode: string; displayName: string }[];
       setCaptionTracks(list.map((t) => ({ code: t.languageCode, name: t.displayName })));
       const track = p?.getOption?.("captions", "track") as { languageCode?: string } | undefined;
-      if (list.length === 0) { setCaptionsOn(false); setCaptionLang(null); }
-      else if (track?.languageCode) { setCaptionsOn(true); setCaptionLang(track.languageCode); }
+      if (list.length === 0) { setCaptionsOn(false); setCaptionLang(null); return; }
+      // Loading the module auto-enables a track; keep captions off unless the user turned them on.
+      if (!wantCaptionsRef.current && track?.languageCode) p.setOption("captions", "track", {});
+      if (wantCaptionsRef.current && track?.languageCode) setCaptionLang(track.languageCode);
     } catch {
       setCaptionTracks([]);
     }
@@ -112,11 +115,12 @@ export function usePlayer(queue: Track[], containerId: string) {
         p.loadModule?.("captions");
         const lang = code ?? captionTracks[0]?.code;
         if (lang) p.setOption("captions", "track", { languageCode: lang });
+        wantCaptionsRef.current = true;
         setCaptionLang(lang ?? null);
         setCaptionsOn(true);
       } else {
         p.setOption?.("captions", "track", {});
-        p.unloadModule?.("captions");
+        wantCaptionsRef.current = false;
         setCaptionsOn(false);
         setCaptionLang(null);
       }
