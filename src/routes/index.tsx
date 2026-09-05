@@ -334,7 +334,6 @@ function Index() {
     else if (player.index === i) player.setIndex(null);
   }
 
-  const pct = duration ? (time / duration) * 100 : 0;
   const resume = history.find((h) => h.position > 10 && h.id !== current?.id);
   const upNext = player.index !== null ? queue.slice(player.index + 1, player.index + 6) : queue.slice(0, 5);
   const isSearch = lastQuery.trim().length > 0;
@@ -349,7 +348,7 @@ function Index() {
         <div className="animate-glow absolute -bottom-16 right-6 size-60 rounded-full bg-lilac/60 blur-3xl" style={{ animationDelay: "-9s" }} />
       </div>
 
-      <main className="relative mx-auto flex min-h-screen max-w-[420px] flex-col px-5 pb-32">
+      <main className="relative mx-auto flex min-h-screen max-w-[420px] flex-col px-5 pb-10">
         <header className="flex items-center justify-between pt-6">
           <div className="flex items-center gap-2.5">
             <div className="grid size-10 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-primary">
@@ -689,34 +688,9 @@ function Index() {
         </div>
       </div>
 
-      {/* Mini player */}
-      {!open && (
-        <div className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-[420px] px-4 pb-4">
-          <div className="glass relative overflow-hidden rounded-3xl p-2.5 pr-3">
-            <div className="absolute inset-x-0 top-0 h-[3px] bg-primary/15"><div className="h-full bg-primary transition-[width]" style={{ width: `${pct}%` }} /></div>
-            <div className="flex items-center gap-3">
-              <button onClick={() => current && openWatch(current.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-                {current ? (
-                  <img src={current.thumbnail} alt="" className="size-12 shrink-0 rounded-[12px] object-cover ring-1 ring-border" />
-                ) : (
-                  <span className="grid size-12 shrink-0 place-items-center rounded-[12px] bg-rose ring-1 ring-border"><Eq className="bg-foreground/40" /></span>
-                )}
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-display text-[14px] font-semibold">{current?.title ?? "Echo"}</span>
-                  <span className="block truncate text-[11px] text-muted-foreground">{current?.author ?? "ভিডিও বেছে নিন"}</span>
-                </span>
-              </button>
-              <button onClick={player.toggle} aria-label={playing ? "পজ" : "প্লে"} className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-primary">
-                <PlayIcon playing={playing} />
-              </button>
-              <button onClick={player.next} aria-label="পরের ভিডিও" className="grid size-11 shrink-0 place-items-center rounded-2xl bg-background ring-1 ring-border"><SkipIcon /></button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {toast && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-28 z-40 flex justify-center">
+        <div className="pointer-events-none fixed inset-x-0 bottom-6 z-40 flex justify-center">
           <span className="rounded-full bg-foreground px-4 py-2 text-[12px] font-semibold text-background shadow-primary">{toast}</span>
         </div>
       )}
