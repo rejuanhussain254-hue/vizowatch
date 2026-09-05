@@ -1,9 +1,16 @@
 {
   "name": "Echo — YouTube Background Player",
   "short_name": "Echo",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#F6F2FB",
   "theme_color": "#4C33C9",
-  "icons": [{ "src": "/favicon.ico", "sizes": "64x64", "type": "image/x-icon" }]
+  "icons": [{ "src": "/favicon.ico", "sizes": "64x64", "type": "image/x-icon" }],
+  "share_target": {
+    "action": "/",
+    "method": "GET",
+    "params": { "title": "title", "text": "text", "url": "url" }
+  }
 }
