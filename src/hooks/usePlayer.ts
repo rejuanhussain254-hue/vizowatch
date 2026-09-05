@@ -83,6 +83,52 @@ export function usePlayer(queue: Track[], containerId: string) {
     setTime(t);
   }, []);
 
+  // ---- captions (only offered when the video actually has tracks) ----
+  const [captionTracks, setCaptionTracks] = useState<CaptionTrack[]>([]);
+  const [captionsOn, setCaptionsOn] = useState(false);
+  const captionsOnRef = useRef(false);
+  captionsOnRef.current = captionsOn;
+
+  const readTracks = useCallback(() => {
+    const p = playerRef.current;
+    try {
+      const list = (p?.getOption?.("captions", "tracklist") ?? []) as { languageCode: string; displayName: string }[];
+      setCaptionTracks(list.map((t) => ({ code: t.languageCode, name: t.displayName })));
+      const track = p?.getOption?.("captions", "track") as { languageCode?: string } | undefined;
+      if (list.length === 0) setCaptionsOn(false);
+      else if (track?.languageCode) setCaptionsOn(true);
+    } catch {
+      setCaptionTracks([]);
+    }
+  }, []);
+
+  const setCaptions = useCallback((on: boolean, code?: string) => {
+    const p = playerRef.current;
+    if (!p) return;
+    try {
+      if (on) {
+        p.loadModule?.("captions");
+        const lang = code ?? captionTracks[0]?.code;
+        if (lang) p.setOption("captions", "track", { languageCode: lang });
+        setCaptionsOn(true);
+      } else {
+        p.setOption?.("captions", "track", {});
+        p.unloadModule?.("captions");
+        setCaptionsOn(false);
+      }
+    } catch {
+      /* captions module unavailable */
+    }
+  }, [captionTracks]);
+
+  const activeCaption = (() => {
+    try {
+      return (playerRef.current?.getOption?.("captions", "track") as { languageCode?: string } | undefined)?.languageCode ?? null;
+    } catch {
+      return null;
+    }
+  })();
+
   useEffect(() => {
     let cancelled = false;
     loadYouTubeApi().then((YT) => {
