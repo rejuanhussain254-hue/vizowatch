@@ -44,7 +44,8 @@ export const Route = createFileRoute("/")({
 const PLAYER_ID = "echo-yt-player";
 
 const CATEGORIES: { label: string; q: string }[] = [
-  { label: "ট্রেন্ডিং", q: "" },
+  { label: "হোম", q: "" },
+  { label: "ট্রেন্ডিং", q: "trending videos bangladesh today" },
   { label: "নাটক", q: "bangla natok new" },
   { label: "খবর", q: "bangla news today live" },
   { label: "গান", q: "new bangla hindi songs" },
