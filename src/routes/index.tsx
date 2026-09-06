@@ -44,7 +44,8 @@ export const Route = createFileRoute("/")({
 const PLAYER_ID = "echo-yt-player";
 
 const CATEGORIES: { label: string; q: string }[] = [
-  { label: "ট্রেন্ডিং", q: "" },
+  { label: "হোম", q: "" },
+  { label: "ট্রেন্ডিং", q: "trending videos bangladesh today" },
   { label: "নাটক", q: "bangla natok new" },
   { label: "খবর", q: "bangla news today live" },
   { label: "গান", q: "new bangla hindi songs" },
@@ -165,32 +166,115 @@ function Index() {
   };
 
   // ---- search with client-side retry ----
-  const doSearch = useCallback(
-    async (q: string) => {
-      setLastQuery(q);
-      setSearchState("loading");
+  const fetchWithRetry = useCallback(
+    async (q: string): Promise<SearchResult[] | null> => {
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
           const res = await runSearch({ data: { q } });
-          if (res.ok) {
-            setResults(res.results);
-            setSearchState("ok");
-            return;
-          }
+          if (res.ok) return res.results;
         } catch {
           /* retry */
         }
         await new Promise((r) => setTimeout(r, 600));
       }
-      setResults([]);
-      setSearchState("error");
+      return null;
     },
     [runSearch],
   );
 
+  // ---- home feed: mixed videos from every category, loaded page by page on scroll ----
+  const feedOrder = useRef<string[]>([]);
+  const feedPage = useRef(0);
+  const feedSeen = useRef<Set<string>>(new Set());
+  const [feedLoadingMore, setFeedLoadingMore] = useState(false);
+  const feedDone = feedPage.current >= feedOrder.current.length && feedOrder.current.length > 0;
+  const sentinel = useRef<HTMLDivElement>(null);
+
+  const loadFeedPage = useCallback(
+    async (reset: boolean) => {
+      if (reset) {
+        const pool = CATEGORIES.filter((c) => c.q).map((c) => c.q);
+        for (let i = pool.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          const t = pool[i]!; pool[i] = pool[j]!; pool[j] = t;
+        }
+        feedOrder.current = pool;
+        feedPage.current = 0;
+        feedSeen.current = new Set();
+        setResults([]);
+        setSearchState("loading");
+      } else {
+        if (feedLoadingMore || feedPage.current >= feedOrder.current.length) return;
+        setFeedLoadingMore(true);
+      }
+      const take = reset ? 2 : 1;
+      const qs = feedOrder.current.slice(feedPage.current, feedPage.current + take);
+      feedPage.current += take;
+      const batches = await Promise.all(qs.map((q) => fetchWithRetry(q)));
+      const fresh: SearchResult[] = [];
+      // interleave the batches so the feed looks mixed, like YouTube home
+      const max = Math.max(0, ...batches.map((b) => b?.length ?? 0));
+      for (let i = 0; i < max; i++) {
+        for (const b of batches) {
+          const r = b?.[i];
+          if (r && !feedSeen.current.has(r.id)) {
+            feedSeen.current.add(r.id);
+            fresh.push(r);
+          }
+        }
+      }
+      if (reset) {
+        if (batches.every((b) => b === null)) {
+          setSearchState("error");
+        } else {
+          setResults(fresh);
+          setSearchState("ok");
+        }
+      } else {
+        setResults((prev) => [...prev, ...fresh]);
+        setFeedLoadingMore(false);
+      }
+    },
+    [fetchWithRetry, feedLoadingMore],
+  );
+
+  const doSearch = useCallback(
+    async (q: string) => {
+      setLastQuery(q);
+      if (!q.trim()) {
+        await loadFeedPage(true);
+        return;
+      }
+      feedOrder.current = [];
+      setSearchState("loading");
+      const r = await fetchWithRetry(q);
+      if (r) {
+        setResults(r);
+        setSearchState("ok");
+      } else {
+        setResults([]);
+        setSearchState("error");
+      }
+    },
+    [fetchWithRetry, loadFeedPage],
+  );
+
   useEffect(() => {
     doSearch("");
-  }, [doSearch]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // infinite scroll for the home feed
+  const isHome = lastQuery.trim().length === 0;
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el || !isHome || searchState !== "ok") return;
+    const io = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) loadFeedPage(false);
+    }, { rootMargin: "600px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [isHome, searchState, loadFeedPage]);
 
   // ---- persistence ----
   useEffect(() => {
@@ -512,7 +596,7 @@ function Index() {
 
         {/* Search / trending */}
         <div className="mt-8 flex items-center justify-between">
-          <h2 className="font-display text-xl font-semibold">{catLabel ? (catLabel === "ট্রেন্ডিং" ? "এখন ট্রেন্ডিং" : catLabel) : isSearch ? `"${lastQuery}"` : "এখন ট্রেন্ডিং"}</h2>
+          <h2 className="font-display text-xl font-semibold">{catLabel ? (catLabel === "হোম" ? "আপনার জন্য" : catLabel) : isSearch ? `"${lastQuery}"` : "আপনার জন্য"}</h2>
           {searchState === "loading" && <span className="text-[12px] text-muted-foreground">খোঁজা হচ্ছে…</span>}
         </div>
 
@@ -533,7 +617,7 @@ function Index() {
             <p className="font-display text-sm font-semibold">{catLabel ?? `"${lastQuery}"`} — কিছু পাওয়া যায়নি</p>
             <p className="mt-1 text-[12.5px] text-muted-foreground">বানান বদলে দেখুন, বা ইউটিউব লিংক সরাসরি পেস্ট করুন।</p>
             <button onClick={() => { setInput(""); setCategory(""); doSearch(""); }} className="mt-3 rounded-2xl bg-glass px-4 py-2 font-display text-[13px] font-semibold ring-1 ring-border">
-              ট্রেন্ডিং দেখুন
+              হোমে ফিরুন
             </button>
           </div>
         )}
@@ -544,6 +628,12 @@ function Index() {
               <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} onPlay={() => playTrack(r)} onQueue={() => addToQueue(r)} />
             ))}
           </ul>
+        )}
+
+        {isHome && searchState === "ok" && (
+          <div ref={sentinel} className="py-4 text-center text-[12px] text-muted-foreground">
+            {feedLoadingMore ? "আরও ভিডিও আসছে…" : feedDone ? "আজকের মতো এটুকুই" : ""}
+          </div>
         )}
 
         <section className="glass mt-8 rounded-3xl p-4 text-[12.5px] leading-relaxed text-muted-foreground">
