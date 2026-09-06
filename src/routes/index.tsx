@@ -381,7 +381,9 @@ function Index() {
           const res = await runSearch({ data: { q: `${current.title.split(/[|(\[-]/)[0]!.trim()} ${current.author}` } });
           if (cancelled) return;
           if (res.ok) {
-            setRelated(res.results.filter((r) => r.id !== current.id).slice(0, 12));
+            let list = res.results.filter((r) => r.id !== current.id).slice(0, 12);
+            if (list.length === 0) list = results.filter((r) => r.id !== current.id).slice(0, 12);
+            setRelated(list);
             setRelatedState("ok");
             return;
           }
@@ -389,7 +391,12 @@ function Index() {
           /* retry */
         }
       }
-      if (!cancelled) setRelatedState("error");
+      if (cancelled) return;
+      const fallback = results.filter((r) => r.id !== current.id).slice(0, 12);
+      if (fallback.length > 0) {
+        setRelated(fallback);
+        setRelatedState("ok");
+      } else setRelatedState("error");
     })();
     return () => {
       cancelled = true;
