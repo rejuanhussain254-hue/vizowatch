@@ -736,6 +736,27 @@ function Index() {
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6" /></svg>
               )}
             </button>
+            {bigVideo && (
+              <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-foreground/80 to-transparent px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-8 text-background">
+                <input
+                  type="range"
+                  min={0}
+                  max={duration || 0}
+                  value={Math.min(time, duration || 0)}
+                  onChange={(e) => player.seek(Number(e.target.value))}
+                  className="w-full accent-primary"
+                  aria-label="সিক"
+                />
+                <div className="mt-1 flex items-center justify-between text-[12px] font-semibold">
+                  <span>{formatTime(time)} / {formatTime(duration)}</span>
+                  <div className="flex items-center gap-2">
+                    <button onClick={player.prev} aria-label="আগের" className="grid size-9 place-items-center rounded-xl bg-background/20"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z" /></svg></button>
+                    <button onClick={player.toggle} aria-label={playing ? "পজ" : "প্লে"} className="grid size-10 place-items-center rounded-xl bg-background/20"><PlayIcon playing={playing} className="size-5" /></button>
+                    <button onClick={player.next} aria-label="পরের" className="grid size-9 place-items-center rounded-xl bg-background/20"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z" /></svg></button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           <div className="px-5 pt-4">
             <p className="line-clamp-2 font-display text-lg font-bold leading-snug">{current?.title ?? "কোনো ভিডিও বাছাই হয়নি"}</p>
