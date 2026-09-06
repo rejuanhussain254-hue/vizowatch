@@ -724,66 +724,10 @@ function Index() {
           </button>
         </div>
 
+        {/* slot the floating player docks into while the watch page is open */}
+        <div ref={slotRef} className="mx-5 mt-4 aspect-video rounded-3xl bg-lilac/40 ring-1 ring-border" />
+
         <div className="min-h-0 flex-1 overflow-y-auto pb-8">
-          <div
-            className={
-              bigVideo
-                ? "fixed inset-0 z-50 grid place-items-center bg-foreground"
-                : "relative mx-5 mt-4 aspect-video overflow-hidden rounded-3xl bg-lilac/40 ring-1 ring-border"
-            }
-          >
-            <div id={PLAYER_ID} className={bigVideo ? "aspect-video w-full max-h-full" : "size-full"} />
-            {bigVideo && (
-              <div
-                className="absolute inset-0 touch-none"
-                onTouchStart={(e) => { const t = e.touches[0]!; swipeRef.current = { x: t.clientX, y: t.clientY, t: Date.now() }; }}
-                onTouchEnd={(e) => {
-                  const s = swipeRef.current; swipeRef.current = null;
-                  const t = e.changedTouches[0];
-                  if (!s || !t) return;
-                  const dx = t.clientX - s.x, dy = t.clientY - s.y;
-                  const swipe = Math.hypot(dx, dy) > 60 && Date.now() - s.t < 800;
-                  if (!swipe) { player.toggle(); return; }
-                  const dir = Math.abs(dy) > Math.abs(dx) ? dy : dx;
-                  if (dir < 0) { player.next(); flash("পরের ভিডিও"); } else { player.prev(); flash("আগের ভিডিও"); }
-                }}
-              >
-                <p className="pointer-events-none absolute inset-x-0 top-16 text-center text-[11px] text-background/70">উপরে সোয়াইপ করলে পরের ভিডিও · ট্যাপ করলে প্লে/পজ</p>
-              </div>
-            )}
-            <button
-              onClick={toggleBigVideo}
-              aria-label={bigVideo ? "ছোট করুন" : "বড় করুন"}
-              className="absolute right-3 top-3 grid size-9 place-items-center rounded-xl bg-background/80 text-foreground shadow ring-1 ring-border backdrop-blur"
-            >
-              {bigVideo ? (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3v6H3M15 3v6h6M9 21v-6H3M15 21v-6h6" /></svg>
-              ) : (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6" /></svg>
-              )}
-            </button>
-            {bigVideo && (
-              <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-foreground/80 to-transparent px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-8 text-background">
-                <input
-                  type="range"
-                  min={0}
-                  max={duration || 0}
-                  value={Math.min(time, duration || 0)}
-                  onChange={(e) => player.seek(Number(e.target.value))}
-                  className="w-full accent-primary"
-                  aria-label="সিক"
-                />
-                <div className="mt-1 flex items-center justify-between text-[12px] font-semibold">
-                  <span>{formatTime(time)} / {formatTime(duration)}</span>
-                  <div className="flex items-center gap-2">
-                    <button onClick={player.prev} aria-label="আগের" className="grid size-9 place-items-center rounded-xl bg-background/20"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z" /></svg></button>
-                    <button onClick={player.toggle} aria-label={playing ? "পজ" : "প্লে"} className="grid size-10 place-items-center rounded-xl bg-background/20"><PlayIcon playing={playing} className="size-5" /></button>
-                    <button onClick={player.next} aria-label="পরের" className="grid size-9 place-items-center rounded-xl bg-background/20"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z" /></svg></button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
           <div className="px-5 pt-4">
             <p className="line-clamp-2 font-display text-lg font-bold leading-snug">{current?.title ?? "কোনো ভিডিও বাছাই হয়নি"}</p>
             <p className="mt-0.5 truncate text-sm text-muted-foreground">{current?.author ?? "কুই থেকে একটি ভিডিও বেছে নিন"}</p>
