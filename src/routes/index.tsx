@@ -203,6 +203,28 @@ function Index() {
   const feedOrder = useRef<string[]>([]);
   const feedPage = useRef(0);
   const swipeRef = useRef<{ x: number; y: number; t: number } | null>(null);
+  const slotRef = useRef<HTMLDivElement>(null);
+  const [slotRect, setSlotRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
+  const [pipDismissed, setPipDismissed] = useState(false);
+  const playerMode: "big" | "watch" | "pip" | "hidden" = bigVideo ? "big" : open ? "watch" : current && !pipDismissed ? "pip" : "hidden";
+  // where the player docks on the watch page — the sheet slides for 500ms, so measure again once it settles
+  useEffect(() => {
+    if (!open) return;
+    const measure = () => {
+      const el = slotRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      // the sheet is translating while it opens; compute the resting position from its final layout
+      const sheet = el.closest<HTMLElement>("[data-watch-sheet]");
+      const shift = sheet ? sheet.getBoundingClientRect().top - (window.innerHeight - sheet.offsetHeight) : 0;
+      setSlotRect({ top: r.top - shift, left: r.left, width: r.width, height: r.height });
+    };
+    measure();
+    const t = setTimeout(measure, 550);
+    window.addEventListener("resize", measure);
+    return () => { clearTimeout(t); window.removeEventListener("resize", measure); };
+  }, [open, hydrated]);
+  useEffect(() => { setPipDismissed(false); }, [current?.id, open]);
   const feedSeen = useRef<Set<string>>(new Set());
   const [feedLoadingMore, setFeedLoadingMore] = useState(false);
   const feedDone = feedPage.current >= feedOrder.current.length && feedOrder.current.length > 0;
@@ -710,6 +732,7 @@ function Index() {
         className={`fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-[420px] flex-col bg-background/95 backdrop-blur-xl transition-transform duration-500 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)] ${open ? "translate-y-0" : "translate-y-full"}`}
         style={{ height: "100dvh" }}
         aria-hidden={!open}
+        data-watch-sheet
       >
         <div className="flex items-center justify-between px-5 pt-5">
           <button onClick={closeWatch} aria-label="বন্ধ" className="grid size-10 place-items-center rounded-2xl bg-glass ring-1 ring-border">
@@ -724,66 +747,10 @@ function Index() {
           </button>
         </div>
 
+        {/* slot the floating player docks into while the watch page is open */}
+        <div ref={slotRef} className="mx-5 mt-4 aspect-video rounded-3xl bg-lilac/40 ring-1 ring-border" />
+
         <div className="min-h-0 flex-1 overflow-y-auto pb-8">
-          <div
-            className={
-              bigVideo
-                ? "fixed inset-0 z-50 grid place-items-center bg-foreground"
-                : "relative mx-5 mt-4 aspect-video overflow-hidden rounded-3xl bg-lilac/40 ring-1 ring-border"
-            }
-          >
-            <div id={PLAYER_ID} className={bigVideo ? "aspect-video w-full max-h-full" : "size-full"} />
-            {bigVideo && (
-              <div
-                className="absolute inset-0 touch-none"
-                onTouchStart={(e) => { const t = e.touches[0]!; swipeRef.current = { x: t.clientX, y: t.clientY, t: Date.now() }; }}
-                onTouchEnd={(e) => {
-                  const s = swipeRef.current; swipeRef.current = null;
-                  const t = e.changedTouches[0];
-                  if (!s || !t) return;
-                  const dx = t.clientX - s.x, dy = t.clientY - s.y;
-                  const swipe = Math.hypot(dx, dy) > 60 && Date.now() - s.t < 800;
-                  if (!swipe) { player.toggle(); return; }
-                  const dir = Math.abs(dy) > Math.abs(dx) ? dy : dx;
-                  if (dir < 0) { player.next(); flash("পরের ভিডিও"); } else { player.prev(); flash("আগের ভিডিও"); }
-                }}
-              >
-                <p className="pointer-events-none absolute inset-x-0 top-16 text-center text-[11px] text-background/70">উপরে সোয়াইপ করলে পরের ভিডিও · ট্যাপ করলে প্লে/পজ</p>
-              </div>
-            )}
-            <button
-              onClick={toggleBigVideo}
-              aria-label={bigVideo ? "ছোট করুন" : "বড় করুন"}
-              className="absolute right-3 top-3 grid size-9 place-items-center rounded-xl bg-background/80 text-foreground shadow ring-1 ring-border backdrop-blur"
-            >
-              {bigVideo ? (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3v6H3M15 3v6h6M9 21v-6H3M15 21v-6h6" /></svg>
-              ) : (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6" /></svg>
-              )}
-            </button>
-            {bigVideo && (
-              <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-foreground/80 to-transparent px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-8 text-background">
-                <input
-                  type="range"
-                  min={0}
-                  max={duration || 0}
-                  value={Math.min(time, duration || 0)}
-                  onChange={(e) => player.seek(Number(e.target.value))}
-                  className="w-full accent-primary"
-                  aria-label="সিক"
-                />
-                <div className="mt-1 flex items-center justify-between text-[12px] font-semibold">
-                  <span>{formatTime(time)} / {formatTime(duration)}</span>
-                  <div className="flex items-center gap-2">
-                    <button onClick={player.prev} aria-label="আগের" className="grid size-9 place-items-center rounded-xl bg-background/20"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z" /></svg></button>
-                    <button onClick={player.toggle} aria-label={playing ? "পজ" : "প্লে"} className="grid size-10 place-items-center rounded-xl bg-background/20"><PlayIcon playing={playing} className="size-5" /></button>
-                    <button onClick={player.next} aria-label="পরের" className="grid size-9 place-items-center rounded-xl bg-background/20"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z" /></svg></button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
           <div className="px-5 pt-4">
             <p className="line-clamp-2 font-display text-lg font-bold leading-snug">{current?.title ?? "কোনো ভিডিও বাছাই হয়নি"}</p>
             <p className="mt-0.5 truncate text-sm text-muted-foreground">{current?.author ?? "কুই থেকে একটি ভিডিও বেছে নিন"}</p>
@@ -891,6 +858,86 @@ function Index() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Floating player — one element, moved between big / watch slot / pop-up corner so playback never restarts */}
+      <div
+        className={`fixed z-[45] overflow-hidden bg-foreground transition-all duration-500 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)] ${
+          playerMode === "big" ? "grid place-items-center rounded-none" : playerMode === "pip" ? "rounded-2xl shadow-primary ring-1 ring-border" : playerMode === "watch" ? "rounded-3xl ring-1 ring-border" : "pointer-events-none opacity-0"
+        }`}
+        style={
+          playerMode === "big"
+            ? { inset: 0 }
+            : playerMode === "watch" && slotRect
+              ? { top: slotRect.top, left: slotRect.left, width: slotRect.width, height: slotRect.height }
+              : playerMode === "pip"
+                ? { right: 12, bottom: 16, width: 190, height: 107 }
+                : { right: 12, bottom: 16, width: 1, height: 1 }
+        }
+      >
+        <div id={PLAYER_ID} className={playerMode === "big" ? "aspect-video w-full max-h-full" : "size-full"} />
+        {playerMode === "big" && (
+          <div
+            className="absolute inset-0 touch-none"
+            onTouchStart={(e) => { const t = e.touches[0]!; swipeRef.current = { x: t.clientX, y: t.clientY, t: Date.now() }; }}
+            onTouchEnd={(e) => {
+              const s = swipeRef.current; swipeRef.current = null;
+              const t = e.changedTouches[0];
+              if (!s || !t) return;
+              const dx = t.clientX - s.x, dy = t.clientY - s.y;
+              const swipe = Math.hypot(dx, dy) > 60 && Date.now() - s.t < 800;
+              if (!swipe) { player.toggle(); return; }
+              const dir = Math.abs(dy) > Math.abs(dx) ? dy : dx;
+              if (dir < 0) { player.next(); flash("পরের ভিডিও"); } else { player.prev(); flash("আগের ভিডিও"); }
+            }}
+          >
+            <p className="pointer-events-none absolute inset-x-0 top-16 text-center text-[11px] text-background/70">উপরে সোয়াইপ করলে পরের ভিডিও · ট্যাপ করলে প্লে/পজ</p>
+          </div>
+        )}
+        {playerMode === "pip" && (
+          <>
+            <button onClick={() => current && openWatch(current.id)} aria-label="ভিডিও পেইজ খুলুন" className="absolute inset-0" />
+            <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-foreground/80 to-transparent px-2 pb-1.5 pt-4 text-background">
+              <button onClick={player.toggle} aria-label={playing ? "পজ" : "প্লে"} className="grid size-8 place-items-center rounded-lg bg-background/20"><PlayIcon playing={playing} className="size-4" /></button>
+              <button onClick={player.next} aria-label="পরের" className="grid size-8 place-items-center rounded-lg bg-background/20"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z" /></svg></button>
+              <button onClick={() => { player.toggle(); setPipDismissed(true); }} aria-label="বন্ধ" className="grid size-8 place-items-center rounded-lg bg-background/20"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg></button>
+            </div>
+          </>
+        )}
+        {(playerMode === "big" || playerMode === "watch") && (
+          <button
+            onClick={toggleBigVideo}
+            aria-label={bigVideo ? "ছোট করুন" : "বড় করুন"}
+            className="absolute right-3 top-3 grid size-9 place-items-center rounded-xl bg-background/80 text-foreground shadow ring-1 ring-border backdrop-blur"
+          >
+            {bigVideo ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3v6H3M15 3v6h6M9 21v-6H3M15 21v-6h6" /></svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6" /></svg>
+            )}
+          </button>
+        )}
+        {playerMode === "big" && (
+          <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-foreground/80 to-transparent px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-8 text-background">
+            <input
+              type="range"
+              min={0}
+              max={duration || 0}
+              value={Math.min(time, duration || 0)}
+              onChange={(e) => player.seek(Number(e.target.value))}
+              className="w-full accent-primary"
+              aria-label="সিক"
+            />
+            <div className="mt-1 flex items-center justify-between text-[12px] font-semibold">
+              <span>{formatTime(time)} / {formatTime(duration)}</span>
+              <div className="flex items-center gap-2">
+                <button onClick={player.prev} aria-label="আগের" className="grid size-9 place-items-center rounded-xl bg-background/20"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z" /></svg></button>
+                <button onClick={player.toggle} aria-label={playing ? "পজ" : "প্লে"} className="grid size-10 place-items-center rounded-xl bg-background/20"><PlayIcon playing={playing} className="size-5" /></button>
+                <button onClick={player.next} aria-label="পরের" className="grid size-9 place-items-center rounded-xl bg-background/20"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z" /></svg></button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
 
