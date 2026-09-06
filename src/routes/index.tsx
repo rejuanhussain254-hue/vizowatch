@@ -142,6 +142,7 @@ function Index() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"queue" | "history">("queue");
+  const [profileOpen, setProfileOpen] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [lastQuery, setLastQuery] = useState("");
   const [category, setCategory] = useState<string | null>("");
