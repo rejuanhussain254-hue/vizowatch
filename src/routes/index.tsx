@@ -143,6 +143,22 @@ function Index() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"queue" | "history">("queue");
   const [profileOpen, setProfileOpen] = useState(false);
+  const [bigVideo, setBigVideo] = useState(false);
+  const toggleBigVideo = () => {
+    const next = !bigVideo;
+    setBigVideo(next);
+    const el = document.getElementById(PLAYER_ID)?.parentElement as (HTMLElement & { webkitRequestFullscreen?: () => void }) | null;
+    try {
+      if (next && el?.requestFullscreen) void el.requestFullscreen().catch(() => {});
+      else if (next && el?.webkitRequestFullscreen) el.webkitRequestFullscreen();
+      else if (!next && document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    } catch {}
+  };
+  useEffect(() => {
+    const onFs = () => { if (!document.fullscreenElement) setBigVideo(false); };
+    document.addEventListener("fullscreenchange", onFs);
+    return () => document.removeEventListener("fullscreenchange", onFs);
+  }, []);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [lastQuery, setLastQuery] = useState("");
   const [category, setCategory] = useState<string | null>("");
