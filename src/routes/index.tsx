@@ -203,6 +203,28 @@ function Index() {
   const feedOrder = useRef<string[]>([]);
   const feedPage = useRef(0);
   const swipeRef = useRef<{ x: number; y: number; t: number } | null>(null);
+  const slotRef = useRef<HTMLDivElement>(null);
+  const [slotRect, setSlotRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
+  const [pipDismissed, setPipDismissed] = useState(false);
+  const playerMode: "big" | "watch" | "pip" | "hidden" = bigVideo ? "big" : open ? "watch" : current && !pipDismissed ? "pip" : "hidden";
+  // where the player docks on the watch page — the sheet slides for 500ms, so measure again once it settles
+  useEffect(() => {
+    if (!open) return;
+    const measure = () => {
+      const el = slotRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      // the sheet is translating while it opens; compute the resting position from its final layout
+      const sheet = el.closest<HTMLElement>("[data-watch-sheet]");
+      const shift = sheet ? sheet.getBoundingClientRect().top - (window.innerHeight - sheet.offsetHeight) : 0;
+      setSlotRect({ top: r.top - shift, left: r.left, width: r.width, height: r.height });
+    };
+    measure();
+    const t = setTimeout(measure, 550);
+    window.addEventListener("resize", measure);
+    return () => { clearTimeout(t); window.removeEventListener("resize", measure); };
+  }, [open, hydrated]);
+  useEffect(() => { setPipDismissed(false); }, [current?.id, open]);
   const feedSeen = useRef<Set<string>>(new Set());
   const [feedLoadingMore, setFeedLoadingMore] = useState(false);
   const feedDone = feedPage.current >= feedOrder.current.length && feedOrder.current.length > 0;
