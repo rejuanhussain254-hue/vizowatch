@@ -617,7 +617,7 @@ function Index() {
             <p className="font-display text-sm font-semibold">{catLabel ?? `"${lastQuery}"`} — কিছু পাওয়া যায়নি</p>
             <p className="mt-1 text-[12.5px] text-muted-foreground">বানান বদলে দেখুন, বা ইউটিউব লিংক সরাসরি পেস্ট করুন।</p>
             <button onClick={() => { setInput(""); setCategory(""); doSearch(""); }} className="mt-3 rounded-2xl bg-glass px-4 py-2 font-display text-[13px] font-semibold ring-1 ring-border">
-              ট্রেন্ডিং দেখুন
+              হোমে ফিরুন
             </button>
           </div>
         )}
@@ -628,6 +628,12 @@ function Index() {
               <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} onPlay={() => playTrack(r)} onQueue={() => addToQueue(r)} />
             ))}
           </ul>
+        )}
+
+        {isHome && searchState === "ok" && (
+          <div ref={sentinel} className="py-4 text-center text-[12px] text-muted-foreground">
+            {feedLoadingMore ? "আরও ভিডিও আসছে…" : feedDone ? "আজকের মতো এটুকুই" : ""}
+          </div>
         )}
 
         <section className="glass mt-8 rounded-3xl p-4 text-[12.5px] leading-relaxed text-muted-foreground">
