@@ -196,7 +196,7 @@ function Index() {
         const pool = CATEGORIES.filter((c) => c.q).map((c) => c.q);
         for (let i = pool.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
-          [pool[i], pool[j]] = [pool[j], pool[i]];
+          const t = pool[i]!; pool[i] = pool[j]!; pool[j] = t;
         }
         feedOrder.current = pool;
         feedPage.current = 0;
