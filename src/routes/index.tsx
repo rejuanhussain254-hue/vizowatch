@@ -202,6 +202,7 @@ function Index() {
   // ---- home feed: mixed videos from every category, loaded page by page on scroll ----
   const feedOrder = useRef<string[]>([]);
   const feedPage = useRef(0);
+  const swipeRef = useRef<{ x: number; y: number; t: number } | null>(null);
   const feedSeen = useRef<Set<string>>(new Set());
   const [feedLoadingMore, setFeedLoadingMore] = useState(false);
   const feedDone = feedPage.current >= feedOrder.current.length && feedOrder.current.length > 0;
@@ -744,7 +745,7 @@ function Index() {
                   const swipe = Math.hypot(dx, dy) > 60 && Date.now() - s.t < 800;
                   if (!swipe) { player.toggle(); return; }
                   const dir = Math.abs(dy) > Math.abs(dx) ? dy : dx;
-                  if (dir < 0) { player.next(); setToast("পরের ভিডিও"); } else { player.prev(); setToast("আগের ভিডিও"); }
+                  if (dir < 0) { player.next(); flash("পরের ভিডিও"); } else { player.prev(); flash("আগের ভিডিও"); }
                 }}
               >
                 <p className="pointer-events-none absolute inset-x-0 top-16 text-center text-[11px] text-background/70">উপরে সোয়াইপ করলে পরের ভিডিও · ট্যাপ করলে প্লে/পজ</p>
