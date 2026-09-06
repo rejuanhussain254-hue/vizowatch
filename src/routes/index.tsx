@@ -717,8 +717,25 @@ function Index() {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto pb-8">
-          <div className="mx-5 mt-4 aspect-video overflow-hidden rounded-3xl bg-lilac/40 ring-1 ring-border">
-            <div id={PLAYER_ID} className="size-full" />
+          <div
+            className={
+              bigVideo
+                ? "fixed inset-0 z-50 grid place-items-center bg-foreground"
+                : "relative mx-5 mt-4 aspect-video overflow-hidden rounded-3xl bg-lilac/40 ring-1 ring-border"
+            }
+          >
+            <div id={PLAYER_ID} className={bigVideo ? "aspect-video w-full max-h-full" : "size-full"} />
+            <button
+              onClick={toggleBigVideo}
+              aria-label={bigVideo ? "ছোট করুন" : "বড় করুন"}
+              className="absolute right-3 top-3 grid size-9 place-items-center rounded-xl bg-background/80 text-foreground shadow ring-1 ring-border backdrop-blur"
+            >
+              {bigVideo ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3v6H3M15 3v6h6M9 21v-6H3M15 21v-6h6" /></svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6" /></svg>
+              )}
+            </button>
           </div>
           <div className="px-5 pt-4">
             <p className="line-clamp-2 font-display text-lg font-bold leading-snug">{current?.title ?? "কোনো ভিডিও বাছাই হয়নি"}</p>
