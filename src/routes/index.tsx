@@ -126,7 +126,7 @@ function VideoRow({ r, active, playing, onPlay, onQueue, sub }: { r: Row; active
       {active && playing ? (
         <span className="px-2"><Eq /></span>
       ) : onQueue ? (
-        <button onClick={onQueue} aria-label="কুইতে যোগ" title="কুইতে যোগ" className="grid size-9 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-background">
+        <button onClick={onQueue} aria-label="প্লেলিস্টে যোগ" title="প্লেলিস্টে যোগ" className="grid size-9 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-background">
           <span className="relative block size-3"><span className="absolute inset-x-0 top-1/2 h-[2px] -translate-y-1/2 rounded-full bg-current" /><span className="absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2 rounded-full bg-current" /></span>
         </button>
       ) : null}
@@ -408,9 +408,9 @@ function Index() {
   }
 
   function addToQueue(t: Track) {
-    if (queue.some((x) => x.id === t.id)) return flash("আগেই কুইতে আছে");
+    if (queue.some((x) => x.id === t.id)) return flash("আগেই প্লেলিস্টে আছে");
     setQueue((q) => [...q, { id: t.id, title: t.title, author: t.author, thumbnail: t.thumbnail }]);
-    flash("কুইতে যোগ হয়েছে");
+    flash("প্লেলিস্টে যোগ হয়েছে");
   }
 
   function remove(i: number) {
