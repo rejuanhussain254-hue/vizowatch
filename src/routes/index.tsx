@@ -732,6 +732,7 @@ function Index() {
         className={`fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-[420px] flex-col bg-background/95 backdrop-blur-xl transition-transform duration-500 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)] ${open ? "translate-y-0" : "translate-y-full"}`}
         style={{ height: "100dvh" }}
         aria-hidden={!open}
+        data-watch-sheet
       >
         <div className="flex items-center justify-between px-5 pt-5">
           <button onClick={closeWatch} aria-label="বন্ধ" className="grid size-10 place-items-center rounded-2xl bg-glass ring-1 ring-border">
