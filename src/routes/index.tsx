@@ -646,6 +646,115 @@ function Index() {
         </section>
       </main>
 
+      {/* Profile sheet — account, playlist, history */}
+      {profileOpen && <button aria-label="বন্ধ" onClick={() => setProfileOpen(false)} className="fixed inset-0 z-20 bg-foreground/20 backdrop-blur-[2px]" />}
+      <div
+        className={`fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-[420px] flex-col rounded-t-[28px] bg-background/95 backdrop-blur-xl transition-transform duration-500 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)] ${profileOpen ? "translate-y-0" : "translate-y-full"}`}
+        style={{ height: "92dvh" }}
+        aria-hidden={!profileOpen}
+        role="dialog"
+        aria-label="প্রোফাইল"
+      >
+        <div className="flex items-center justify-between px-5 pt-4">
+          <p className="font-display text-base font-bold">প্রোফাইল</p>
+          <button onClick={() => setProfileOpen(false)} aria-label="বন্ধ" className="grid size-9 place-items-center rounded-2xl bg-glass ring-1 ring-border text-[13px]">✕</button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 pb-10">
+          {user ? (
+            <div className="glass mt-4 flex items-center gap-3 rounded-3xl p-4">
+              <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary font-display text-base font-bold text-primary-foreground shadow-primary">{(user.email ?? "?")[0]?.toUpperCase()}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-display text-[14px] font-semibold">{user.email}</span>
+                <span className="block text-[12px] text-muted-foreground">{syncing ? "সিঙ্ক হচ্ছে…" : "✓ ইতিহাস সব ডিভাইসে সিঙ্ক চালু"}</span>
+              </span>
+              <button onClick={() => signOut()} className="shrink-0 rounded-full bg-glass px-3 py-1.5 text-[11px] font-medium ring-1 ring-border">সাইন-আউট</button>
+            </div>
+          ) : (
+            <div className="glass mt-4 rounded-3xl p-4">
+              <p className="font-display text-[15px] font-semibold">সাইন-ইন করুন</p>
+              <p className="mt-0.5 text-[12.5px] text-muted-foreground">ইতিহাস ও রিজিউম পজিশন সব ডিভাইসে সিঙ্ক থাকবে।</p>
+              <div className="mt-3 flex gap-2">
+                <Link to="/auth" className="flex-1 rounded-2xl bg-primary px-4 py-2.5 text-center font-display text-[13px] font-semibold text-primary-foreground shadow-primary">লগইন</Link>
+                <Link to="/auth" className="flex-1 rounded-2xl bg-background px-4 py-2.5 text-center font-display text-[13px] font-semibold ring-1 ring-border">সাইনআপ</Link>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-5 flex items-center justify-between">
+            <div className="flex gap-1 rounded-2xl bg-glass p-1 ring-1 ring-border">
+              {(["queue", "history"] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setTab(t)}
+                  className={`rounded-xl px-3 py-1.5 font-display text-[13px] font-semibold transition ${tab === t ? "bg-primary text-primary-foreground shadow-primary" : "text-muted-foreground"}`}
+                >
+                  {t === "queue" ? `প্লেলিস্ট · ${queue.length}` : `ইতিহাস · ${history.length}`}
+                </button>
+              ))}
+            </div>
+            {tab === "queue" && queue.length > 0 && (
+              <button onClick={() => { setQueue([]); player.setIndex(null); }} className="text-[12px] text-muted-foreground">সব মুছুন</button>
+            )}
+            {tab === "history" && history.length > 0 && (
+              <button onClick={() => { clearHistory(); setHistory([]); if (userId) clearCloudHistory(userId); }} className="text-[12px] text-muted-foreground">সব মুছুন</button>
+            )}
+          </div>
+
+          {tab === "queue" && (
+            <>
+              {hydrated && queue.length === 0 && (
+                <p className="glass mt-3 rounded-3xl p-5 text-center text-[13px] text-muted-foreground">প্লেলিস্ট খালি। হোমের যেকোনো ভিডিওর <b className="text-foreground">+</b> চাপলে এখানে যোগ হবে।</p>
+              )}
+              <ul className="mt-3 space-y-2.5">
+                {queue.map((t, i) => {
+                  const active = player.index === i;
+                  return (
+                    <li key={t.id} className={`flex items-center gap-2 rounded-3xl p-2.5 ring-1 ${active ? "bg-primary-soft/80 ring-primary/25" : "glass ring-border"}`}>
+                      <span className="w-5 shrink-0 text-center text-[11px] text-muted-foreground">{i + 1}</span>
+                      <button onClick={() => { player.playAt(i); setProfileOpen(false); openWatch(t.id); }} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                        <img src={t.thumbnail} alt="" className="size-12 shrink-0 rounded-[12px] object-cover ring-1 ring-border" loading="lazy" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-display text-[14px] font-semibold">{t.title}</span>
+                          <span className="block truncate text-[12px] text-muted-foreground">{t.author}</span>
+                        </span>
+                      </button>
+                      {active && playing ? (
+                        <span className="pr-1"><Eq /></span>
+                      ) : (
+                        <button onClick={() => remove(i)} aria-label="মুছুন" className="grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-background">
+                          <span className="block h-[2px] w-3 rounded-full bg-current" />
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
+
+          {tab === "history" && (
+            <>
+              {hydrated && history.length === 0 && (
+                <p className="glass mt-3 rounded-3xl p-5 text-center text-[13px] text-muted-foreground">এখনো কিছু দেখা হয়নি। যা চালাবেন তা এখানে জমা থাকবে।</p>
+              )}
+              <ul className="mt-3 space-y-2.5">
+                {history.map((h) => (
+                  <VideoRow
+                    key={h.id}
+                    r={h}
+                    active={current?.id === h.id}
+                    playing={playing}
+                    onPlay={() => { setProfileOpen(false); playTrack(h, h.position); }}
+                    onQueue={() => addToQueue(h)}
+                    sub={`${timeAgo(h.at)}${h.position > 10 ? ` · ${formatTime(h.position)} থেকে` : ""}`}
+                  />
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      </div>
+
       {/* Watch page (?v=ID) — the player iframe lives here permanently so audio never stops */}
       <div
         className={`fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-[420px] flex-col bg-background/95 backdrop-blur-xl transition-transform duration-500 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)] ${open ? "translate-y-0" : "translate-y-full"}`}
