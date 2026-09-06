@@ -446,7 +446,7 @@ function Index() {
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="নাটক, খবর, গান, পডকাস্ট…"
+                placeholder=""
                 aria-label="ইউটিউবে খুঁজুন"
                 className="min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-muted-foreground"
                 inputMode="search"
