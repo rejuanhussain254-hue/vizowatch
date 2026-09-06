@@ -596,7 +596,7 @@ function Index() {
 
         {/* Search / trending */}
         <div className="mt-8 flex items-center justify-between">
-          <h2 className="font-display text-xl font-semibold">{catLabel ? (catLabel === "ট্রেন্ডিং" ? "এখন ট্রেন্ডিং" : catLabel) : isSearch ? `"${lastQuery}"` : "এখন ট্রেন্ডিং"}</h2>
+          <h2 className="font-display text-xl font-semibold">{catLabel ? (catLabel === "হোম" ? "আপনার জন্য" : catLabel) : isSearch ? `"${lastQuery}"` : "আপনার জন্য"}</h2>
           {searchState === "loading" && <span className="text-[12px] text-muted-foreground">খোঁজা হচ্ছে…</span>}
         </div>
 
