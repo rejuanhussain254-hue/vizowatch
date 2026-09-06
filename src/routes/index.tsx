@@ -732,6 +732,24 @@ function Index() {
             }
           >
             <div id={PLAYER_ID} className={bigVideo ? "aspect-video w-full max-h-full" : "size-full"} />
+            {bigVideo && (
+              <div
+                className="absolute inset-0 touch-none"
+                onTouchStart={(e) => { const t = e.touches[0]!; swipeRef.current = { x: t.clientX, y: t.clientY, t: Date.now() }; }}
+                onTouchEnd={(e) => {
+                  const s = swipeRef.current; swipeRef.current = null;
+                  const t = e.changedTouches[0];
+                  if (!s || !t) return;
+                  const dx = t.clientX - s.x, dy = t.clientY - s.y;
+                  const swipe = Math.hypot(dx, dy) > 60 && Date.now() - s.t < 800;
+                  if (!swipe) { player.toggle(); return; }
+                  const dir = Math.abs(dy) > Math.abs(dx) ? dy : dx;
+                  if (dir < 0) { player.next(); setToast("পরের ভিডিও"); } else { player.prev(); setToast("আগের ভিডিও"); }
+                }}
+              >
+                <p className="pointer-events-none absolute inset-x-0 top-16 text-center text-[11px] text-background/70">উপরে সোয়াইপ করলে পরের ভিডিও · ট্যাপ করলে প্লে/পজ</p>
+              </div>
+            )}
             <button
               onClick={toggleBigVideo}
               aria-label={bigVideo ? "ছোট করুন" : "বড় করুন"}
