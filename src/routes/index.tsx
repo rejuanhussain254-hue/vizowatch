@@ -202,6 +202,7 @@ function Index() {
   // ---- home feed: mixed videos from every category, loaded page by page on scroll ----
   const feedOrder = useRef<string[]>([]);
   const feedPage = useRef(0);
+  const swipeRef = useRef<{ x: number; y: number; t: number } | null>(null);
   const feedSeen = useRef<Set<string>>(new Set());
   const [feedLoadingMore, setFeedLoadingMore] = useState(false);
   const feedDone = feedPage.current >= feedOrder.current.length && feedOrder.current.length > 0;
@@ -381,7 +382,9 @@ function Index() {
           const res = await runSearch({ data: { q: `${current.title.split(/[|(\[-]/)[0]!.trim()} ${current.author}` } });
           if (cancelled) return;
           if (res.ok) {
-            setRelated(res.results.filter((r) => r.id !== current.id).slice(0, 12));
+            let list = res.results.filter((r) => r.id !== current.id).slice(0, 12);
+            if (list.length === 0) list = results.filter((r) => r.id !== current.id).slice(0, 12);
+            setRelated(list);
             setRelatedState("ok");
             return;
           }
@@ -389,7 +392,12 @@ function Index() {
           /* retry */
         }
       }
-      if (!cancelled) setRelatedState("error");
+      if (cancelled) return;
+      const fallback = results.filter((r) => r.id !== current.id).slice(0, 12);
+      if (fallback.length > 0) {
+        setRelated(fallback);
+        setRelatedState("ok");
+      } else setRelatedState("error");
     })();
     return () => {
       cancelled = true;
@@ -725,6 +733,24 @@ function Index() {
             }
           >
             <div id={PLAYER_ID} className={bigVideo ? "aspect-video w-full max-h-full" : "size-full"} />
+            {bigVideo && (
+              <div
+                className="absolute inset-0 touch-none"
+                onTouchStart={(e) => { const t = e.touches[0]!; swipeRef.current = { x: t.clientX, y: t.clientY, t: Date.now() }; }}
+                onTouchEnd={(e) => {
+                  const s = swipeRef.current; swipeRef.current = null;
+                  const t = e.changedTouches[0];
+                  if (!s || !t) return;
+                  const dx = t.clientX - s.x, dy = t.clientY - s.y;
+                  const swipe = Math.hypot(dx, dy) > 60 && Date.now() - s.t < 800;
+                  if (!swipe) { player.toggle(); return; }
+                  const dir = Math.abs(dy) > Math.abs(dx) ? dy : dx;
+                  if (dir < 0) { player.next(); flash("পরের ভিডিও"); } else { player.prev(); flash("আগের ভিডিও"); }
+                }}
+              >
+                <p className="pointer-events-none absolute inset-x-0 top-16 text-center text-[11px] text-background/70">উপরে সোয়াইপ করলে পরের ভিডিও · ট্যাপ করলে প্লে/পজ</p>
+              </div>
+            )}
             <button
               onClick={toggleBigVideo}
               aria-label={bigVideo ? "ছোট করুন" : "বড় করুন"}
