@@ -443,16 +443,22 @@ function Index() {
               <p className="text-[11px] text-muted-foreground">শোনো, বিরতি ছাড়া</p>
             </div>
           </div>
-          {user ? (
-            <div className="flex items-center gap-1.5">
-              <span className="max-w-[120px] truncate rounded-full bg-mint/50 px-3 py-1 text-[11px] font-medium ring-1 ring-border" title={user.email ?? ""}>
-                {syncing ? "সিঙ্ক হচ্ছে…" : "✓ সিঙ্ক চালু"}
-              </span>
-              <button onClick={() => signOut()} className="rounded-full bg-glass px-3 py-1 text-[11px] font-medium ring-1 ring-border">সাইন-আউট</button>
-            </div>
-          ) : (
-            <Link to="/auth" className="rounded-full bg-primary px-3 py-1.5 text-[11px] font-semibold text-primary-foreground shadow-primary">সাইন-ইন</Link>
-          )}
+          <button
+            onClick={() => setProfileOpen(true)}
+            aria-label="প্রোফাইল"
+            className={`relative grid size-10 place-items-center rounded-full ring-1 transition active:scale-95 ${user ? "bg-primary text-primary-foreground ring-primary shadow-primary font-display text-sm font-bold" : "bg-glass ring-border"}`}
+          >
+            {user ? (
+              (user.email ?? "?")[0]?.toUpperCase()
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                <circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" />
+              </svg>
+            )}
+            {hydrated && queue.length > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 grid min-w-[18px] place-items-center rounded-full bg-rose px-1 text-[10px] font-bold text-foreground ring-2 ring-background">{queue.length}</span>
+            )}
+          </button>
         </header>
 
         <section className="glass mt-5 rounded-3xl p-4">
