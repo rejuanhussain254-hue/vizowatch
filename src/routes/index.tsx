@@ -434,46 +434,21 @@ function Index() {
       </div>
 
       <main className="relative mx-auto flex min-h-screen max-w-[420px] flex-col px-5 pb-10">
-        <header className="flex items-center justify-between pt-6">
-          <div className="flex items-center gap-2.5">
-            <div className="grid size-10 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-primary">
+        <header className="flex items-center gap-3 pt-6">
+          <div className="flex shrink-0 items-center gap-2">
+            <div className="grid size-9 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-primary">
               <Eq className="bg-primary-foreground" />
             </div>
-            <div className="leading-none">
-              <h1 className="font-display text-lg font-bold tracking-tight">Echo</h1>
-              <p className="text-[11px] text-muted-foreground">শোনো, বিরতি ছাড়া</p>
-            </div>
+            <span className="font-display text-lg font-bold tracking-tight">Echo</span>
           </div>
-          <button
-            onClick={() => setProfileOpen(true)}
-            aria-label="প্রোফাইল"
-            className={`relative grid size-10 place-items-center rounded-full ring-1 transition active:scale-95 ${user ? "bg-primary text-primary-foreground ring-primary shadow-primary font-display text-sm font-bold" : "bg-glass ring-border"}`}
-          >
-            {user ? (
-              (user.email ?? "?")[0]?.toUpperCase()
-            ) : (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-                <circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" />
-              </svg>
-            )}
-            {hydrated && queue.length > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 grid min-w-[18px] place-items-center rounded-full bg-rose px-1 text-[10px] font-bold text-foreground ring-2 ring-background">{queue.length}</span>
-            )}
-          </button>
-        </header>
-
-        <section className="glass mt-5 rounded-3xl p-4">
-          <label htmlFor="yt" className="font-display text-base font-semibold">ইউটিউবে খুঁজুন</label>
-          <p className="text-[13px] text-muted-foreground">যেকোনো ভিডিওর নাম লিখুন বা ইউটিউব লিংক পেস্ট করুন</p>
-          <form onSubmit={submit} className="mt-3 flex gap-2">
-            <div className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl bg-background px-3 py-2.5 ring-1 ring-border focus-within:ring-2 focus-within:ring-ring">
-              <span className="block size-2.5 shrink-0 rounded-full ring-2 ring-lilac" aria-hidden />
+          <form onSubmit={submit} className="flex min-w-0 flex-1 items-center gap-2">
+            <div className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl bg-background px-3 py-2 ring-1 ring-border focus-within:ring-2 focus-within:ring-ring">
               <input
-                id="yt"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="যেমন: নাটক, খবর, গান, পডকাস্ট…"
-                className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted-foreground"
+                placeholder="নাটক, খবর, গান, পডকাস্ট…"
+                aria-label="ইউটিউবে খুঁজুন"
+                className="min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-muted-foreground"
                 inputMode="search"
                 autoComplete="off"
               />
@@ -484,15 +459,38 @@ function Index() {
             <button
               type="submit"
               disabled={busy || searchState === "loading"}
-              className="shrink-0 rounded-2xl bg-primary px-4 font-display text-[15px] font-semibold text-primary-foreground shadow-primary transition active:scale-[0.98] disabled:opacity-60"
+              aria-label="খুঁজুন"
+              className="grid size-9 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-primary transition active:scale-[0.98] disabled:opacity-60"
             >
-              {busy ? "…" : "খুঁজুন"}
+              {busy ? (
+                <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
+                </svg>
+              )}
             </button>
           </form>
-          {error && <p className="mt-2 text-[12px] text-muted-foreground">{error}</p>}
-        </section>
+          <button
+            onClick={() => setProfileOpen(true)}
+            aria-label="প্রোফাইল"
+            className={`relative grid size-9 shrink-0 place-items-center rounded-full ring-1 transition active:scale-95 ${user ? "bg-primary text-primary-foreground ring-primary shadow-primary font-display text-sm font-bold" : "bg-glass ring-border"}`}
+          >
+            {user ? (
+              (user.email ?? "?")[0]?.toUpperCase()
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                <circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" />
+              </svg>
+            )}
+            {hydrated && queue.length > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 grid min-w-[18px] place-items-center rounded-full bg-rose px-1 text-[10px] font-bold text-foreground ring-2 ring-background">{queue.length}</span>
+            )}
+          </button>
+        </header>
+        {error && <p className="mt-2 text-center text-[12px] text-muted-foreground">{error}</p>}
 
-        <nav aria-label="ক্যাটাগরি" className="-mx-5 mt-4 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <nav aria-label="ক্যাটাগরি" className="-mx-5 mt-5 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {CATEGORIES.map((c) => {
             const on = category === c.q;
             return (
