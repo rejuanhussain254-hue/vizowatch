@@ -176,6 +176,10 @@ function Index() {
   const [related, setRelated] = useState<SearchResult[]>([]);
   const [relatedState, setRelatedState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [relatedTick, setRelatedTick] = useState(0);
+  const [relatedMore, setRelatedMore] = useState(false);
+  const relQueriesRef = useRef<string[]>([]);
+  const relSeenRef = useRef<Set<string>>(new Set());
+  const relSentinelRef = useRef<HTMLDivElement | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const endedRef = useRef<() => boolean>(() => false);
   const player = usePlayer(queue, PLAYER_ID, () => endedRef.current());
