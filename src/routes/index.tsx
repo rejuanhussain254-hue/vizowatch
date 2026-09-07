@@ -486,31 +486,42 @@ function Index() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated, player.ready, search.v]);
 
-  // related videos for the watch page
+  // related videos for the watch page — same topic first, then the channel's other videos
   useEffect(() => {
     if (!open || !current) return;
     let cancelled = false;
     setRelatedState("loading");
     (async () => {
-      for (let attempt = 0; attempt < 2; attempt++) {
+      const topic = current.title.split(/[|(\[\]•·]/)[0]!.replace(/\d{4}/g, "").trim().split(/\s+/).slice(0, 7).join(" ");
+      const queries = [topic, current.author, `${topic} ${current.author}`].filter((q) => q && q.length > 1);
+      const seen = new Set<string>([current.id]);
+      const list: SearchResult[] = [];
+      for (const q of queries) {
+        if (cancelled) return;
         try {
-          const res = await runSearch({ data: { q: `${current.title.split(/[|(\[-]/)[0]!.trim()} ${current.author}` } });
-          if (cancelled) return;
+          const res = await runSearch({ data: { q } });
           if (res.ok) {
-            let list = res.results.filter((r) => r.id !== current.id).slice(0, 12);
-            if (list.length === 0) list = results.filter((r) => r.id !== current.id).slice(0, 12);
-            setRelated(list);
-            setRelatedState("ok");
-            return;
+            for (const r of res.results) {
+              if (seen.has(r.id)) continue;
+              seen.add(r.id);
+              list.push(r);
+            }
           }
         } catch {
-          /* retry */
+          /* try the next query */
         }
+        if (list.length >= 14) break;
       }
       if (cancelled) return;
-      const fallback = results.filter((r) => r.id !== current.id).slice(0, 12);
-      if (fallback.length > 0) {
-        setRelated(fallback);
+      // top up with the home feed so the list is never empty
+      for (const r of results) {
+        if (list.length >= 16) break;
+        if (seen.has(r.id)) continue;
+        seen.add(r.id);
+        list.push(r);
+      }
+      if (list.length > 0) {
+        setRelated(list.slice(0, 16));
         setRelatedState("ok");
       } else setRelatedState("error");
     })();
@@ -518,6 +529,7 @@ function Index() {
       cancelled = true;
     };
   }, [open, current?.id, relatedTick]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   // Shared from YouTube (Share → Echo) or opened with ?url=
   useEffect(() => {
