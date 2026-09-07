@@ -346,8 +346,23 @@ function Index() {
   }, [userId, hydrated]);
 
   // record history + keep resume position fresh (locally, and in the cloud when signed in)
+  const liveRef = useRef<{ id: string; time: number; duration: number } | null>(null);
+  liveRef.current = current ? { id: current.id, time, duration } : liveRef.current;
+  const prevIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (!current) return;
+    // flush the outgoing video's progress before switching (swipe / next / zoom exit)
+    const prev = prevIdRef.current;
+    const live = liveRef.current;
+    if (prev && prev !== current.id && live && live.id === prev && live.duration) {
+      updateHistoryPosition(prev, live.time, live.duration);
+      if (userId) {
+        const item = loadHistory().find((h) => h.id === prev);
+        if (item) updateCloudPosition(userId, prev, item.position, item.duration);
+      }
+    }
+    prevIdRef.current = current.id;
+    lastSaved.current = 0;
     const next = pushHistory(current);
     setHistory(next);
     const item = next.find((h) => h.id === current.id);
@@ -359,11 +374,24 @@ function Index() {
     if (Math.abs(time - lastSaved.current) < 5) return;
     lastSaved.current = time;
     updateHistoryPosition(current.id, time, duration);
+    setHistory(loadHistory());
     if (userId) {
       const item = loadHistory().find((h) => h.id === current.id);
       if (item) updateCloudPosition(userId, current.id, item.position, item.duration);
     }
   }, [time, duration, current, userId]);
+
+  // watched progress per video, kept fresh across feed/related switches
+  const progressOf = useCallback(
+    (id: string) => {
+      if (current?.id === id && duration) return time / duration;
+      const h = history.find((x) => x.id === id);
+      return h && h.duration ? h.position / h.duration : 0;
+    },
+    [history, current?.id, time, duration],
+  );
+  const savedPosOf = useCallback((id: string) => history.find((x) => x.id === id)?.position ?? 0, [history]);
+
 
   // ---- watch page (?v=ID) ----
   const openWatch = (id: string) => navigate({ to: "/", search: { v: id } });
