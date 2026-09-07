@@ -314,6 +314,39 @@ function Index() {
     [fetchWithRetry, loadFeedPage],
   );
 
+  // run a search term from the box / a suggestion / a saved search — and remember it
+  const runTerm = useCallback(
+    (q: string) => {
+      const term = q.trim();
+      if (!term) return;
+      setInput(term);
+      setSugOpen(false);
+      setSuggestions([]);
+      setCategory(null);
+      setSearches(pushSearch(term));
+      void doSearch(term);
+    },
+    [doSearch],
+  );
+
+  // live suggestions while typing (debounced)
+  useEffect(() => {
+    const q = input.trim();
+    if (!sugOpen || q.length < 2 || extractVideoId(q)) { setSuggestions([]); return; }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const list = await runSuggest({ data: { q } });
+        if (!cancelled) setSuggestions(list);
+      } catch {
+        if (!cancelled) setSuggestions([]);
+      }
+    }, 250);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [input, sugOpen, runSuggest]);
+
+
+
   useEffect(() => {
     doSearch("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
