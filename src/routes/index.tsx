@@ -228,17 +228,33 @@ function Index() {
     const measure = () => {
       const el = slotRef.current;
       if (!el) return;
-      const r = el.getBoundingClientRect();
-      // the sheet is translating while it opens; compute the resting position from its final layout
-      const sheet = el.closest<HTMLElement>("[data-watch-sheet]");
-      const shift = sheet ? sheet.getBoundingClientRect().top - (window.innerHeight - sheet.offsetHeight) : 0;
-      setSlotRect({ top: r.top - shift, left: r.left, width: r.width, height: r.height });
+      // use layout geometry (offset*) so the sheet's opening transform can't distort the box
+      let left = 0;
+      let top = 0;
+      let node: HTMLElement | null = el;
+      while (node) {
+        left += node.offsetLeft;
+        top += node.offsetTop;
+        node = node.offsetParent as HTMLElement | null;
+      }
+      const vw = window.visualViewport?.width ?? window.innerWidth;
+      const width = Math.min(el.offsetWidth, vw - left * 2);
+      setSlotRect({ top, left, width, height: Math.round((width * 9) / 16) });
     };
     measure();
     const t = setTimeout(measure, 550);
+    const ro = new ResizeObserver(measure);
+    if (slotRef.current) ro.observe(slotRef.current);
     window.addEventListener("resize", measure);
-    return () => { clearTimeout(t); window.removeEventListener("resize", measure); };
+    window.addEventListener("orientationchange", measure);
+    return () => {
+      clearTimeout(t);
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("orientationchange", measure);
+    };
   }, [open, hydrated]);
+
   useEffect(() => { setPipDismissed(false); }, [current?.id, open]);
   const feedSeen = useRef<Set<string>>(new Set());
   const [feedLoadingMore, setFeedLoadingMore] = useState(false);
