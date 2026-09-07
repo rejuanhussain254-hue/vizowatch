@@ -154,7 +154,7 @@ export function usePlayer(queue: Track[], containerId: string, onEnded?: () => b
             }
             if (st === 0) {
               if (repeatRef.current) e.target.seekTo(0, true);
-              else next();
+              else if (!onEndedRef.current?.()) next();
             }
           },
         },
