@@ -505,17 +505,27 @@ function Index() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated, player.ready, search.v]);
 
-  // related videos for the watch page — same topic first, then the channel's other videos
+  // related videos for the watch page — same genre/topic first, then more of the same kind
   useEffect(() => {
     if (!open || !current) return;
     let cancelled = false;
     setRelatedState("loading");
+    const topic = current.title.split(/[|(\[\]•·]/)[0]!.replace(/\d{4}/g, "").trim().split(/\s+/).slice(0, 7).join(" ");
+    const genre = genreOf(`${current.title} ${current.author}`);
+    const queries = [
+      topic,
+      genre ? `${genre} ${topic.split(/\s+/).slice(0, 3).join(" ")}` : "",
+      current.author,
+      genre ? `${genre} নতুন` : `${topic} নতুন`,
+      genre ? `সেরা ${genre}` : `${current.author} ভিডিও`,
+      genre ? `${genre} ফুল ভিডিও` : topic.split(/\s+/).slice(0, 3).join(" "),
+    ].filter((q) => q && q.trim().length > 1);
+    relQueriesRef.current = queries.slice(2);
+    relSeenRef.current = new Set<string>([current.id]);
     (async () => {
-      const topic = current.title.split(/[|(\[\]•·]/)[0]!.replace(/\d{4}/g, "").trim().split(/\s+/).slice(0, 7).join(" ");
-      const queries = [topic, current.author, `${topic} ${current.author}`].filter((q) => q && q.length > 1);
-      const seen = new Set<string>([current.id]);
+      const seen = relSeenRef.current;
       const list: SearchResult[] = [];
-      for (const q of queries) {
+      for (const q of queries.slice(0, 2)) {
         if (cancelled) return;
         try {
           const res = await runSearch({ data: { q } });
@@ -540,7 +550,7 @@ function Index() {
         list.push(r);
       }
       if (list.length > 0) {
-        setRelated(list.slice(0, 16));
+        setRelated(list);
         setRelatedState("ok");
       } else setRelatedState("error");
     })();
@@ -548,6 +558,41 @@ function Index() {
       cancelled = true;
     };
   }, [open, current?.id, relatedTick]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // auto-load more related videos when the list bottom comes into view
+  const loadMoreRelated = useCallback(async () => {
+    if (relatedMore || relQueriesRef.current.length === 0) return;
+    setRelatedMore(true);
+    try {
+      const q = relQueriesRef.current.shift()!;
+      const res = await runSearch({ data: { q } });
+      if (res.ok) {
+        const seen = relSeenRef.current;
+        const add: SearchResult[] = [];
+        for (const r of res.results) {
+          if (seen.has(r.id)) continue;
+          seen.add(r.id);
+          add.push(r);
+        }
+        if (add.length) setRelated((prev) => [...prev, ...add]);
+      }
+    } catch {
+      /* ignore, next scroll tries the next query */
+    }
+    setRelatedMore(false);
+  }, [relatedMore]);
+
+  useEffect(() => {
+    const el = relSentinelRef.current;
+    if (!el || relatedState !== "ok") return;
+    const io = new IntersectionObserver((es) => {
+      if (es[0]?.isIntersecting) void loadMoreRelated();
+    }, { rootMargin: "300px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [relatedState, loadMoreRelated, related.length]);
+
+
 
 
   // Shared from YouTube (Share → Echo) or opened with ?url=
