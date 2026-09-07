@@ -177,7 +177,8 @@ function Index() {
   const [relatedState, setRelatedState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [relatedTick, setRelatedTick] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
-  const player = usePlayer(queue, PLAYER_ID);
+  const endedRef = useRef<() => boolean>(() => false);
+  const player = usePlayer(queue, PLAYER_ID, () => endedRef.current());
   const search = Route.useSearch();
   const navigate = useNavigate();
   const runSearch = useServerFn(searchYouTube);
