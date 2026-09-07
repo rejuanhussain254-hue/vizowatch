@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { usePlayer } from "@/hooks/usePlayer";
 import { useAuth } from "@/hooks/useAuth";
 import { clearCloudHistory, mergeHistoryOnSignIn, updateCloudPosition, upsertCloudHistory } from "@/lib/history-sync";
-import { searchYouTube, type SearchResult } from "@/lib/search.functions";
+import { searchYouTube, suggestYouTube, type SearchResult } from "@/lib/search.functions";
 import {
   clearHistory,
   extractVideoId,
@@ -12,7 +12,11 @@ import {
   formatTime,
   loadHistory,
   loadQueue,
+  loadSearches,
   pushHistory,
+  pushSearch,
+  removeSearch,
+  clearSearches,
   saveQueue,
   timeAgo,
   updateHistoryPosition,
@@ -331,6 +335,7 @@ function Index() {
   useEffect(() => {
     setQueue(loadQueue());
     setHistory(loadHistory());
+    setSearches(loadSearches());
     setHydrated(true);
   }, []);
   useEffect(() => {
