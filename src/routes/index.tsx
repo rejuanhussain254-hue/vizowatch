@@ -476,14 +476,14 @@ function Index() {
 
   // "up next" = the next queued video, else the first related one
   const queuedNext = player.index !== null ? queue[player.index + 1] ?? null : null;
-  const upNext: Track | null =
+  const nextUp: Track | null =
     queuedNext ?? related.find((r) => r.id !== current?.id && !queue.some((t) => t.id === r.id)) ?? null;
   const playUpNext = useCallback(() => {
-    if (!upNext) return false;
-    playTrack(upNext, savedPosOf(upNext.id));
+    if (!nextUp) return false;
+    playTrack(nextUp, savedPosOf(nextUp.id));
     return true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [upNext?.id, playTrack, savedPosOf]);
+  }, [nextUp?.id, playTrack, savedPosOf]);
   // when a video finishes, auto-play the related "up next" one
   endedRef.current = () => (queuedNext ? false : playUpNext());
 
@@ -1007,10 +1007,10 @@ function Index() {
                   onClick={playUpNext}
                   className="glass mt-2 flex w-full items-center gap-3 rounded-2xl p-2 text-left ring-1 ring-primary/40"
                 >
-                  <img src={upNext.thumbnail} alt="" className="h-12 w-[76px] shrink-0 rounded-xl object-cover ring-1 ring-border" loading="lazy" />
+                  <img src={nextUp.thumbnail} alt="" className="h-12 w-[76px] shrink-0 rounded-xl object-cover ring-1 ring-border" loading="lazy" />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] font-semibold">{upNext.title}</span>
-                    <span className="block truncate text-[11px] text-muted-foreground">{upNext.author}</span>
+                    <span className="block truncate text-[13px] font-semibold">{nextUp.title}</span>
+                    <span className="block truncate text-[11px] text-muted-foreground">{nextUp.author}</span>
                   </span>
                   <span className="shrink-0 rounded-xl bg-primary px-3 py-1.5 text-[12px] font-semibold text-primary-foreground">চালান</span>
                 </button>
