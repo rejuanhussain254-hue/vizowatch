@@ -1000,6 +1000,24 @@ function Index() {
               </>
             )}
 
+            {upNext && (
+              <>
+                <h3 className="mt-6 font-display text-base font-semibold">পরবর্তী ভিডিও</h3>
+                <button
+                  onClick={playUpNext}
+                  className="glass mt-2 flex w-full items-center gap-3 rounded-2xl p-2 text-left ring-1 ring-primary/40"
+                >
+                  <img src={upNext.thumbnail} alt="" className="h-12 w-[76px] shrink-0 rounded-xl object-cover ring-1 ring-border" loading="lazy" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13px] font-semibold">{upNext.title}</span>
+                    <span className="block truncate text-[11px] text-muted-foreground">{upNext.author}</span>
+                  </span>
+                  <span className="shrink-0 rounded-xl bg-primary px-3 py-1.5 text-[12px] font-semibold text-primary-foreground">চালান</span>
+                </button>
+                <p className="mt-1 px-1 text-[11px] text-muted-foreground">এই ভিডিও শেষ হলে নিজে থেকেই চালু হবে</p>
+              </>
+            )}
+
             <h3 className="mt-6 font-display text-base font-semibold">সম্পর্কিত ভিডিও</h3>
             {relatedState === "loading" && <Skeleton />}
             {relatedState === "error" && (
