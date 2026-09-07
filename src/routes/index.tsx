@@ -1021,7 +1021,7 @@ function Index() {
                 : { right: 12, bottom: 16, width: 1, height: 1 }
         }
       >
-        <div id={PLAYER_ID} className={playerMode === "big" ? "aspect-video w-full max-h-full" : "size-full"} />
+        <div id={PLAYER_ID} className={playerMode === "big" ? "aspect-video w-full max-w-[min(100vw,calc(100dvh*16/9))]" : "size-full"} />
         {playerMode === "big" && (
           <div
             className="absolute inset-0 touch-none"
