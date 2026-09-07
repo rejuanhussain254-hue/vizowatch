@@ -47,6 +47,29 @@ export const Route = createFileRoute("/")({
 
 const PLAYER_ID = "echo-yt-player";
 
+// detect the kind of video (gazal, natok, news…) so related picks stay in the same genre
+const GENRES: [RegExp, string][] = [
+  [/গজল|gojol|ghazal|gazal|নাশিদ|nasheed/i, "গজল"],
+  [/ওয়াজ|waz|তাফসির|খুতবা|islamic|ইসলামিক|কুরআন|quran/i, "ইসলামিক ওয়াজ"],
+  [/নাটক|natok|drama|টেলিফিল্ম/i, "বাংলা নাটক"],
+  [/খবর|সংবাদ|news|বুলেটিন|bulletin/i, "সংবাদ"],
+  [/গান|song|music|lyrical|মিউজিক|audio/i, "গান"],
+  [/podcast|পডকাস্ট|আড্ডা|interview|সাক্ষাৎকার/i, "পডকাস্ট"],
+  [/রান্না|recipe|cooking|রেসিপি/i, "রান্নার রেসিপি"],
+  [/vlog|ভ্লগ|travel|ভ্রমণ/i, "ভ্লগ"],
+  [/funny|কমেডি|comedy|মজার|prank/i, "কমেডি"],
+  [/খেলা|cricket|football|ক্রিকেট|ফুটবল|highlights|sports/i, "খেলার হাইলাইটস"],
+  [/gaming|গেমিং|gameplay|free fire|pubg/i, "গেমিং"],
+  [/cartoon|কার্টুন|animation|শিশু/i, "কার্টুন"],
+  [/movie|সিনেমা|film|চলচ্চিত্র|trailer/i, "বাংলা সিনেমা"],
+  [/শিক্ষা|class|lecture|tutorial|শেখা|পড়া/i, "শিক্ষামূলক"],
+  [/প্রযুক্তি|tech|mobile|review|রিভিউ|gadget/i, "প্রযুক্তি রিভিউ"],
+];
+function genreOf(text: string) {
+  for (const [re, name] of GENRES) if (re.test(text)) return name;
+  return "";
+}
+
 const CATEGORIES: { label: string; q: string }[] = [
   { label: "হোম", q: "" },
   { label: "ট্রেন্ডিং", q: "trending videos bangladesh today" },
@@ -176,6 +199,10 @@ function Index() {
   const [related, setRelated] = useState<SearchResult[]>([]);
   const [relatedState, setRelatedState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [relatedTick, setRelatedTick] = useState(0);
+  const [relatedMore, setRelatedMore] = useState(false);
+  const relQueriesRef = useRef<string[]>([]);
+  const relSeenRef = useRef<Set<string>>(new Set());
+  const relSentinelRef = useRef<HTMLDivElement | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const endedRef = useRef<() => boolean>(() => false);
   const player = usePlayer(queue, PLAYER_ID, () => endedRef.current());
@@ -501,17 +528,27 @@ function Index() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated, player.ready, search.v]);
 
-  // related videos for the watch page — same topic first, then the channel's other videos
+  // related videos for the watch page — same genre/topic first, then more of the same kind
   useEffect(() => {
     if (!open || !current) return;
     let cancelled = false;
     setRelatedState("loading");
+    const topic = current.title.split(/[|(\[\]•·]/)[0]!.replace(/\d{4}/g, "").trim().split(/\s+/).slice(0, 7).join(" ");
+    const genre = genreOf(`${current.title} ${current.author}`);
+    const queries = [
+      topic,
+      genre ? `${genre} ${topic.split(/\s+/).slice(0, 3).join(" ")}` : "",
+      current.author,
+      genre ? `${genre} নতুন` : `${topic} নতুন`,
+      genre ? `সেরা ${genre}` : `${current.author} ভিডিও`,
+      genre ? `${genre} ফুল ভিডিও` : topic.split(/\s+/).slice(0, 3).join(" "),
+    ].filter((q) => q && q.trim().length > 1);
+    relQueriesRef.current = queries.slice(2);
+    relSeenRef.current = new Set<string>([current.id]);
     (async () => {
-      const topic = current.title.split(/[|(\[\]•·]/)[0]!.replace(/\d{4}/g, "").trim().split(/\s+/).slice(0, 7).join(" ");
-      const queries = [topic, current.author, `${topic} ${current.author}`].filter((q) => q && q.length > 1);
-      const seen = new Set<string>([current.id]);
+      const seen = relSeenRef.current;
       const list: SearchResult[] = [];
-      for (const q of queries) {
+      for (const q of queries.slice(0, 2)) {
         if (cancelled) return;
         try {
           const res = await runSearch({ data: { q } });
@@ -536,7 +573,7 @@ function Index() {
         list.push(r);
       }
       if (list.length > 0) {
-        setRelated(list.slice(0, 16));
+        setRelated(list);
         setRelatedState("ok");
       } else setRelatedState("error");
     })();
@@ -544,6 +581,41 @@ function Index() {
       cancelled = true;
     };
   }, [open, current?.id, relatedTick]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // auto-load more related videos when the list bottom comes into view
+  const loadMoreRelated = useCallback(async () => {
+    if (relatedMore || relQueriesRef.current.length === 0) return;
+    setRelatedMore(true);
+    try {
+      const q = relQueriesRef.current.shift()!;
+      const res = await runSearch({ data: { q } });
+      if (res.ok) {
+        const seen = relSeenRef.current;
+        const add: SearchResult[] = [];
+        for (const r of res.results) {
+          if (seen.has(r.id)) continue;
+          seen.add(r.id);
+          add.push(r);
+        }
+        if (add.length) setRelated((prev) => [...prev, ...add]);
+      }
+    } catch {
+      /* ignore, next scroll tries the next query */
+    }
+    setRelatedMore(false);
+  }, [relatedMore]);
+
+  useEffect(() => {
+    const el = relSentinelRef.current;
+    if (!el || relatedState !== "ok") return;
+    const io = new IntersectionObserver((es) => {
+      if (es[0]?.isIntersecting) void loadMoreRelated();
+    }, { rootMargin: "300px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [relatedState, loadMoreRelated, related.length]);
+
+
 
 
   // Shared from YouTube (Share → Echo) or opened with ?url=
@@ -1034,6 +1106,11 @@ function Index() {
                   <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} />
                 ))}
               </ul>
+            )}
+            {relatedState === "ok" && (
+              <div ref={relSentinelRef} className="py-4 text-center text-[11.5px] text-muted-foreground">
+                {relatedMore ? "আরও ভিডিও আসছে…" : relQueriesRef.current.length === 0 ? "" : " "}
+              </div>
             )}
           </div>
         </div>
