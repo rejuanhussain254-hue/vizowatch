@@ -520,9 +520,11 @@ function Index() {
     if (!q) return setError("ভিডিওর নাম বা ইউটিউব লিংক দিন।");
     const id = extractVideoId(q);
     if (!id) {
-      setCategory(null);
-      return doSearch(q);
+      runTerm(q);
+      return;
     }
+    setSugOpen(false);
+
     setBusy(true);
     const track = await fetchTrack(id);
     setBusy(false);
