@@ -110,14 +110,20 @@ function Skeleton() {
 }
 
 type Row = Track & { duration?: string | number; views?: string };
-function VideoRow({ r, active, playing, onPlay, onQueue, sub }: { r: Row; active: boolean; playing: boolean; onPlay: () => void; onQueue?: () => void; sub?: string }) {
+function VideoRow({ r, active, playing, onPlay, onQueue, sub, progress }: { r: Row; active: boolean; playing: boolean; onPlay: () => void; onQueue?: () => void; sub?: string; progress?: number }) {
   return (
     <li className={`flex items-center gap-2 rounded-3xl p-2.5 ring-1 ${active ? "bg-primary-soft/80 ring-primary/25" : "glass ring-border"}`}>
       <button onClick={onPlay} className="flex min-w-0 flex-1 items-center gap-3 text-left">
         <span className="relative shrink-0">
           <img src={r.thumbnail} alt="" className="h-14 w-[88px] rounded-[14px] object-cover ring-1 ring-border" loading="lazy" />
           {typeof r.duration === "string" && r.duration && <span className="absolute right-1 bottom-1 rounded-md bg-foreground/80 px-1 text-[10px] font-medium text-background">{r.duration}</span>}
+          {progress != null && progress > 0.01 && (
+            <span className="absolute inset-x-1 bottom-0.5 h-[3px] overflow-hidden rounded-full bg-foreground/30">
+              <span className="block h-full rounded-full bg-primary" style={{ width: `${Math.min(100, progress * 100)}%` }} />
+            </span>
+          )}
         </span>
+
         <span className="min-w-0 flex-1">
           <span className="line-clamp-2 font-display text-[14px] font-semibold leading-snug">{r.title}</span>
           <span className="block truncate text-[12px] text-muted-foreground">{sub ?? `${r.author}${r.views ? ` · ${r.views}` : ""}`}</span>
@@ -340,8 +346,23 @@ function Index() {
   }, [userId, hydrated]);
 
   // record history + keep resume position fresh (locally, and in the cloud when signed in)
+  const liveRef = useRef<{ id: string; time: number; duration: number } | null>(null);
+  liveRef.current = current ? { id: current.id, time, duration } : liveRef.current;
+  const prevIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (!current) return;
+    // flush the outgoing video's progress before switching (swipe / next / zoom exit)
+    const prev = prevIdRef.current;
+    const live = liveRef.current;
+    if (prev && prev !== current.id && live && live.id === prev && live.duration) {
+      updateHistoryPosition(prev, live.time, live.duration);
+      if (userId) {
+        const item = loadHistory().find((h) => h.id === prev);
+        if (item) updateCloudPosition(userId, prev, item.position, item.duration);
+      }
+    }
+    prevIdRef.current = current.id;
+    lastSaved.current = 0;
     const next = pushHistory(current);
     setHistory(next);
     const item = next.find((h) => h.id === current.id);
@@ -353,11 +374,24 @@ function Index() {
     if (Math.abs(time - lastSaved.current) < 5) return;
     lastSaved.current = time;
     updateHistoryPosition(current.id, time, duration);
+    setHistory(loadHistory());
     if (userId) {
       const item = loadHistory().find((h) => h.id === current.id);
       if (item) updateCloudPosition(userId, current.id, item.position, item.duration);
     }
   }, [time, duration, current, userId]);
+
+  // watched progress per video, kept fresh across feed/related switches
+  const progressOf = useCallback(
+    (id: string) => {
+      if (current?.id === id && duration) return time / duration;
+      const h = history.find((x) => x.id === id);
+      return h && h.duration ? h.position / h.duration : 0;
+    },
+    [history, current?.id, time, duration],
+  );
+  const savedPosOf = useCallback((id: string) => history.find((x) => x.id === id)?.position ?? 0, [history]);
+
 
   // ---- watch page (?v=ID) ----
   const openWatch = (id: string) => navigate({ to: "/", search: { v: id } });
@@ -597,7 +631,7 @@ function Index() {
         {searchState === "ok" && results.length > 0 && (
           <ul className="mt-3 space-y-2.5">
             {results.map((r) => (
-              <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} onPlay={() => playTrack(r)} onQueue={() => addToQueue(r)} />
+              <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} />
             ))}
           </ul>
         )}
@@ -716,7 +750,9 @@ function Index() {
                     r={h}
                     active={current?.id === h.id}
                     playing={playing}
+                    progress={progressOf(h.id)}
                     onPlay={() => { setProfileOpen(false); playTrack(h, h.position); }}
+
                     onQueue={() => addToQueue(h)}
                     sub={`${timeAgo(h.at)}${h.position > 10 ? ` · ${formatTime(h.position)} থেকে` : ""}`}
                   />
@@ -852,7 +888,7 @@ function Index() {
             {relatedState === "ok" && related.length > 0 && (
               <ul className="mt-2 space-y-2">
                 {related.map((r) => (
-                  <VideoRow key={r.id} r={r} active={false} playing={false} onPlay={() => playTrack(r)} onQueue={() => addToQueue(r)} />
+                  <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} />
                 ))}
               </ul>
             )}
