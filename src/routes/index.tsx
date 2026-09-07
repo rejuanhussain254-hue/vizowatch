@@ -47,6 +47,29 @@ export const Route = createFileRoute("/")({
 
 const PLAYER_ID = "echo-yt-player";
 
+// detect the kind of video (gazal, natok, news…) so related picks stay in the same genre
+const GENRES: [RegExp, string][] = [
+  [/গজল|gojol|ghazal|gazal|নাশিদ|nasheed/i, "গজল"],
+  [/ওয়াজ|waz|তাফসির|খুতবা|islamic|ইসলামিক|কুরআন|quran/i, "ইসলামিক ওয়াজ"],
+  [/নাটক|natok|drama|টেলিফিল্ম/i, "বাংলা নাটক"],
+  [/খবর|সংবাদ|news|বুলেটিন|bulletin/i, "সংবাদ"],
+  [/গান|song|music|lyrical|মিউজিক|audio/i, "গান"],
+  [/podcast|পডকাস্ট|আড্ডা|interview|সাক্ষাৎকার/i, "পডকাস্ট"],
+  [/রান্না|recipe|cooking|রেসিপি/i, "রান্নার রেসিপি"],
+  [/vlog|ভ্লগ|travel|ভ্রমণ/i, "ভ্লগ"],
+  [/funny|কমেডি|comedy|মজার|prank/i, "কমেডি"],
+  [/খেলা|cricket|football|ক্রিকেট|ফুটবল|highlights|sports/i, "খেলার হাইলাইটস"],
+  [/gaming|গেমিং|gameplay|free fire|pubg/i, "গেমিং"],
+  [/cartoon|কার্টুন|animation|শিশু/i, "কার্টুন"],
+  [/movie|সিনেমা|film|চলচ্চিত্র|trailer/i, "বাংলা সিনেমা"],
+  [/শিক্ষা|class|lecture|tutorial|শেখা|পড়া/i, "শিক্ষামূলক"],
+  [/প্রযুক্তি|tech|mobile|review|রিভিউ|gadget/i, "প্রযুক্তি রিভিউ"],
+];
+function genreOf(text: string) {
+  for (const [re, name] of GENRES) if (re.test(text)) return name;
+  return "";
+}
+
 const CATEGORIES: { label: string; q: string }[] = [
   { label: "হোম", q: "" },
   { label: "ট্রেন্ডিং", q: "trending videos bangladesh today" },
