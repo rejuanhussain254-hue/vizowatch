@@ -1107,6 +1107,11 @@ function Index() {
                 ))}
               </ul>
             )}
+            {relatedState === "ok" && (
+              <div ref={relSentinelRef} className="py-4 text-center text-[11.5px] text-muted-foreground">
+                {relatedMore ? "আরও ভিডিও আসছে…" : relQueriesRef.current.length === 0 ? "" : " "}
+              </div>
+            )}
           </div>
         </div>
       </div>
