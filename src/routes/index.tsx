@@ -1000,7 +1000,7 @@ function Index() {
               </>
             )}
 
-            {upNext && (
+            {nextUp && (
               <>
                 <h3 className="mt-6 font-display text-base font-semibold">পরবর্তী ভিডিও</h3>
                 <button
