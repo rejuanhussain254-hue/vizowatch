@@ -474,6 +474,20 @@ function Index() {
     [player.playAt],
   );
 
+  // "up next" = the next queued video, else the first related one
+  const queuedNext = player.index !== null ? queue[player.index + 1] ?? null : null;
+  const upNext: Track | null =
+    queuedNext ?? related.find((r) => r.id !== current?.id && !queue.some((t) => t.id === r.id)) ?? null;
+  const playUpNext = useCallback(() => {
+    if (!upNext) return false;
+    playTrack(upNext, savedPosOf(upNext.id));
+    return true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [upNext?.id, playTrack, savedPosOf]);
+  // when a video finishes, auto-play the related "up next" one
+  endedRef.current = () => (queuedNext ? false : playUpNext());
+
+
   // ?v= present (deep link / reload / back-forward) but not playing that video → start it
   useEffect(() => {
     if (!hydrated || !player.ready || !search.v) return;
