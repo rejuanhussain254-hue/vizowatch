@@ -750,7 +750,9 @@ function Index() {
                     r={h}
                     active={current?.id === h.id}
                     playing={playing}
+                    progress={progressOf(h.id)}
                     onPlay={() => { setProfileOpen(false); playTrack(h, h.position); }}
+
                     onQueue={() => addToQueue(h)}
                     sub={`${timeAgo(h.at)}${h.position > 10 ? ` · ${formatTime(h.position)} থেকে` : ""}`}
                   />
