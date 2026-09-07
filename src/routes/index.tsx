@@ -177,6 +177,11 @@ function Index() {
   const search = Route.useSearch();
   const navigate = useNavigate();
   const runSearch = useServerFn(searchYouTube);
+  const runSuggest = useServerFn(suggestYouTube);
+  const [searches, setSearches] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [sugOpen, setSugOpen] = useState(false);
+
   const { user, signOut } = useAuth();
   const userId = user?.id ?? null;
   const [syncing, setSyncing] = useState(false);
