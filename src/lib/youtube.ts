@@ -109,3 +109,35 @@ export function formatTime(sec: number) {
   const s = Math.floor(sec % 60);
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
+
+// ---- Search history ----
+export const SEARCHES_KEY = "echo.searches.v1";
+const SEARCHES_MAX = 12;
+
+export function loadSearches(): string[] {
+  try {
+    const raw = localStorage.getItem(SEARCHES_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function pushSearch(q: string): string[] {
+  const term = q.trim();
+  if (!term) return loadSearches();
+  const next = [term, ...loadSearches().filter((s) => s.toLowerCase() !== term.toLowerCase())].slice(0, SEARCHES_MAX);
+  localStorage.setItem(SEARCHES_KEY, JSON.stringify(next));
+  return next;
+}
+
+export function removeSearch(q: string): string[] {
+  const next = loadSearches().filter((s) => s !== q);
+  localStorage.setItem(SEARCHES_KEY, JSON.stringify(next));
+  return next;
+}
+
+export function clearSearches(): string[] {
+  localStorage.removeItem(SEARCHES_KEY);
+  return [];
+}
