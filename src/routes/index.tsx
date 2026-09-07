@@ -886,7 +886,7 @@ function Index() {
             {relatedState === "ok" && related.length > 0 && (
               <ul className="mt-2 space-y-2">
                 {related.map((r) => (
-                  <VideoRow key={r.id} r={r} active={false} playing={false} onPlay={() => playTrack(r)} onQueue={() => addToQueue(r)} />
+                  <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} />
                 ))}
               </ul>
             )}
