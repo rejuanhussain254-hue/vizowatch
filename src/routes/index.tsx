@@ -557,18 +557,20 @@ function Index() {
       </div>
 
       <main className="relative mx-auto flex min-h-screen max-w-[420px] flex-col px-5 pb-10">
-        <header className="flex items-center gap-3 pt-6">
+        <header className="relative z-30 flex items-center gap-3 pt-6">
           <div className="flex shrink-0 items-center gap-2">
             <div className="grid size-9 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-primary">
               <Eq className="bg-primary-foreground" />
             </div>
             <span className="font-display text-lg font-bold tracking-tight">Echo</span>
           </div>
-          <form onSubmit={submit} className="flex min-w-0 flex-1 items-center gap-2">
+          <form onSubmit={submit} className="relative flex min-w-0 flex-1 items-center gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl bg-background px-3 py-2 ring-1 ring-border focus-within:ring-2 focus-within:ring-ring">
               <input
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => { setInput(e.target.value); setSugOpen(true); }}
+                onFocus={() => setSugOpen(true)}
+                onBlur={() => setTimeout(() => setSugOpen(false), 150)}
                 placeholder=""
                 aria-label="ইউটিউবে খুঁজুন"
                 className="min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-muted-foreground"
@@ -576,7 +578,7 @@ function Index() {
                 autoComplete="off"
               />
               {input && (
-                <button type="button" onClick={() => { setInput(""); setCategory(""); doSearch(""); }} aria-label="মুছুন" className="text-[12px] text-muted-foreground">✕</button>
+                <button type="button" onClick={() => { setInput(""); setSuggestions([]); setCategory(""); doSearch(""); }} aria-label="মুছুন" className="text-[12px] text-muted-foreground">✕</button>
               )}
             </div>
             <button
@@ -593,7 +595,42 @@ function Index() {
                 </svg>
               )}
             </button>
+
+            {sugOpen && (suggestions.length > 0 || (input.trim().length < 2 && searches.length > 0)) && (
+              <div className="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-2xl bg-background/98 shadow-primary ring-1 ring-border backdrop-blur-xl">
+                {input.trim().length < 2 && searches.length > 0 && (
+                  <div className="flex items-center justify-between px-3 pt-2 text-[11px] text-muted-foreground">
+                    <span>সাম্প্রতিক সার্চ</span>
+                    <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setSearches(clearSearches())} className="font-semibold text-primary">সব মুছুন</button>
+                  </div>
+                )}
+                <ul className="max-h-[320px] overflow-y-auto py-1">
+                  {(input.trim().length < 2 ? searches : suggestions).map((s) => {
+                    const recent = input.trim().length < 2;
+                    return (
+                      <li key={s} className="flex items-center gap-2 px-2">
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => runTerm(s)}
+                          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-2 py-2 text-left text-[13.5px] hover:bg-glass"
+                        >
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="shrink-0 text-muted-foreground" aria-hidden>
+                            {recent ? <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></> : <><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" /></>}
+                          </svg>
+                          <span className="min-w-0 flex-1 truncate">{s}</span>
+                        </button>
+                        {recent && (
+                          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setSearches(removeSearch(s))} aria-label="মুছুন" className="shrink-0 px-2 text-[12px] text-muted-foreground">✕</button>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
           </form>
+
           <button
             onClick={() => setProfileOpen(true)}
             aria-label="প্রোফাইল"
