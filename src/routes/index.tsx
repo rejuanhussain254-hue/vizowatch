@@ -110,14 +110,20 @@ function Skeleton() {
 }
 
 type Row = Track & { duration?: string | number; views?: string };
-function VideoRow({ r, active, playing, onPlay, onQueue, sub }: { r: Row; active: boolean; playing: boolean; onPlay: () => void; onQueue?: () => void; sub?: string }) {
+function VideoRow({ r, active, playing, onPlay, onQueue, sub, progress }: { r: Row; active: boolean; playing: boolean; onPlay: () => void; onQueue?: () => void; sub?: string; progress?: number }) {
   return (
     <li className={`flex items-center gap-2 rounded-3xl p-2.5 ring-1 ${active ? "bg-primary-soft/80 ring-primary/25" : "glass ring-border"}`}>
       <button onClick={onPlay} className="flex min-w-0 flex-1 items-center gap-3 text-left">
         <span className="relative shrink-0">
           <img src={r.thumbnail} alt="" className="h-14 w-[88px] rounded-[14px] object-cover ring-1 ring-border" loading="lazy" />
           {typeof r.duration === "string" && r.duration && <span className="absolute right-1 bottom-1 rounded-md bg-foreground/80 px-1 text-[10px] font-medium text-background">{r.duration}</span>}
+          {progress != null && progress > 0.01 && (
+            <span className="absolute inset-x-1 bottom-0.5 h-[3px] overflow-hidden rounded-full bg-foreground/30">
+              <span className="block h-full rounded-full bg-primary" style={{ width: `${Math.min(100, progress * 100)}%` }} />
+            </span>
+          )}
         </span>
+
         <span className="min-w-0 flex-1">
           <span className="line-clamp-2 font-display text-[14px] font-semibold leading-snug">{r.title}</span>
           <span className="block truncate text-[12px] text-muted-foreground">{sub ?? `${r.author}${r.views ? ` · ${r.views}` : ""}`}</span>
