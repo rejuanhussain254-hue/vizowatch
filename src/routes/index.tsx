@@ -177,7 +177,8 @@ function Index() {
   const [relatedState, setRelatedState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [relatedTick, setRelatedTick] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
-  const player = usePlayer(queue, PLAYER_ID);
+  const endedRef = useRef<() => boolean>(() => false);
+  const player = usePlayer(queue, PLAYER_ID, () => endedRef.current());
   const search = Route.useSearch();
   const navigate = useNavigate();
   const runSearch = useServerFn(searchYouTube);
@@ -472,6 +473,20 @@ function Index() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [player.playAt],
   );
+
+  // "up next" = the next queued video, else the first related one
+  const queuedNext = player.index !== null ? queue[player.index + 1] ?? null : null;
+  const nextUp: Track | null =
+    queuedNext ?? related.find((r) => r.id !== current?.id && !queue.some((t) => t.id === r.id)) ?? null;
+  const playUpNext = useCallback(() => {
+    if (!nextUp) return false;
+    playTrack(nextUp, savedPosOf(nextUp.id));
+    return true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nextUp?.id, playTrack, savedPosOf]);
+  // when a video finishes, auto-play the related "up next" one
+  endedRef.current = () => (queuedNext ? false : playUpNext());
+
 
   // ?v= present (deep link / reload / back-forward) but not playing that video → start it
   useEffect(() => {
@@ -982,6 +997,24 @@ function Index() {
                     );
                   })}
                 </ul>
+              </>
+            )}
+
+            {nextUp && (
+              <>
+                <h3 className="mt-6 font-display text-base font-semibold">পরবর্তী ভিডিও</h3>
+                <button
+                  onClick={playUpNext}
+                  className="glass mt-2 flex w-full items-center gap-3 rounded-2xl p-2 text-left ring-1 ring-primary/40"
+                >
+                  <img src={nextUp.thumbnail} alt="" className="h-12 w-[76px] shrink-0 rounded-xl object-cover ring-1 ring-border" loading="lazy" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13px] font-semibold">{nextUp.title}</span>
+                    <span className="block truncate text-[11px] text-muted-foreground">{nextUp.author}</span>
+                  </span>
+                  <span className="shrink-0 rounded-xl bg-primary px-3 py-1.5 text-[12px] font-semibold text-primary-foreground">চালান</span>
+                </button>
+                <p className="mt-1 px-1 text-[11px] text-muted-foreground">এই ভিডিও শেষ হলে নিজে থেকেই চালু হবে</p>
               </>
             )}
 

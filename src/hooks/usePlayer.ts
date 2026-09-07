@@ -27,7 +27,9 @@ function loadYouTubeApi(): Promise<any> {
   return apiPromise;
 }
 
-export function usePlayer(queue: Track[], containerId: string) {
+export function usePlayer(queue: Track[], containerId: string, onEnded?: () => boolean) {
+  const onEndedRef = useRef(onEnded);
+  onEndedRef.current = onEnded;
   const playerRef = useRef<any>(null);
   const [ready, setReady] = useState(false);
   const [index, setIndex] = useState<number | null>(null);
@@ -152,7 +154,7 @@ export function usePlayer(queue: Track[], containerId: string) {
             }
             if (st === 0) {
               if (repeatRef.current) e.target.seekTo(0, true);
-              else next();
+              else if (!onEndedRef.current?.()) next();
             }
           },
         },
