@@ -169,7 +169,7 @@ function SeekBar({ time, duration, loaded, onSeek, dark }: { time: number; durat
           <span className="absolute inset-y-0 left-0 rounded-full bg-primary" style={{ width: `${pct}%` }} />
         </span>
         <span
-          className={`pointer-events-none absolute size-3.5 -translate-x-1/2 rounded-full bg-primary shadow-primary transition-transform ${drag != null ? "scale-125" : ""}`}
+          className={`pointer-events-none absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary shadow-primary transition-transform ${drag != null ? "scale-125" : ""}`}
           style={{ left: `${pct}%` }}
         />
         {drag != null && (
