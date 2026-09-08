@@ -407,6 +407,7 @@ function Index() {
       setSugOpen(false);
       setSuggestions([]);
       setCategory(null);
+      setChannel(null);
       setSearches(pushSearch(term));
       void doSearch(term);
     },
