@@ -908,14 +908,14 @@ function Index() {
               {hydrated && queue.length === 0 && (
                 <p className="glass mt-3 rounded-3xl p-5 text-center text-[13px] text-muted-foreground">প্লেলিস্ট খালি। হোমের যেকোনো ভিডিওর <b className="text-foreground">+</b> চাপলে এখানে যোগ হবে।</p>
               )}
-              <ul className="mt-3 space-y-2.5">
+              <ul className="mt-3 space-y-3">
                 {queue.map((t, i) => {
                   const active = player.index === i;
                   return (
                     <li key={t.id} className={`flex items-center gap-2 rounded-3xl p-2.5 ring-1 ${active ? "bg-primary-soft/80 ring-primary/25" : "glass ring-border"}`}>
                       <span className="w-5 shrink-0 text-center text-[11px] text-muted-foreground">{i + 1}</span>
                       <button onClick={() => { player.playAt(i); setProfileOpen(false); openWatch(t.id); }} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-                        <img src={t.thumbnail} alt="" className="size-12 shrink-0 rounded-[12px] object-cover ring-1 ring-border" loading="lazy" />
+                        <img src={t.thumbnail} alt="" className="size-14 shrink-0 rounded-[14px] object-cover ring-1 ring-border" loading="lazy" />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate font-display text-[14px] font-semibold">{t.title}</span>
                           <span className="block truncate text-[12px] text-muted-foreground">{t.author}</span>
