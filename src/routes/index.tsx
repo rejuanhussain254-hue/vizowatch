@@ -1301,15 +1301,7 @@ function Index() {
         )}
         {playerMode === "big" && (
           <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-foreground/80 to-transparent px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-8 text-background">
-            <input
-              type="range"
-              min={0}
-              max={duration || 0}
-              value={Math.min(time, duration || 0)}
-              onChange={(e) => player.seek(Number(e.target.value))}
-              className="w-full accent-primary"
-              aria-label="সিক"
-            />
+            <SeekBar time={time} duration={duration} loaded={player.loaded} onSeek={player.seek} dark />
             <div className="mt-1 flex items-center justify-between text-[12px] font-semibold">
               <span>{formatTime(time)} / {formatTime(duration)}</span>
               <div className="flex items-center gap-2">
