@@ -120,6 +120,72 @@ function SkipIcon({ back = false }: { back?: boolean }) {
   );
 }
 
+// YouTube-style seek bar: buffered track, played track, draggable knob, time bubble
+function SeekBar({ time, duration, loaded, onSeek, dark }: { time: number; duration: number; loaded: number; onSeek: (t: number) => void; dark?: boolean }) {
+  const barRef = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState<number | null>(null);
+  const dur = duration || 0;
+  const shown = drag ?? Math.min(time, dur);
+  const pct = dur > 0 ? Math.min(100, (shown / dur) * 100) : 0;
+  const buf = Math.max(pct, Math.min(100, (loaded || 0) * 100));
+
+  const posFrom = (clientX: number) => {
+    const el = barRef.current;
+    if (!el || dur <= 0) return 0;
+    const r = el.getBoundingClientRect();
+    return Math.max(0, Math.min(1, (clientX - r.left) / r.width)) * dur;
+  };
+
+  return (
+    <div className="select-none">
+      <div
+        ref={barRef}
+        role="slider"
+        tabIndex={0}
+        aria-label="সিক"
+        aria-valuemin={0}
+        aria-valuemax={Math.round(dur)}
+        aria-valuenow={Math.round(shown)}
+        aria-valuetext={formatTime(shown)}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowRight") { e.preventDefault(); onSeek(Math.min(dur, time + 5)); }
+          if (e.key === "ArrowLeft") { e.preventDefault(); onSeek(Math.max(0, time - 5)); }
+        }}
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          setDrag(posFrom(e.clientX));
+        }}
+        onPointerMove={(e) => { if (drag != null) setDrag(posFrom(e.clientX)); }}
+        onPointerUp={(e) => {
+          const t = drag ?? posFrom(e.clientX);
+          setDrag(null);
+          onSeek(t);
+        }}
+        onPointerCancel={() => setDrag(null)}
+        className="group relative flex h-6 cursor-pointer touch-none items-center"
+      >
+        <span className={`relative block h-[5px] w-full overflow-hidden rounded-full ${dark ? "bg-background/30" : "bg-lilac/70"}`}>
+          <span className={`absolute inset-y-0 left-0 rounded-full ${dark ? "bg-background/45" : "bg-primary/25"}`} style={{ width: `${buf}%` }} />
+          <span className="absolute inset-y-0 left-0 rounded-full bg-primary" style={{ width: `${pct}%` }} />
+        </span>
+        <span
+          className={`pointer-events-none absolute size-3.5 -translate-x-1/2 rounded-full bg-primary shadow-primary transition-transform ${drag != null ? "scale-125" : ""}`}
+          style={{ left: `${pct}%` }}
+        />
+        {drag != null && (
+          <span className="pointer-events-none absolute -top-7 -translate-x-1/2 rounded-lg bg-foreground px-2 py-1 font-display text-[11px] font-semibold text-background" style={{ left: `${pct}%` }}>
+            {formatTime(drag)}
+          </span>
+        )}
+      </div>
+      <div className={`flex justify-between font-display text-[11.5px] font-semibold tabular-nums ${dark ? "text-background/90" : "text-muted-foreground"}`}>
+        <span>{formatTime(shown)}</span>
+        <span>{dur > 0 ? `-${formatTime(Math.max(0, dur - shown))}` : formatTime(0)}</span>
+      </div>
+    </div>
+  );
+}
+
 function Skeleton() {
   return (
     <ul className="mt-3 space-y-3" aria-label="লোড হচ্ছে">
@@ -1057,18 +1123,8 @@ function Index() {
             ) : (
               <p className="mt-0.5 truncate text-sm text-muted-foreground">কুই থেকে একটি ভিডিও বেছে নিন</p>
             )}
-            <input
-              type="range"
-              min={0}
-              max={duration || 0}
-              value={Math.min(time, duration || 0)}
-              onChange={(e) => player.seek(Number(e.target.value))}
-              className="mt-4 w-full accent-primary"
-              aria-label="সিক"
-            />
-            <div className="flex justify-between text-[11px] text-muted-foreground">
-              <span>{formatTime(time)}</span>
-              <span>{formatTime(duration)}</span>
+            <div className="mt-4">
+              <SeekBar time={time} duration={duration} loaded={player.loaded} onSeek={player.seek} />
             </div>
             <div className="mt-4 flex items-center justify-center gap-5">
               <button onClick={player.prev} aria-label="আগের ভিডিও" className="grid size-14 place-items-center rounded-2xl bg-glass ring-1 ring-border"><SkipIcon back /></button>
@@ -1245,15 +1301,7 @@ function Index() {
         )}
         {playerMode === "big" && (
           <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-foreground/80 to-transparent px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-8 text-background">
-            <input
-              type="range"
-              min={0}
-              max={duration || 0}
-              value={Math.min(time, duration || 0)}
-              onChange={(e) => player.seek(Number(e.target.value))}
-              className="w-full accent-primary"
-              aria-label="সিক"
-            />
+            <SeekBar time={time} duration={duration} loaded={player.loaded} onSeek={player.seek} dark />
             <div className="mt-1 flex items-center justify-between text-[12px] font-semibold">
               <span>{formatTime(time)} / {formatTime(duration)}</span>
               <div className="flex items-center gap-2">
