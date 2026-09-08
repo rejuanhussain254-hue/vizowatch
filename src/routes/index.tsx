@@ -787,7 +787,7 @@ function Index() {
             onClick={() => playTrack(resume, resume.position)}
             className="mt-4 flex w-full items-center gap-3 rounded-3xl bg-primary p-3 text-left text-primary-foreground shadow-primary transition active:scale-[0.99]"
           >
-            <img src={resume.thumbnail} alt="" className="h-12 w-[76px] rounded-xl object-cover" />
+            <img src={resume.thumbnail} alt="" className="h-16 w-[108px] rounded-2xl object-cover" />
             <span className="min-w-0 flex-1">
               <span className="block text-[11px] opacity-80">যেখানে ছেড়েছিলেন · {formatTime(resume.position)} থেকে চালু করুন</span>
               <span className="block truncate font-display text-[14px] font-semibold">{resume.title}</span>
