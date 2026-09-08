@@ -178,11 +178,21 @@ function VideoRow({ r, active, playing, onPlay, onQueue, onChannel, sub, progres
         </span>
       </button>
       <div className="flex gap-3 px-1 pt-2.5 pb-1">
-        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary font-display text-[13px] font-bold text-primary-foreground">{initial}</span>
-        <button onClick={onPlay} className="min-w-0 flex-1 text-left">
-          <span className="line-clamp-2 font-display text-[15px] font-semibold leading-snug">{r.title}</span>
-          <span className="mt-0.5 block truncate text-[12.5px] text-muted-foreground">{meta}</span>
-        </button>
+        {onChannel ? (
+          <button onClick={onChannel} aria-label={`${r.author} চ্যানেল দেখুন`} className="grid size-9 shrink-0 place-items-center rounded-full bg-primary font-display text-[13px] font-bold text-primary-foreground transition active:scale-95">{initial}</button>
+        ) : (
+          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary font-display text-[13px] font-bold text-primary-foreground">{initial}</span>
+        )}
+        <span className="min-w-0 flex-1">
+          <button onClick={onPlay} className="block w-full text-left">
+            <span className="line-clamp-2 font-display text-[15px] font-semibold leading-snug">{r.title}</span>
+          </button>
+          {onChannel ? (
+            <button onClick={onChannel} className="mt-0.5 block max-w-full truncate text-left text-[12.5px] text-muted-foreground underline-offset-2 hover:underline">{meta}</button>
+          ) : (
+            <span className="mt-0.5 block truncate text-[12.5px] text-muted-foreground">{meta}</span>
+          )}
+        </span>
         {active && playing ? (
           <span className="pt-1"><Eq /></span>
         ) : onQueue ? (
