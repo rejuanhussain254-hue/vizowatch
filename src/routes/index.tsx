@@ -940,7 +940,7 @@ function Index() {
               {hydrated && history.length === 0 && (
                 <p className="glass mt-3 rounded-3xl p-5 text-center text-[13px] text-muted-foreground">এখনো কিছু দেখা হয়নি। যা চালাবেন তা এখানে জমা থাকবে।</p>
               )}
-              <ul className="mt-3 space-y-2.5">
+              <ul className="mt-3 space-y-3">
                 {history.map((h) => (
                   <VideoRow
                     key={h.id}
