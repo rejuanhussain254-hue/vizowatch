@@ -974,6 +974,8 @@ function Index() {
                   <VideoRow
                     key={h.id}
                     r={h}
+                    compact
+
                     active={current?.id === h.id}
                     playing={playing}
                     progress={progressOf(h.id)}
