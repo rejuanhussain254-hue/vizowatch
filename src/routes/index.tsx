@@ -137,35 +137,64 @@ function Skeleton() {
 }
 
 type Row = Track & { duration?: string | number; views?: string };
-function VideoRow({ r, active, playing, onPlay, onQueue, sub, progress }: { r: Row; active: boolean; playing: boolean; onPlay: () => void; onQueue?: () => void; sub?: string; progress?: number }) {
+function VideoRow({ r, active, playing, onPlay, onQueue, sub, progress, compact }: { r: Row; active: boolean; playing: boolean; onPlay: () => void; onQueue?: () => void; sub?: string; progress?: number; compact?: boolean }) {
+  const initial = (r.author ?? "?").trim()[0]?.toUpperCase() ?? "?";
+  const meta = sub ?? `${r.author}${r.views ? ` · ${r.views}` : ""}`;
+
+  if (compact) {
+    return (
+      <li className={`flex items-center gap-2 rounded-3xl p-2.5 ring-1 ${active ? "bg-primary-soft/80 ring-primary/25" : "glass ring-border"}`}>
+        <button onClick={onPlay} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+          <span className="relative shrink-0">
+            <img src={r.thumbnail} alt="" className="h-[76px] w-[135px] rounded-2xl object-cover ring-1 ring-border" loading="lazy" />
+            {typeof r.duration === "string" && r.duration && <span className="absolute right-1.5 bottom-1.5 rounded-md bg-foreground/80 px-1.5 py-0.5 text-[11px] font-medium text-background">{r.duration}</span>}
+            {progress != null && progress > 0.01 && (
+              <span className="absolute inset-x-2 bottom-1 h-1 overflow-hidden rounded-full bg-foreground/30">
+                <span className="block h-full rounded-full bg-primary" style={{ width: `${Math.min(100, progress * 100)}%` }} />
+              </span>
+            )}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="line-clamp-2 font-display text-[14px] font-semibold leading-snug">{r.title}</span>
+            <span className="block truncate text-[12.5px] text-muted-foreground">{meta}</span>
+          </span>
+        </button>
+        {active && playing ? <span className="px-2"><Eq /></span> : null}
+      </li>
+    );
+  }
+
   return (
-    <li className={`flex items-center gap-2 rounded-3xl p-2.5 ring-1 ${active ? "bg-primary-soft/80 ring-primary/25" : "glass ring-border"}`}>
-      <button onClick={onPlay} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-        <span className="relative shrink-0">
-          <img src={r.thumbnail} alt="" className="h-[88px] w-[156px] rounded-2xl object-cover ring-1 ring-border" loading="lazy" />
-          {typeof r.duration === "string" && r.duration && <span className="absolute right-1.5 bottom-1.5 rounded-md bg-foreground/80 px-1.5 py-0.5 text-[11px] font-medium text-background">{r.duration}</span>}
+    <li className={`overflow-hidden rounded-3xl ${active ? "bg-primary-soft/70 ring-1 ring-primary/25" : ""}`}>
+      <button onClick={onPlay} className="block w-full text-left">
+        <span className="relative block">
+          <img src={r.thumbnail} alt="" className="aspect-video w-full rounded-2xl object-cover ring-1 ring-border" loading="lazy" />
+          {typeof r.duration === "string" && r.duration && <span className="absolute right-2 bottom-2 rounded-md bg-foreground/80 px-1.5 py-0.5 text-[11px] font-medium text-background">{r.duration}</span>}
           {progress != null && progress > 0.01 && (
             <span className="absolute inset-x-2 bottom-1 h-1 overflow-hidden rounded-full bg-foreground/30">
               <span className="block h-full rounded-full bg-primary" style={{ width: `${Math.min(100, progress * 100)}%` }} />
             </span>
           )}
         </span>
-
-        <span className="min-w-0 flex-1">
-          <span className="line-clamp-2 font-display text-[15px] font-semibold leading-snug">{r.title}</span>
-          <span className="block truncate text-[13px] text-muted-foreground">{sub ?? `${r.author}${r.views ? ` · ${r.views}` : ""}`}</span>
-        </span>
       </button>
-      {active && playing ? (
-        <span className="px-2"><Eq /></span>
-      ) : onQueue ? (
-        <button onClick={onQueue} aria-label="প্লেলিস্টে যোগ" title="প্লেলিস্টে যোগ" className="grid size-10 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-background">
-          <span className="relative block size-3"><span className="absolute inset-x-0 top-1/2 h-[2px] -translate-y-1/2 rounded-full bg-current" /><span className="absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2 rounded-full bg-current" /></span>
+      <div className="flex gap-3 px-1 pt-2.5 pb-1">
+        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary font-display text-[13px] font-bold text-primary-foreground">{initial}</span>
+        <button onClick={onPlay} className="min-w-0 flex-1 text-left">
+          <span className="line-clamp-2 font-display text-[15px] font-semibold leading-snug">{r.title}</span>
+          <span className="mt-0.5 block truncate text-[12.5px] text-muted-foreground">{meta}</span>
         </button>
-      ) : null}
+        {active && playing ? (
+          <span className="pt-1"><Eq /></span>
+        ) : onQueue ? (
+          <button onClick={onQueue} aria-label="প্লেলিস্টে যোগ" title="প্লেলিস্টে যোগ" className="grid size-9 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-background">
+            <span className="relative block size-3"><span className="absolute inset-x-0 top-1/2 h-[2px] -translate-y-1/2 rounded-full bg-current" /><span className="absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2 rounded-full bg-current" /></span>
+          </button>
+        ) : null}
+      </div>
     </li>
   );
 }
+
 
 function Index() {
   const [queue, setQueue] = useState<Track[]>([]);
