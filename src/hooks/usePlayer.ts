@@ -36,6 +36,7 @@ export function usePlayer(queue: Track[], containerId: string, onEnded?: () => b
   const [playing, setPlaying] = useState(false);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [loaded, setLoaded] = useState(0);
   const [repeat, setRepeat] = useState(false);
   const [captionTracks, setCaptionTracks] = useState<CaptionTrack[]>([]);
   const [captionsOn, setCaptionsOn] = useState(false);
@@ -214,5 +215,5 @@ export function usePlayer(queue: Track[], containerId: string, onEnded?: () => b
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [playing]);
 
-  return { ready, current, index, playing, time, duration, repeat, setRepeat, playAt, next, prev, toggle, seek, setIndex, captionTracks, captionsOn, captionLang, setCaptions };
+  return { ready, current, index, playing, time, duration, loaded, repeat, setRepeat, playAt, next, prev, toggle, seek, setIndex, captionTracks, captionsOn, captionLang, setCaptions };
 }
