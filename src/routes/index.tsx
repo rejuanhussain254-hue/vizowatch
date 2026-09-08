@@ -826,7 +826,7 @@ function Index() {
         )}
 
         {searchState === "ok" && results.length > 0 && (
-          <ul className="mt-3 space-y-2.5">
+          <ul className="mt-3 space-y-3">
             {results.map((r) => (
               <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} />
             ))}
