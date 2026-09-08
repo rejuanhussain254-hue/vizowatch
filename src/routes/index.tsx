@@ -525,6 +525,20 @@ function Index() {
   const openWatch = (id: string) => navigate({ to: "/", search: { v: id } });
   const closeWatch = () => navigate({ to: "/", search: {}, replace: true });
 
+  // open a channel: show that channel's videos on the home list
+  const openChannel = (name?: string) => {
+    const n = (name ?? "").trim();
+    if (!n) return;
+    if (open) closeWatch();
+    setProfileOpen(false);
+    setCategory(null);
+    setChannel(n);
+    setInput("");
+    setSugOpen(false);
+    void doSearch(`${n} ভিডিও`);
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const playTrack = useCallback(
     (track: Track, startAt = 0) => {
       const q = loadQueue();
