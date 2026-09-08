@@ -403,7 +403,10 @@ function Index() {
           const j = Math.floor(Math.random() * (i + 1));
           const t = pool[i]!; pool[i] = pool[j]!; pool[j] = t;
         }
-        feedOrder.current = pool;
+        // videos like the ones this person watches come first, then the mixed pool
+        const taste = tasteRef.current.filter(Boolean);
+        feedOrder.current = [...taste, ...pool.filter((q) => !taste.includes(q))];
+
         feedPage.current = 0;
         feedSeen.current = new Set();
         setResults([]);
