@@ -1052,13 +1052,13 @@ function Index() {
             {upNext.length > 0 && (
               <>
                 <h3 className="mt-6 font-display text-base font-semibold">পরে বাজবে</h3>
-                <ul className="mt-2 space-y-2">
+                <ul className="mt-2 space-y-2.5">
                   {upNext.map((t) => {
                     const i = queue.findIndex((x) => x.id === t.id);
                     return (
                       <li key={t.id} className="glass flex items-center gap-3 rounded-2xl p-2 ring-1 ring-border">
                         <button onClick={() => { player.playAt(i); openWatch(t.id); }} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-                          <img src={t.thumbnail} alt="" className="size-10 shrink-0 rounded-xl object-cover ring-1 ring-border" loading="lazy" />
+                          <img src={t.thumbnail} alt="" className="size-12 shrink-0 rounded-xl object-cover ring-1 ring-border" loading="lazy" />
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-[13px] font-semibold">{t.title}</span>
                             <span className="block truncate text-[11px] text-muted-foreground">{t.author}</span>
