@@ -122,12 +122,12 @@ function SkipIcon({ back = false }: { back?: boolean }) {
 
 function Skeleton() {
   return (
-    <ul className="mt-3 space-y-2.5" aria-label="লোড হচ্ছে">
+    <ul className="mt-3 space-y-3" aria-label="লোড হচ্ছে">
       {[0, 1, 2, 3, 4].map((i) => (
         <li key={i} className="glass flex animate-pulse items-center gap-3 rounded-3xl p-2.5 ring-1 ring-border">
-          <span className="h-14 w-[88px] shrink-0 rounded-[14px] bg-lilac/50" />
+          <span className="h-[88px] w-[156px] shrink-0 rounded-2xl bg-lilac/50" />
           <span className="flex-1 space-y-2">
-            <span className="block h-3.5 w-4/5 rounded-full bg-lilac/50" />
+            <span className="block h-4 w-4/5 rounded-full bg-lilac/50" />
             <span className="block h-3 w-1/2 rounded-full bg-lilac/40" />
           </span>
         </li>
@@ -142,24 +142,24 @@ function VideoRow({ r, active, playing, onPlay, onQueue, sub, progress }: { r: R
     <li className={`flex items-center gap-2 rounded-3xl p-2.5 ring-1 ${active ? "bg-primary-soft/80 ring-primary/25" : "glass ring-border"}`}>
       <button onClick={onPlay} className="flex min-w-0 flex-1 items-center gap-3 text-left">
         <span className="relative shrink-0">
-          <img src={r.thumbnail} alt="" className="h-14 w-[88px] rounded-[14px] object-cover ring-1 ring-border" loading="lazy" />
-          {typeof r.duration === "string" && r.duration && <span className="absolute right-1 bottom-1 rounded-md bg-foreground/80 px-1 text-[10px] font-medium text-background">{r.duration}</span>}
+          <img src={r.thumbnail} alt="" className="h-[88px] w-[156px] rounded-2xl object-cover ring-1 ring-border" loading="lazy" />
+          {typeof r.duration === "string" && r.duration && <span className="absolute right-1.5 bottom-1.5 rounded-md bg-foreground/80 px-1.5 py-0.5 text-[11px] font-medium text-background">{r.duration}</span>}
           {progress != null && progress > 0.01 && (
-            <span className="absolute inset-x-1 bottom-0.5 h-[3px] overflow-hidden rounded-full bg-foreground/30">
+            <span className="absolute inset-x-2 bottom-1 h-1 overflow-hidden rounded-full bg-foreground/30">
               <span className="block h-full rounded-full bg-primary" style={{ width: `${Math.min(100, progress * 100)}%` }} />
             </span>
           )}
         </span>
 
         <span className="min-w-0 flex-1">
-          <span className="line-clamp-2 font-display text-[14px] font-semibold leading-snug">{r.title}</span>
-          <span className="block truncate text-[12px] text-muted-foreground">{sub ?? `${r.author}${r.views ? ` · ${r.views}` : ""}`}</span>
+          <span className="line-clamp-2 font-display text-[15px] font-semibold leading-snug">{r.title}</span>
+          <span className="block truncate text-[13px] text-muted-foreground">{sub ?? `${r.author}${r.views ? ` · ${r.views}` : ""}`}</span>
         </span>
       </button>
       {active && playing ? (
         <span className="px-2"><Eq /></span>
       ) : onQueue ? (
-        <button onClick={onQueue} aria-label="প্লেলিস্টে যোগ" title="প্লেলিস্টে যোগ" className="grid size-9 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-background">
+        <button onClick={onQueue} aria-label="প্লেলিস্টে যোগ" title="প্লেলিস্টে যোগ" className="grid size-10 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-background">
           <span className="relative block size-3"><span className="absolute inset-x-0 top-1/2 h-[2px] -translate-y-1/2 rounded-full bg-current" /><span className="absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2 rounded-full bg-current" /></span>
         </button>
       ) : null}
@@ -787,7 +787,7 @@ function Index() {
             onClick={() => playTrack(resume, resume.position)}
             className="mt-4 flex w-full items-center gap-3 rounded-3xl bg-primary p-3 text-left text-primary-foreground shadow-primary transition active:scale-[0.99]"
           >
-            <img src={resume.thumbnail} alt="" className="h-12 w-[76px] rounded-xl object-cover" />
+            <img src={resume.thumbnail} alt="" className="h-16 w-[108px] rounded-2xl object-cover" />
             <span className="min-w-0 flex-1">
               <span className="block text-[11px] opacity-80">যেখানে ছেড়েছিলেন · {formatTime(resume.position)} থেকে চালু করুন</span>
               <span className="block truncate font-display text-[14px] font-semibold">{resume.title}</span>
@@ -826,7 +826,7 @@ function Index() {
         )}
 
         {searchState === "ok" && results.length > 0 && (
-          <ul className="mt-3 space-y-2.5">
+          <ul className="mt-3 space-y-3">
             {results.map((r) => (
               <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} />
             ))}
@@ -908,14 +908,14 @@ function Index() {
               {hydrated && queue.length === 0 && (
                 <p className="glass mt-3 rounded-3xl p-5 text-center text-[13px] text-muted-foreground">প্লেলিস্ট খালি। হোমের যেকোনো ভিডিওর <b className="text-foreground">+</b> চাপলে এখানে যোগ হবে।</p>
               )}
-              <ul className="mt-3 space-y-2.5">
+              <ul className="mt-3 space-y-3">
                 {queue.map((t, i) => {
                   const active = player.index === i;
                   return (
                     <li key={t.id} className={`flex items-center gap-2 rounded-3xl p-2.5 ring-1 ${active ? "bg-primary-soft/80 ring-primary/25" : "glass ring-border"}`}>
                       <span className="w-5 shrink-0 text-center text-[11px] text-muted-foreground">{i + 1}</span>
                       <button onClick={() => { player.playAt(i); setProfileOpen(false); openWatch(t.id); }} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-                        <img src={t.thumbnail} alt="" className="size-12 shrink-0 rounded-[12px] object-cover ring-1 ring-border" loading="lazy" />
+                        <img src={t.thumbnail} alt="" className="size-14 shrink-0 rounded-[14px] object-cover ring-1 ring-border" loading="lazy" />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate font-display text-[14px] font-semibold">{t.title}</span>
                           <span className="block truncate text-[12px] text-muted-foreground">{t.author}</span>
@@ -940,7 +940,7 @@ function Index() {
               {hydrated && history.length === 0 && (
                 <p className="glass mt-3 rounded-3xl p-5 text-center text-[13px] text-muted-foreground">এখনো কিছু দেখা হয়নি। যা চালাবেন তা এখানে জমা থাকবে।</p>
               )}
-              <ul className="mt-3 space-y-2.5">
+              <ul className="mt-3 space-y-3">
                 {history.map((h) => (
                   <VideoRow
                     key={h.id}
@@ -1052,13 +1052,13 @@ function Index() {
             {upNext.length > 0 && (
               <>
                 <h3 className="mt-6 font-display text-base font-semibold">পরে বাজবে</h3>
-                <ul className="mt-2 space-y-2">
+                <ul className="mt-2 space-y-2.5">
                   {upNext.map((t) => {
                     const i = queue.findIndex((x) => x.id === t.id);
                     return (
                       <li key={t.id} className="glass flex items-center gap-3 rounded-2xl p-2 ring-1 ring-border">
                         <button onClick={() => { player.playAt(i); openWatch(t.id); }} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-                          <img src={t.thumbnail} alt="" className="size-10 shrink-0 rounded-xl object-cover ring-1 ring-border" loading="lazy" />
+                          <img src={t.thumbnail} alt="" className="size-12 shrink-0 rounded-xl object-cover ring-1 ring-border" loading="lazy" />
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-[13px] font-semibold">{t.title}</span>
                             <span className="block truncate text-[11px] text-muted-foreground">{t.author}</span>
@@ -1079,7 +1079,7 @@ function Index() {
                   onClick={playUpNext}
                   className="glass mt-2 flex w-full items-center gap-3 rounded-2xl p-2 text-left ring-1 ring-primary/40"
                 >
-                  <img src={nextUp.thumbnail} alt="" className="h-12 w-[76px] shrink-0 rounded-xl object-cover ring-1 ring-border" loading="lazy" />
+                  <img src={nextUp.thumbnail} alt="" className="h-16 w-[108px] shrink-0 rounded-2xl object-cover ring-1 ring-border" loading="lazy" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[13px] font-semibold">{nextUp.title}</span>
                     <span className="block truncate text-[11px] text-muted-foreground">{nextUp.author}</span>
@@ -1101,7 +1101,7 @@ function Index() {
               <p className="glass mt-2 rounded-2xl p-4 text-center text-[12.5px] text-muted-foreground">এই ভিডিওর সাথে মেলে এমন কিছু পাওয়া যায়নি।</p>
             )}
             {relatedState === "ok" && related.length > 0 && (
-              <ul className="mt-2 space-y-2">
+              <ul className="mt-2 space-y-3">
                 {related.map((r) => (
                   <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} />
                 ))}
