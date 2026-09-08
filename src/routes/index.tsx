@@ -142,24 +142,24 @@ function VideoRow({ r, active, playing, onPlay, onQueue, sub, progress }: { r: R
     <li className={`flex items-center gap-2 rounded-3xl p-2.5 ring-1 ${active ? "bg-primary-soft/80 ring-primary/25" : "glass ring-border"}`}>
       <button onClick={onPlay} className="flex min-w-0 flex-1 items-center gap-3 text-left">
         <span className="relative shrink-0">
-          <img src={r.thumbnail} alt="" className="h-14 w-[88px] rounded-[14px] object-cover ring-1 ring-border" loading="lazy" />
-          {typeof r.duration === "string" && r.duration && <span className="absolute right-1 bottom-1 rounded-md bg-foreground/80 px-1 text-[10px] font-medium text-background">{r.duration}</span>}
+          <img src={r.thumbnail} alt="" className="h-[88px] w-[156px] rounded-2xl object-cover ring-1 ring-border" loading="lazy" />
+          {typeof r.duration === "string" && r.duration && <span className="absolute right-1.5 bottom-1.5 rounded-md bg-foreground/80 px-1.5 py-0.5 text-[11px] font-medium text-background">{r.duration}</span>}
           {progress != null && progress > 0.01 && (
-            <span className="absolute inset-x-1 bottom-0.5 h-[3px] overflow-hidden rounded-full bg-foreground/30">
+            <span className="absolute inset-x-2 bottom-1 h-1 overflow-hidden rounded-full bg-foreground/30">
               <span className="block h-full rounded-full bg-primary" style={{ width: `${Math.min(100, progress * 100)}%` }} />
             </span>
           )}
         </span>
 
         <span className="min-w-0 flex-1">
-          <span className="line-clamp-2 font-display text-[14px] font-semibold leading-snug">{r.title}</span>
-          <span className="block truncate text-[12px] text-muted-foreground">{sub ?? `${r.author}${r.views ? ` · ${r.views}` : ""}`}</span>
+          <span className="line-clamp-2 font-display text-[15px] font-semibold leading-snug">{r.title}</span>
+          <span className="block truncate text-[13px] text-muted-foreground">{sub ?? `${r.author}${r.views ? ` · ${r.views}` : ""}`}</span>
         </span>
       </button>
       {active && playing ? (
         <span className="px-2"><Eq /></span>
       ) : onQueue ? (
-        <button onClick={onQueue} aria-label="প্লেলিস্টে যোগ" title="প্লেলিস্টে যোগ" className="grid size-9 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-background">
+        <button onClick={onQueue} aria-label="প্লেলিস্টে যোগ" title="প্লেলিস্টে যোগ" className="grid size-10 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-background">
           <span className="relative block size-3"><span className="absolute inset-x-0 top-1/2 h-[2px] -translate-y-1/2 rounded-full bg-current" /><span className="absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2 rounded-full bg-current" /></span>
         </button>
       ) : null}
