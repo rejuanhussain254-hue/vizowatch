@@ -1109,7 +1109,22 @@ function Index() {
         </div>
 
         {/* slot the floating player docks into while the watch page is open */}
-        <div ref={slotRef} className="mx-5 mt-4 aspect-video rounded-3xl bg-lilac/40 ring-1 ring-border" />
+        <div className="relative mx-5 mt-4">
+          <div ref={slotRef} className="aspect-video overflow-hidden rounded-3xl bg-lilac/40 ring-1 ring-border" />
+          {/* on-video controls */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 rounded-b-3xl bg-gradient-to-t from-foreground/75 via-foreground/35 to-transparent px-3 pb-2 pt-8">
+            <div className="pointer-events-auto">
+              <SeekBar time={time} duration={duration} loaded={player.loaded} onSeek={player.seek} dark />
+            </div>
+            <div className="pointer-events-auto -mt-1 flex items-center justify-center gap-6 pb-1">
+              <button onClick={player.prev} aria-label="আগের ভিডিও" className="grid size-9 place-items-center rounded-full bg-background/25 text-background backdrop-blur-sm active:scale-95"><SkipIcon back /></button>
+              <button onClick={player.toggle} aria-label={playing ? "পজ" : "প্লে"} className="grid size-12 place-items-center rounded-full bg-primary text-primary-foreground shadow-primary active:scale-95">
+                <PlayIcon playing={playing} />
+              </button>
+              <button onClick={player.next} aria-label="পরের ভিডিও" className="grid size-9 place-items-center rounded-full bg-background/25 text-background backdrop-blur-sm active:scale-95"><SkipIcon /></button>
+            </div>
+          </div>
+        </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto pb-8">
           <div className="px-5 pt-4">
@@ -1123,16 +1138,7 @@ function Index() {
             ) : (
               <p className="mt-0.5 truncate text-sm text-muted-foreground">কুই থেকে একটি ভিডিও বেছে নিন</p>
             )}
-            <div className="mt-4">
-              <SeekBar time={time} duration={duration} loaded={player.loaded} onSeek={player.seek} />
-            </div>
-            <div className="mt-4 flex items-center justify-center gap-5">
-              <button onClick={player.prev} aria-label="আগের ভিডিও" className="grid size-14 place-items-center rounded-2xl bg-glass ring-1 ring-border"><SkipIcon back /></button>
-              <button onClick={player.toggle} aria-label={playing ? "পজ" : "প্লে"} className="grid size-[72px] place-items-center rounded-3xl bg-primary text-primary-foreground shadow-primary">
-                <PlayIcon playing={playing} />
-              </button>
-              <button onClick={player.next} aria-label="পরের ভিডিও" className="grid size-14 place-items-center rounded-2xl bg-glass ring-1 ring-border"><SkipIcon /></button>
-            </div>
+
             <p className="mt-3 text-center text-[11px] text-muted-foreground">স্ক্রিন অফ করলেও চলতে থাকবে · লক-স্ক্রিন থেকে কন্ট্রোল করুন</p>
 
             {current && player.captionTracks.length > 0 && (
