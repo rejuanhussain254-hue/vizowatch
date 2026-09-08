@@ -1123,18 +1123,8 @@ function Index() {
             ) : (
               <p className="mt-0.5 truncate text-sm text-muted-foreground">কুই থেকে একটি ভিডিও বেছে নিন</p>
             )}
-            <input
-              type="range"
-              min={0}
-              max={duration || 0}
-              value={Math.min(time, duration || 0)}
-              onChange={(e) => player.seek(Number(e.target.value))}
-              className="mt-4 w-full accent-primary"
-              aria-label="সিক"
-            />
-            <div className="flex justify-between text-[11px] text-muted-foreground">
-              <span>{formatTime(time)}</span>
-              <span>{formatTime(duration)}</span>
+            <div className="mt-4">
+              <SeekBar time={time} duration={duration} loaded={player.loaded} onSeek={player.seek} />
             </div>
             <div className="mt-4 flex items-center justify-center gap-5">
               <button onClick={player.prev} aria-label="আগের ভিডিও" className="grid size-14 place-items-center rounded-2xl bg-glass ring-1 ring-border"><SkipIcon back /></button>
