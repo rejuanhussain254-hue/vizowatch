@@ -1079,7 +1079,7 @@ function Index() {
                   onClick={playUpNext}
                   className="glass mt-2 flex w-full items-center gap-3 rounded-2xl p-2 text-left ring-1 ring-primary/40"
                 >
-                  <img src={nextUp.thumbnail} alt="" className="h-12 w-[76px] shrink-0 rounded-xl object-cover ring-1 ring-border" loading="lazy" />
+                  <img src={nextUp.thumbnail} alt="" className="h-16 w-[108px] shrink-0 rounded-2xl object-cover ring-1 ring-border" loading="lazy" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[13px] font-semibold">{nextUp.title}</span>
                     <span className="block truncate text-[11px] text-muted-foreground">{nextUp.author}</span>
