@@ -234,6 +234,7 @@ function Index() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [lastQuery, setLastQuery] = useState("");
   const [category, setCategory] = useState<string | null>("");
+  const [channel, setChannel] = useState<string | null>(null);
   const [searchState, setSearchState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [related, setRelated] = useState<SearchResult[]>([]);
   const [relatedState, setRelatedState] = useState<"idle" | "loading" | "ok" | "error">("idle");
