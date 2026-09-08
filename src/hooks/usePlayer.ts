@@ -166,6 +166,8 @@ export function usePlayer(queue: Track[], containerId: string, onEnded?: () => b
         setTime(p.getCurrentTime() || 0);
         const d = p.getDuration?.();
         if (d) setDuration(d);
+        const lf = p.getVideoLoadedFraction?.();
+        if (typeof lf === "number") setLoaded(lf);
       }
     }, 500);
     return () => {
