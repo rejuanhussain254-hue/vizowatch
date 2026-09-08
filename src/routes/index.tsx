@@ -1048,7 +1048,15 @@ function Index() {
         <div className="min-h-0 flex-1 overflow-y-auto pb-8">
           <div className="px-5 pt-4">
             <p className="line-clamp-2 font-display text-lg font-bold leading-snug">{current?.title ?? "কোনো ভিডিও বাছাই হয়নি"}</p>
-            <p className="mt-0.5 truncate text-sm text-muted-foreground">{current?.author ?? "কুই থেকে একটি ভিডিও বেছে নিন"}</p>
+            {current?.author ? (
+              <button onClick={() => openChannel(current.author)} className="mt-1 inline-flex max-w-full items-center gap-2 rounded-full bg-glass px-3 py-1.5 ring-1 ring-border transition active:scale-95">
+                <span className="grid size-6 shrink-0 place-items-center rounded-full bg-primary font-display text-[11px] font-bold text-primary-foreground">{current.author.trim()[0]?.toUpperCase() ?? "?"}</span>
+                <span className="truncate font-display text-[13px] font-semibold">{current.author}</span>
+                <span className="text-[11.5px] text-muted-foreground">চ্যানেল দেখুন</span>
+              </button>
+            ) : (
+              <p className="mt-0.5 truncate text-sm text-muted-foreground">কুই থেকে একটি ভিডিও বেছে নিন</p>
+            )}
             <input
               type="range"
               min={0}
