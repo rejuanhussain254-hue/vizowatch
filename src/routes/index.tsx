@@ -122,12 +122,12 @@ function SkipIcon({ back = false }: { back?: boolean }) {
 
 function Skeleton() {
   return (
-    <ul className="mt-3 space-y-2.5" aria-label="লোড হচ্ছে">
+    <ul className="mt-3 space-y-3" aria-label="লোড হচ্ছে">
       {[0, 1, 2, 3, 4].map((i) => (
         <li key={i} className="glass flex animate-pulse items-center gap-3 rounded-3xl p-2.5 ring-1 ring-border">
-          <span className="h-14 w-[88px] shrink-0 rounded-[14px] bg-lilac/50" />
+          <span className="h-[88px] w-[156px] shrink-0 rounded-2xl bg-lilac/50" />
           <span className="flex-1 space-y-2">
-            <span className="block h-3.5 w-4/5 rounded-full bg-lilac/50" />
+            <span className="block h-4 w-4/5 rounded-full bg-lilac/50" />
             <span className="block h-3 w-1/2 rounded-full bg-lilac/40" />
           </span>
         </li>
