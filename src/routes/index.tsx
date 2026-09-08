@@ -403,7 +403,10 @@ function Index() {
           const j = Math.floor(Math.random() * (i + 1));
           const t = pool[i]!; pool[i] = pool[j]!; pool[j] = t;
         }
-        feedOrder.current = pool;
+        // videos like the ones this person watches come first, then the mixed pool
+        const taste = tasteRef.current.filter(Boolean);
+        feedOrder.current = [...taste, ...pool.filter((q) => !taste.includes(q))];
+
         feedPage.current = 0;
         feedSeen.current = new Set();
         setResults([]);
@@ -498,10 +501,31 @@ function Index() {
 
 
 
+  // ---- taste profile: what genres/channels this person actually watches ----
+  const tasteRef = useRef<string[]>([]);
   useEffect(() => {
+    const genreScore = new Map<string, number>();
+    const chanScore = new Map<string, number>();
+    history.slice(0, 30).forEach((h, i) => {
+      const w = 30 - i;
+      const g = genreOf(`${h.title} ${h.author ?? ""}`);
+      if (g) genreScore.set(g, (genreScore.get(g) ?? 0) + w);
+      if (h.author) chanScore.set(h.author, (chanScore.get(h.author) ?? 0) + w);
+    });
+    const top = (m: Map<string, number>, n: number) =>
+      [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([k]) => k);
+    tasteRef.current = [
+      ...top(genreScore, 3).map((g) => `${g} নতুন ভিডিও`),
+      ...top(chanScore, 2).map((c) => `${c} ভিডিও`),
+    ];
+  }, [history]);
+
+  useEffect(() => {
+    if (!hydrated) return;
     doSearch("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [hydrated]);
+
 
   // infinite scroll for the home feed
   const isHome = lastQuery.trim().length === 0;
