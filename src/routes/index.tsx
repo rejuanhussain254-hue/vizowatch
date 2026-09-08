@@ -137,7 +137,7 @@ function Skeleton() {
 }
 
 type Row = Track & { duration?: string | number; views?: string };
-function VideoRow({ r, active, playing, onPlay, onQueue, sub, progress, compact }: { r: Row; active: boolean; playing: boolean; onPlay: () => void; onQueue?: () => void; sub?: string; progress?: number; compact?: boolean }) {
+function VideoRow({ r, active, playing, onPlay, onQueue, onChannel, sub, progress, compact }: { r: Row; active: boolean; playing: boolean; onPlay: () => void; onQueue?: () => void; onChannel?: () => void; sub?: string; progress?: number; compact?: boolean }) {
   const initial = (r.author ?? "?").trim()[0]?.toUpperCase() ?? "?";
   const meta = sub ?? `${r.author}${r.views ? ` · ${r.views}` : ""}`;
 
