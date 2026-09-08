@@ -1101,7 +1101,7 @@ function Index() {
               <p className="glass mt-2 rounded-2xl p-4 text-center text-[12.5px] text-muted-foreground">এই ভিডিওর সাথে মেলে এমন কিছু পাওয়া যায়নি।</p>
             )}
             {relatedState === "ok" && related.length > 0 && (
-              <ul className="mt-2 space-y-2">
+              <ul className="mt-2 space-y-3">
                 {related.map((r) => (
                   <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} />
                 ))}
