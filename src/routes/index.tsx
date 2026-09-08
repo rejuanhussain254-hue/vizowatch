@@ -137,7 +137,7 @@ function Skeleton() {
 }
 
 type Row = Track & { duration?: string | number; views?: string };
-function VideoRow({ r, active, playing, onPlay, onQueue, sub, progress, compact }: { r: Row; active: boolean; playing: boolean; onPlay: () => void; onQueue?: () => void; sub?: string; progress?: number; compact?: boolean }) {
+function VideoRow({ r, active, playing, onPlay, onQueue, onChannel, sub, progress, compact }: { r: Row; active: boolean; playing: boolean; onPlay: () => void; onQueue?: () => void; onChannel?: () => void; sub?: string; progress?: number; compact?: boolean }) {
   const initial = (r.author ?? "?").trim()[0]?.toUpperCase() ?? "?";
   const meta = sub ?? `${r.author}${r.views ? ` · ${r.views}` : ""}`;
 
@@ -178,11 +178,21 @@ function VideoRow({ r, active, playing, onPlay, onQueue, sub, progress, compact 
         </span>
       </button>
       <div className="flex gap-3 px-1 pt-2.5 pb-1">
-        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary font-display text-[13px] font-bold text-primary-foreground">{initial}</span>
-        <button onClick={onPlay} className="min-w-0 flex-1 text-left">
-          <span className="line-clamp-2 font-display text-[15px] font-semibold leading-snug">{r.title}</span>
-          <span className="mt-0.5 block truncate text-[12.5px] text-muted-foreground">{meta}</span>
-        </button>
+        {onChannel ? (
+          <button onClick={onChannel} aria-label={`${r.author} চ্যানেল দেখুন`} className="grid size-9 shrink-0 place-items-center rounded-full bg-primary font-display text-[13px] font-bold text-primary-foreground transition active:scale-95">{initial}</button>
+        ) : (
+          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary font-display text-[13px] font-bold text-primary-foreground">{initial}</span>
+        )}
+        <span className="min-w-0 flex-1">
+          <button onClick={onPlay} className="block w-full text-left">
+            <span className="line-clamp-2 font-display text-[15px] font-semibold leading-snug">{r.title}</span>
+          </button>
+          {onChannel ? (
+            <button onClick={onChannel} className="mt-0.5 block max-w-full truncate text-left text-[12.5px] text-muted-foreground underline-offset-2 hover:underline">{meta}</button>
+          ) : (
+            <span className="mt-0.5 block truncate text-[12.5px] text-muted-foreground">{meta}</span>
+          )}
+        </span>
         {active && playing ? (
           <span className="pt-1"><Eq /></span>
         ) : onQueue ? (
@@ -224,6 +234,7 @@ function Index() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [lastQuery, setLastQuery] = useState("");
   const [category, setCategory] = useState<string | null>("");
+  const [channel, setChannel] = useState<string | null>(null);
   const [searchState, setSearchState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [related, setRelated] = useState<SearchResult[]>([]);
   const [relatedState, setRelatedState] = useState<"idle" | "loading" | "ok" | "error">("idle");
@@ -396,6 +407,7 @@ function Index() {
       setSugOpen(false);
       setSuggestions([]);
       setCategory(null);
+      setChannel(null);
       setSearches(pushSearch(term));
       void doSearch(term);
     },
@@ -512,6 +524,20 @@ function Index() {
   // ---- watch page (?v=ID) ----
   const openWatch = (id: string) => navigate({ to: "/", search: { v: id } });
   const closeWatch = () => navigate({ to: "/", search: {}, replace: true });
+
+  // open a channel: show that channel's videos on the home list
+  const openChannel = (name?: string) => {
+    const n = (name ?? "").trim();
+    if (!n) return;
+    if (open) closeWatch();
+    setProfileOpen(false);
+    setCategory(null);
+    setChannel(n);
+    setInput("");
+    setSugOpen(false);
+    void doSearch(`${n} ভিডিও`);
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const playTrack = useCallback(
     (track: Track, startAt = 0) => {
@@ -802,7 +828,7 @@ function Index() {
             return (
               <button
                 key={c.label}
-                onClick={() => { setCategory(c.q); setInput(""); doSearch(c.q); }}
+                onClick={() => { setCategory(c.q); setChannel(null); setInput(""); doSearch(c.q); }}
                 className={`shrink-0 rounded-full px-3.5 py-1.5 font-display text-[13px] font-semibold ring-1 transition active:scale-95 ${on ? "bg-primary text-primary-foreground ring-primary shadow-primary" : "bg-glass text-foreground ring-border"}`}
               >
                 {c.label}
@@ -828,7 +854,12 @@ function Index() {
 
         {/* Search / trending */}
         <div className="mt-8 flex items-center justify-between">
-          <h2 className="font-display text-xl font-semibold">{catLabel ? (catLabel === "হোম" ? "আপনার জন্য" : catLabel) : isSearch ? `"${lastQuery}"` : "আপনার জন্য"}</h2>
+          <h2 className="font-display text-xl font-semibold">{channel ? `চ্যানেল · ${channel}` : catLabel ? (catLabel === "হোম" ? "আপনার জন্য" : catLabel) : isSearch ? `"${lastQuery}"` : "আপনার জন্য"}</h2>
+          {channel && (
+            <button onClick={() => { setChannel(null); setCategory(""); doSearch(""); }} className="rounded-full bg-glass px-3 py-1 font-display text-[12px] font-semibold ring-1 ring-border">
+              হোম
+            </button>
+          )}
           {searchState === "loading" && <span className="text-[12px] text-muted-foreground">খোঁজা হচ্ছে…</span>}
         </div>
 
@@ -857,7 +888,7 @@ function Index() {
         {searchState === "ok" && results.length > 0 && (
           <ul className="mt-3 space-y-3">
             {results.map((r) => (
-              <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} />
+              <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author)} />
             ))}
           </ul>
         )}
@@ -1017,7 +1048,15 @@ function Index() {
         <div className="min-h-0 flex-1 overflow-y-auto pb-8">
           <div className="px-5 pt-4">
             <p className="line-clamp-2 font-display text-lg font-bold leading-snug">{current?.title ?? "কোনো ভিডিও বাছাই হয়নি"}</p>
-            <p className="mt-0.5 truncate text-sm text-muted-foreground">{current?.author ?? "কুই থেকে একটি ভিডিও বেছে নিন"}</p>
+            {current?.author ? (
+              <button onClick={() => openChannel(current.author)} className="mt-1 inline-flex max-w-full items-center gap-2 rounded-full bg-glass px-3 py-1.5 ring-1 ring-border transition active:scale-95">
+                <span className="grid size-6 shrink-0 place-items-center rounded-full bg-primary font-display text-[11px] font-bold text-primary-foreground">{current.author.trim()[0]?.toUpperCase() ?? "?"}</span>
+                <span className="truncate font-display text-[13px] font-semibold">{current.author}</span>
+                <span className="text-[11.5px] text-muted-foreground">চ্যানেল দেখুন</span>
+              </button>
+            ) : (
+              <p className="mt-0.5 truncate text-sm text-muted-foreground">কুই থেকে একটি ভিডিও বেছে নিন</p>
+            )}
             <input
               type="range"
               min={0}
@@ -1134,7 +1173,7 @@ function Index() {
             {relatedState === "ok" && related.length > 0 && (
               <ul className="mt-2 space-y-3">
                 {related.map((r) => (
-                  <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} />
+                  <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author)} />
                 ))}
               </ul>
             )}
