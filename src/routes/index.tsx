@@ -1133,9 +1133,22 @@ function Index() {
         </div>
 
         {/* slot the floating player docks into while the watch page is open */}
-        <div className="relative mx-5 mt-4">
-          <div ref={slotRef} className="aspect-video overflow-hidden rounded-3xl bg-lilac/40 ring-1 ring-border" />
+        <div className="relative mx-4 mt-3">
+          <div ref={slotRef} className="aspect-video overflow-hidden rounded-2xl bg-lilac/40 ring-1 ring-border" />
         </div>
+
+        {/* controls under the video so nothing covers it */}
+        <div className="mx-4 mt-2">
+          <SeekBar time={time} duration={duration} loaded={player.loaded} onSeek={player.seek} />
+          <div className="mt-2 flex items-center justify-center gap-6">
+            <button onClick={player.prev} aria-label="আগের ভিডিও" className="grid size-9 place-items-center rounded-full bg-glass ring-1 ring-border active:scale-95"><SkipIcon back /></button>
+            <button onClick={player.toggle} aria-label={playing ? "পজ" : "প্লে"} className="grid size-12 place-items-center rounded-full bg-primary text-primary-foreground shadow-primary active:scale-95">
+              <PlayIcon playing={playing} />
+            </button>
+            <button onClick={player.next} aria-label="পরের ভিডিও" className="grid size-9 place-items-center rounded-full bg-glass ring-1 ring-border active:scale-95"><SkipIcon /></button>
+          </div>
+        </div>
+
 
         <div className="min-h-0 flex-1 overflow-y-auto pb-8">
           <div className="px-5 pt-4">
