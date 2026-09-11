@@ -1307,7 +1307,7 @@ function Index() {
           <button
             onClick={toggleBigVideo}
             aria-label={bigVideo ? "ছোট করুন" : "বড় করুন"}
-            className="absolute right-3 top-3 grid size-9 place-items-center rounded-xl bg-background/80 text-foreground shadow ring-1 ring-border backdrop-blur"
+            className="absolute right-3 top-3 z-20 grid size-9 place-items-center rounded-xl bg-background/80 text-foreground shadow ring-1 ring-border backdrop-blur"
           >
             {bigVideo ? (
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3v6H3M15 3v6h6M9 21v-6H3M15 21v-6h6" /></svg>
@@ -1315,6 +1315,20 @@ function Index() {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6" /></svg>
             )}
           </button>
+        )}
+        {playerMode === "watch" && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 rounded-b-3xl bg-gradient-to-t from-foreground/75 via-foreground/35 to-transparent px-3 pb-3 pt-10">
+            <div className="pointer-events-auto">
+              <SeekBar time={time} duration={duration} loaded={player.loaded} onSeek={player.seek} dark />
+            </div>
+            <div className="pointer-events-auto mt-3 flex items-center justify-center gap-6 pb-1">
+              <button onClick={player.prev} aria-label="আগের ভিডিও" className="grid size-9 place-items-center rounded-full bg-background/25 text-background backdrop-blur-sm active:scale-95"><SkipIcon back /></button>
+              <button onClick={player.toggle} aria-label={playing ? "পজ" : "প্লে"} className="grid size-12 place-items-center rounded-full bg-primary text-primary-foreground shadow-primary active:scale-95">
+                <PlayIcon playing={playing} />
+              </button>
+              <button onClick={player.next} aria-label="পরের ভিডিও" className="grid size-9 place-items-center rounded-full bg-background/25 text-background backdrop-blur-sm active:scale-95"><SkipIcon /></button>
+            </div>
+          </div>
         )}
         {playerMode === "big" && (
           <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-foreground/80 to-transparent px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-10 text-background">
@@ -1326,6 +1340,7 @@ function Index() {
             </div>
           </div>
         )}
+
       </div>
 
 
