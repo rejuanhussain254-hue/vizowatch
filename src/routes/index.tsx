@@ -649,7 +649,10 @@ function Index() {
   // "up next" = the next queued video, else the first related one
   const queuedNext = player.index !== null ? queue[player.index + 1] ?? null : null;
   const nextUp: Track | null =
-    queuedNext ?? related.find((r) => r.id !== current?.id && !queue.some((t) => t.id === r.id)) ?? null;
+    queuedNext ??
+    related.find((r) => r.id !== current?.id && !queue.some((t) => t.id === r.id)) ??
+    results.find((r) => r.id !== current?.id && !queue.some((t) => t.id === r.id)) ??
+    null;
   const playUpNext = useCallback(() => {
     if (!nextUp) return false;
     playTrack(nextUp, savedPosOf(nextUp.id));
