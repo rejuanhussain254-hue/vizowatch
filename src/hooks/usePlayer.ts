@@ -201,19 +201,59 @@ export function usePlayer(queue: Track[], containerId: string, onEnded?: () => b
     }
   }, [current, playing, next, prev, seek]);
 
-  // Keep playing when the tab goes to the background
+  // Keep playing when the tab goes to the background (screen off / app switch)
   useEffect(() => {
-    const onVis = () => {
-      if (document.visibilityState === "hidden" && playing) {
-        setTimeout(() => {
-          const p = playerRef.current;
-          if (p && p.getPlayerState?.() === 2 && indexRef.current !== null) p.playVideo();
-        }, 400);
-      }
+    if (!playing) return;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const resume = () => {
+      const p = playerRef.current;
+      if (!p || indexRef.current === null) return;
+      const st = p.getPlayerState?.();
+      if (st === 2 || st === -1) p.playVideo?.();
     };
+    const start = () => {
+      if (timer) return;
+      resume();
+      timer = setInterval(resume, 1000);
+    };
+    const stop = () => {
+      if (timer) clearInterval(timer);
+      timer = null;
+    };
+    const onVis = () => (document.visibilityState === "hidden" ? start() : stop());
     document.addEventListener("visibilitychange", onVis);
-    return () => document.removeEventListener("visibilitychange", onVis);
+    window.addEventListener("pagehide", start);
+    window.addEventListener("blur", start);
+    window.addEventListener("focus", stop);
+    if (document.visibilityState === "hidden") start();
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("pagehide", start);
+      window.removeEventListener("blur", start);
+      window.removeEventListener("focus", stop);
+    };
   }, [playing]);
+
+  // Screen-off resilience: hold a wake lock while playing when supported
+  useEffect(() => {
+    if (!playing) return;
+    let released = false;
+    let lock: any = null;
+    const nav = navigator as any;
+    nav.wakeLock
+      ?.request?.("screen")
+      .then((l: any) => {
+        if (released) l.release?.();
+        else lock = l;
+      })
+      .catch(() => {});
+    return () => {
+      released = true;
+      lock?.release?.().catch?.(() => {});
+    };
+  }, [playing]);
+
 
   return { ready, current, index, playing, time, duration, loaded, repeat, setRepeat, playAt, next, prev, toggle, seek, setIndex, captionTracks, captionsOn, captionLang, setCaptions };
 }
