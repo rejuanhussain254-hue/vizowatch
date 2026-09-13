@@ -162,15 +162,17 @@ export function usePlayer(queue: Track[], containerId: string, onEnded?: () => b
       });
     });
     const tick = setInterval(() => {
+      // Skip UI updates when hidden or paused — saves battery and heat.
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       const p = playerRef.current;
-      if (p?.getCurrentTime) {
+      if (p?.getCurrentTime && p.getPlayerState?.() === 1) {
         setTime(p.getCurrentTime() || 0);
         const d = p.getDuration?.();
         if (d) setDuration(d);
         const lf = p.getVideoLoadedFraction?.();
         if (typeof lf === "number") setLoaded(lf);
       }
-    }, 500);
+    }, 1000);
     return () => {
       cancelled = true;
       clearInterval(tick);
@@ -214,7 +216,7 @@ export function usePlayer(queue: Track[], containerId: string, onEnded?: () => b
     const start = () => {
       if (timer) return;
       resume();
-      timer = setInterval(resume, 1000);
+      timer = setInterval(resume, 4000);
     };
     const stop = () => {
       if (timer) clearInterval(timer);
@@ -223,36 +225,14 @@ export function usePlayer(queue: Track[], containerId: string, onEnded?: () => b
     const onVis = () => (document.visibilityState === "hidden" ? start() : stop());
     document.addEventListener("visibilitychange", onVis);
     window.addEventListener("pagehide", start);
-    window.addEventListener("blur", start);
-    window.addEventListener("focus", stop);
     if (document.visibilityState === "hidden") start();
     return () => {
       stop();
       document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("pagehide", start);
-      window.removeEventListener("blur", start);
-      window.removeEventListener("focus", stop);
     };
   }, [playing]);
 
-  // Screen-off resilience: hold a wake lock while playing when supported
-  useEffect(() => {
-    if (!playing) return;
-    let released = false;
-    let lock: any = null;
-    const nav = navigator as any;
-    nav.wakeLock
-      ?.request?.("screen")
-      .then((l: any) => {
-        if (released) l.release?.();
-        else lock = l;
-      })
-      .catch(() => {});
-    return () => {
-      released = true;
-      lock?.release?.().catch?.(() => {});
-    };
-  }, [playing]);
 
 
   return { ready, current, index, playing, time, duration, loaded, repeat, setRepeat, playAt, next, prev, toggle, seek, setIndex, captionTracks, captionsOn, captionLang, setCaptions };
