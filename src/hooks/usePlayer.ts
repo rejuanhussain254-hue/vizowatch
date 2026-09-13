@@ -162,15 +162,17 @@ export function usePlayer(queue: Track[], containerId: string, onEnded?: () => b
       });
     });
     const tick = setInterval(() => {
+      // Skip UI updates when hidden or paused — saves battery and heat.
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       const p = playerRef.current;
-      if (p?.getCurrentTime) {
+      if (p?.getCurrentTime && p.getPlayerState?.() === 1) {
         setTime(p.getCurrentTime() || 0);
         const d = p.getDuration?.();
         if (d) setDuration(d);
         const lf = p.getVideoLoadedFraction?.();
         if (typeof lf === "number") setLoaded(lf);
       }
-    }, 500);
+    }, 1000);
     return () => {
       cancelled = true;
       clearInterval(tick);
