@@ -162,7 +162,7 @@ function SeekBar({ time, duration, loaded, onSeek, dark }: { time: number; durat
           onSeek(t);
         }}
         onPointerCancel={() => setDrag(null)}
-        className="group relative flex h-6 cursor-pointer touch-none items-center"
+        className="group relative flex h-5 cursor-pointer touch-none items-center"
       >
         <span className={`relative block h-[5px] w-full overflow-hidden rounded-full ${dark ? "bg-background/30" : "bg-lilac/70"}`}>
           <span className={`absolute inset-y-0 left-0 rounded-full ${dark ? "bg-background/45" : "bg-primary/25"}`} style={{ width: `${buf}%` }} />
@@ -1138,14 +1138,14 @@ function Index() {
         </div>
 
         {/* controls under the video so nothing covers it */}
-        <div className="mx-4 mt-2">
+        <div className="mx-4 mt-1">
           <SeekBar time={time} duration={duration} loaded={player.loaded} onSeek={player.seek} />
-          <div className="mt-2 flex items-center justify-center gap-6">
-            <button onClick={player.prev} aria-label="আগের ভিডিও" className="grid size-9 place-items-center rounded-full bg-glass ring-1 ring-border active:scale-95"><SkipIcon back /></button>
-            <button onClick={player.toggle} aria-label={playing ? "পজ" : "প্লে"} className="grid size-12 place-items-center rounded-full bg-primary text-primary-foreground shadow-primary active:scale-95">
+          <div className="mt-1 flex items-center justify-center gap-4">
+            <button onClick={player.prev} aria-label="আগের ভিডিও" className="grid size-8 place-items-center rounded-full bg-glass ring-1 ring-border active:scale-95"><SkipIcon back /></button>
+            <button onClick={player.toggle} aria-label={playing ? "পজ" : "প্লে"} className="grid size-10 place-items-center rounded-full bg-primary text-primary-foreground shadow-primary active:scale-95">
               <PlayIcon playing={playing} />
             </button>
-            <button onClick={player.next} aria-label="পরের ভিডিও" className="grid size-9 place-items-center rounded-full bg-glass ring-1 ring-border active:scale-95"><SkipIcon /></button>
+            <button onClick={player.next} aria-label="পরের ভিডিও" className="grid size-8 place-items-center rounded-full bg-glass ring-1 ring-border active:scale-95"><SkipIcon /></button>
           </div>
         </div>
 
@@ -1330,12 +1330,12 @@ function Index() {
           </button>
         )}
         {playerMode === "big" && (
-          <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-foreground/80 to-transparent px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-10 text-background">
+          <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-foreground/80 to-transparent px-4 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-8 text-background">
             <SeekBar time={time} duration={duration} loaded={player.loaded} onSeek={player.seek} dark />
-            <div className="pointer-events-auto mt-4 flex items-center justify-center gap-6">
-              <button onClick={player.prev} aria-label="আগের" className="grid size-10 place-items-center rounded-full bg-background/20 active:scale-95"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z" /></svg></button>
-              <button onClick={player.toggle} aria-label={playing ? "পজ" : "প্লে"} className="grid size-13 place-items-center rounded-full bg-primary text-primary-foreground shadow-primary active:scale-95"><PlayIcon playing={playing} className="size-6" /></button>
-              <button onClick={player.next} aria-label="পরের" className="grid size-10 place-items-center rounded-full bg-background/20 active:scale-95"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z" /></svg></button>
+            <div className="pointer-events-auto mt-2 flex items-center justify-center gap-4">
+              <button onClick={player.prev} aria-label="আগের" className="grid size-8 place-items-center rounded-full bg-background/20 active:scale-95"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z" /></svg></button>
+              <button onClick={player.toggle} aria-label={playing ? "পজ" : "প্লে"} className="grid size-10 place-items-center rounded-full bg-primary text-primary-foreground shadow-primary active:scale-95"><PlayIcon playing={playing} className="size-5" /></button>
+              <button onClick={player.next} aria-label="পরের" className="grid size-8 place-items-center rounded-full bg-background/20 active:scale-95"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z" /></svg></button>
             </div>
           </div>
         )}
