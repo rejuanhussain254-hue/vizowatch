@@ -928,6 +928,7 @@ function Index() {
   const upNext = player.index !== null ? queue.slice(player.index + 1, player.index + 6) : queue.slice(0, 5);
   const isSearch = lastQuery.trim().length > 0;
   const catLabel = CATEGORIES.find((c) => c.q === category)?.label ?? null;
+  const chanView = !!channel && chanState !== "idle";
 
   return (
     <div className="relative min-h-screen overflow-hidden font-body">
