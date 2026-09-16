@@ -249,9 +249,9 @@ function VideoRow({ r, active, playing, onPlay, onQueue, onChannel, sub, progres
       </button>
       <div className="flex gap-3 px-1 pt-2.5 pb-1">
         {onChannel ? (
-          <button onClick={onChannel} aria-label={`${r.author} চ্যানেল দেখুন`} className="grid size-9 shrink-0 place-items-center rounded-full bg-primary font-display text-[13px] font-bold text-primary-foreground transition active:scale-95">{initial}</button>
+          <button onClick={onChannel} aria-label={`${r.author} চ্যানেল দেখুন`} className="shrink-0 transition active:scale-95"><Avatar src={r.channelThumb} name={r.author} /></button>
         ) : (
-          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary font-display text-[13px] font-bold text-primary-foreground">{initial}</span>
+          <Avatar src={r.channelThumb} name={r.author} />
         )}
         <span className="min-w-0 flex-1">
           <button onClick={onPlay} className="block w-full text-left">
