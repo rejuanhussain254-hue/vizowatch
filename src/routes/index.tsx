@@ -202,10 +202,14 @@ function Skeleton() {
   );
 }
 
-type Row = Track & { duration?: string | number; views?: string };
+type Row = Track & { duration?: string | number; views?: string; channelThumb?: string; published?: string; channelId?: string };
+function Avatar({ src, name, size = "size-9", text = "text-[13px]" }: { src?: string; name?: string; size?: string; text?: string }) {
+  const initial = (name ?? "?").trim()[0]?.toUpperCase() ?? "?";
+  if (src) return <img src={src} alt="" className={`${size} shrink-0 rounded-full bg-lilac/50 object-cover ring-1 ring-border`} loading="lazy" referrerPolicy="no-referrer" />;
+  return <span className={`grid ${size} shrink-0 place-items-center rounded-full bg-primary font-display ${text} font-bold text-primary-foreground`}>{initial}</span>;
+}
 function VideoRow({ r, active, playing, onPlay, onQueue, onChannel, sub, progress, compact }: { r: Row; active: boolean; playing: boolean; onPlay: () => void; onQueue?: () => void; onChannel?: () => void; sub?: string; progress?: number; compact?: boolean }) {
-  const initial = (r.author ?? "?").trim()[0]?.toUpperCase() ?? "?";
-  const meta = sub ?? `${r.author}${r.views ? ` · ${r.views}` : ""}`;
+  const meta = sub ?? [r.author, r.views, r.published].filter(Boolean).join(" · ");
 
   if (compact) {
     return (
