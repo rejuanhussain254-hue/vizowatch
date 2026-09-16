@@ -4,7 +4,17 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { usePlayer } from "@/hooks/usePlayer";
 import { useAuth } from "@/hooks/useAuth";
 import { clearCloudHistory, mergeHistoryOnSignIn, updateCloudPosition, upsertCloudHistory } from "@/lib/history-sync";
-import { searchYouTube, suggestYouTube, type SearchResult } from "@/lib/search.functions";
+import {
+  channelData,
+  playlistData,
+  resolveChannel,
+  searchYouTube,
+  suggestYouTube,
+  videoMeta,
+  type ChannelPage,
+  type SearchResult,
+  type VideoMeta,
+} from "@/lib/search.functions";
 import {
   clearHistory,
   extractVideoId,
