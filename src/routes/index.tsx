@@ -777,7 +777,12 @@ function Index() {
     let cancelled = false;
     const fromList =
       results.find((r) => r.id === current.id) ?? related.find((r) => r.id === current.id) ?? null;
-    setMeta(fromList ? { publishedAgo: fromList.published, views: fromList.views, channelThumb: fromList.channelThumb, channelId: fromList.channelId } : null);
+    const seed: VideoMeta = {};
+    if (fromList?.published) seed.publishedAgo = fromList.published;
+    if (fromList?.views) seed.views = fromList.views;
+    if (fromList?.channelThumb) seed.channelThumb = fromList.channelThumb;
+    if (fromList?.channelId) seed.channelId = fromList.channelId;
+    setMeta(fromList ? seed : null);
     (async () => {
       try {
         const m = await runVideoMeta({ data: { id: current.id } });
