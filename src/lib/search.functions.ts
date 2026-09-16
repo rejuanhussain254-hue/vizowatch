@@ -256,6 +256,17 @@ export const channelData = createServerFn({ method: "GET" })
           const tabs = findAll(json, "tabRenderer")
             .map((t: any) => String(t?.title ?? ""))
             .filter(Boolean);
+          const posts: PostItem[] = [];
+          for (const p of findAll(json, "backstagePostRenderer")) {
+            const body = text(p?.contentText);
+            if (!body) continue;
+            posts.push({
+              id: String(p?.postId ?? posts.length),
+              text: body.slice(0, 600),
+              published: text(p?.publishedTimeText),
+              image: firstUrl(findAll(p?.backstageAttachment ?? {}, "thumbnail")[0]),
+            });
+          }
           return {
             ok: true,
             channel: {
