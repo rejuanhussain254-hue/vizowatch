@@ -221,7 +221,7 @@ function Skeleton() {
 }
 
 type Row = Track & { duration?: string | number; views?: string; channelThumb?: string; published?: string; channelId?: string };
-function Avatar({ src, name, size = "size-9", text = "text-[13px]" }: { src?: string; name?: string; size?: string; text?: string }) {
+function Avatar({ src, name, size = "size-9", text = "text-[13px]" }: { src?: string | undefined; name?: string | undefined; size?: string; text?: string }) {
   const initial = (name ?? "?").trim()[0]?.toUpperCase() ?? "?";
   if (src) return <img src={src} alt="" className={`${size} shrink-0 rounded-full bg-lilac/50 object-cover ring-1 ring-border`} loading="lazy" referrerPolicy="no-referrer" />;
   return <span className={`grid ${size} shrink-0 place-items-center rounded-full bg-primary font-display ${text} font-bold text-primary-foreground`}>{initial}</span>;
