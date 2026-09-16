@@ -1165,7 +1165,7 @@ function Index() {
           </div>
         )}
 
-        {searchState === "ok" && results.length === 0 && (
+        {!chanView && searchState === "ok" && results.length === 0 && (
           <div className="glass mt-3 rounded-3xl p-5 text-center">
             <p className="font-display text-sm font-semibold">{catLabel ?? `"${lastQuery}"`} — কিছু পাওয়া যায়নি</p>
             <p className="mt-1 text-[12.5px] text-muted-foreground">বানান বদলে দেখুন, বা ইউটিউব লিংক সরাসরি পেস্ট করুন।</p>
