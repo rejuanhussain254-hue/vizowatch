@@ -1054,20 +1054,108 @@ function Index() {
         )}
 
 
+        {/* Channel page */}
+        {chanView && (
+          <section className="mt-6">
+            <div className="flex items-center justify-between">
+              <button onClick={backHome} className="rounded-full bg-glass px-3 py-1 font-display text-[12px] font-semibold ring-1 ring-border">← হোম</button>
+              {chanState === "loading" && <span className="text-[12px] text-muted-foreground">লোড হচ্ছে…</span>}
+            </div>
+            {chan?.banner && (
+              <img src={chan.banner} alt="" className="mt-3 aspect-[6/1] w-full rounded-2xl object-cover ring-1 ring-border" referrerPolicy="no-referrer" />
+            )}
+            <div className="mt-3 flex items-center gap-3">
+              <Avatar src={chan?.avatar} name={chan?.name ?? channel ?? "?"} size="size-16" text="text-xl" />
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate font-display text-lg font-bold">{chan?.name || channel}</h2>
+                <p className="truncate text-[12px] text-muted-foreground">
+                  {[chan?.handle, chan?.subs, chan?.videoCount].filter(Boolean).join(" · ") || "চ্যানেল"}
+                </p>
+              </div>
+            </div>
+            <nav aria-label="চ্যানেল ট্যাব" className="-mx-5 mt-4 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {CHANNEL_TABS.map((t) => (
+                <button
+                  key={t.key}
+                  onClick={() => openChannelTab(t.key)}
+                  className={`shrink-0 rounded-full px-3.5 py-1.5 font-display text-[13px] font-semibold ring-1 transition active:scale-95 ${chanTab === t.key ? "bg-primary text-primary-foreground ring-primary shadow-primary" : "bg-glass ring-border"}`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </nav>
+
+            {chanState === "loading" && <Skeleton />}
+            {chanState === "error" && (
+              <div className="glass mt-3 rounded-3xl p-5 text-center">
+                <p className="font-display text-sm font-semibold">চ্যানেল আনা যায়নি</p>
+                <button onClick={() => chanIdRef.current && loadChannel(chanIdRef.current, chanTab)} className="mt-3 rounded-2xl bg-primary px-4 py-2 font-display text-[13px] font-semibold text-primary-foreground shadow-primary">আবার চেষ্টা</button>
+              </div>
+            )}
+            {chanState === "ok" && chan && chanTab === "playlists" && (
+              chan.playlists.length ? (
+                <ul className="mt-3 grid grid-cols-2 gap-3">
+                  {chan.playlists.map((p) => (
+                    <li key={p.id}>
+                      <button onClick={() => openPlaylist(p.id, p.title)} className="block w-full text-left">
+                        <span className="relative block">
+                          <img src={p.thumbnail} alt="" className="aspect-video w-full rounded-2xl object-cover ring-1 ring-border" loading="lazy" referrerPolicy="no-referrer" />
+                          {p.count && <span className="absolute right-1.5 bottom-1.5 rounded-md bg-foreground/80 px-1.5 py-0.5 text-[10.5px] font-medium text-background">{p.count}</span>}
+                        </span>
+                        <span className="mt-1.5 line-clamp-2 block font-display text-[13.5px] font-semibold leading-snug">{p.title}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="glass mt-3 rounded-3xl p-5 text-center text-[12.5px] text-muted-foreground">এই চ্যানেলে প্লেলিস্ট নেই।</p>
+              )
+            )}
+            {chanState === "ok" && chan && chanTab === "posts" && (
+              chan.posts.length ? (
+                <ul className="mt-3 space-y-3">
+                  {chan.posts.map((p) => (
+                    <li key={p.id} className="glass rounded-3xl p-3 ring-1 ring-border">
+                      <p className="whitespace-pre-line text-[13px] leading-relaxed">{p.text}</p>
+                      {p.image && <img src={p.image} alt="" className="mt-2 w-full rounded-2xl object-cover" loading="lazy" referrerPolicy="no-referrer" />}
+                      {p.published && <p className="mt-1.5 text-[11px] text-muted-foreground">{p.published}</p>}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="glass mt-3 rounded-3xl p-5 text-center text-[12.5px] text-muted-foreground">কোনো পোস্ট বা স্টোরি নেই।</p>
+              )
+            )}
+            {chanState === "ok" && chan && chanTab !== "playlists" && chanTab !== "posts" && (
+              chan.videos.length ? (
+                <ul className="mt-3 space-y-3">
+                  {chan.videos.map((r) => (
+                    <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} />
+                  ))}
+                </ul>
+              ) : (
+                <p className="glass mt-3 rounded-3xl p-5 text-center text-[12.5px] text-muted-foreground">এই ট্যাবে কিছু নেই।</p>
+              )
+            )}
+          </section>
+        )}
+
         {/* Search / trending */}
+        {!chanView && (
         <div className="mt-8 flex items-center justify-between">
           <h2 className="font-display text-xl font-semibold">{channel ? `চ্যানেল · ${channel}` : catLabel ? (catLabel === "হোম" ? "আপনার জন্য" : catLabel) : isSearch ? `"${lastQuery}"` : "আপনার জন্য"}</h2>
           {channel && (
-            <button onClick={() => { setChannel(null); setCategory(""); doSearch(""); }} className="rounded-full bg-glass px-3 py-1 font-display text-[12px] font-semibold ring-1 ring-border">
+            <button onClick={backHome} className="rounded-full bg-glass px-3 py-1 font-display text-[12px] font-semibold ring-1 ring-border">
               হোম
             </button>
           )}
           {searchState === "loading" && <span className="text-[12px] text-muted-foreground">খোঁজা হচ্ছে…</span>}
         </div>
+        )}
 
-        {searchState === "loading" && <Skeleton />}
+        {!chanView && searchState === "loading" && <Skeleton />}
 
-        {searchState === "error" && (
+        {!chanView && searchState === "error" && (
           <div className="glass mt-3 rounded-3xl p-5 text-center">
             <p className="font-display text-sm font-semibold">ইউটিউব থেকে ফলাফল আনা যায়নি</p>
             <p className="mt-1 text-[12.5px] text-muted-foreground">ইন্টারনেট দেখুন বা একটু পরে আবার চেষ্টা করুন।</p>
