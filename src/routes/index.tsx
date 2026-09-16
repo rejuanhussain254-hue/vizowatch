@@ -638,17 +638,82 @@ function Index() {
   const closeWatch = () => navigate({ to: "/", search: {}, replace: true });
 
   // open a channel: show that channel's videos on the home list
-  const openChannel = (name?: string) => {
+  const chanIdRef = useRef<string | null>(null);
+  const loadChannel = useCallback(
+    async (id: string, tab: typeof chanTab) => {
+      setChanState("loading");
+      try {
+        const res = await runChannel({ data: { id, tab } });
+        if (chanIdRef.current !== id) return;
+        if (res.ok) {
+          setChan(res.channel);
+          setChanState("ok");
+        } else setChanState("error");
+      } catch {
+        setChanState("error");
+      }
+    },
+    [runChannel],
+  );
+
+  const openChannel = (name?: string, channelId?: string) => {
     const n = (name ?? "").trim();
-    if (!n) return;
+    if (!n && !channelId) return;
     if (open) closeWatch();
     setProfileOpen(false);
     setCategory(null);
-    setChannel(n);
+    setChannel(n || channelId!);
     setInput("");
     setSugOpen(false);
-    void doSearch(`${n} ভিডিও`);
+    setChanTab("videos");
+    setChan(null);
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+    void (async () => {
+      let id = channelId ?? null;
+      setChanState("loading");
+      if (!id) {
+        try {
+          id = await runResolveChannel({ data: { name: n } });
+        } catch {
+          id = null;
+        }
+      }
+      chanIdRef.current = id;
+      if (id) void loadChannel(id, "videos");
+      else {
+        setChanState("idle");
+        void doSearch(`${n} ভিডিও`);
+      }
+    })();
+  };
+
+  const openChannelTab = (tab: typeof chanTab) => {
+    setChanTab(tab);
+    if (chanIdRef.current) void loadChannel(chanIdRef.current, tab);
+  };
+
+  const backHome = () => {
+    setChannel(null);
+    setChan(null);
+    setChanState("idle");
+    chanIdRef.current = null;
+    setCategory("");
+    doSearch("");
+  };
+
+  const openPlaylist = async (id: string, title: string) => {
+    flash(`${title} — লোড হচ্ছে…`);
+    try {
+      const res = await runPlaylist({ data: { id } });
+      if (!res.ok || res.videos.length === 0) return flash("প্লেলিস্ট আনা যায়নি");
+      const list = res.videos.map((v) => ({ id: v.id, title: v.title, author: v.author, thumbnail: v.thumbnail }));
+      setQueue(list);
+      saveQueue(list);
+      setTimeout(() => player.playAt(0), 80);
+      openWatch(list[0]!.id);
+    } catch {
+      flash("প্লেলিস্ট আনা যায়নি");
+    }
   };
 
   const playTrack = useCallback(
