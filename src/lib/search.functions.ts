@@ -7,14 +7,31 @@ export type SearchResult = {
   thumbnail: string;
   duration: string;
   views: string;
+  channelId?: string;
+  channelThumb?: string;
+  published?: string;
 };
 
 function text(v: any): string {
   if (!v) return "";
   if (typeof v === "string") return v;
   if (v.simpleText) return v.simpleText;
+  if (v.content) return v.content;
   if (Array.isArray(v.runs)) return v.runs.map((r: any) => r.text).join("");
   return "";
+}
+
+function firstUrl(sources: any): string {
+  const list = sources?.sources ?? sources?.thumbnails ?? sources;
+  if (!Array.isArray(list)) return "";
+  const withUrl = list.filter((s: any) => typeof s?.url === "string");
+  return withUrl.length ? String(withUrl[withUrl.length - 1].url) : "";
+}
+
+function bylineChannelId(vr: any): string | undefined {
+  const runs = vr?.ownerText?.runs ?? vr?.shortBylineText?.runs ?? vr?.longBylineText?.runs;
+  const id = runs?.[0]?.navigationEndpoint?.browseEndpoint?.browseId;
+  return typeof id === "string" && id.startsWith("UC") ? id : undefined;
 }
 
 function walk(node: any, out: SearchResult[], seen: Set<string>) {
@@ -23,7 +40,7 @@ function walk(node: any, out: SearchResult[], seen: Set<string>) {
     for (const n of node) walk(n, out, seen);
     return;
   }
-  const vr = node.videoRenderer ?? node.compactVideoRenderer;
+  const vr = node.videoRenderer ?? node.compactVideoRenderer ?? node.gridVideoRenderer;
   if (vr?.videoId && !seen.has(vr.videoId)) {
     seen.add(vr.videoId);
     out.push({
@@ -32,14 +49,20 @@ function walk(node: any, out: SearchResult[], seen: Set<string>) {
       author: text(vr.ownerText) || text(vr.shortBylineText) || text(vr.longBylineText),
       thumbnail: `https://i.ytimg.com/vi/${vr.videoId}/hqdefault.jpg`,
       duration: text(vr.lengthText),
-      views: text(vr.shortViewCountText),
+      views: text(vr.shortViewCountText) || text(vr.viewCountText),
+      channelId: bylineChannelId(vr),
+      channelThumb:
+        firstUrl(vr.channelThumbnailSupportedRenderers?.channelThumbnailWithLinkRenderer?.thumbnail) ||
+        firstUrl(vr.channelThumbnail) ||
+        undefined,
+      published: text(vr.publishedTimeText) || undefined,
     });
     return;
   }
   for (const k of Object.keys(node)) walk(node[k], out, seen);
 }
 
-async function fetchResults(url: string): Promise<SearchResult[]> {
+async function fetchJson(url: string): Promise<any | null> {
   const res = await fetch(url, {
     headers: {
       "user-agent":
@@ -50,13 +73,17 @@ async function fetchResults(url: string): Promise<SearchResult[]> {
   });
   const html = await res.text();
   const m = html.match(/var ytInitialData = (\{.*?\});<\/script>/s);
-  if (!m) return [];
-  let data: any;
+  if (!m) return null;
   try {
-    data = JSON.parse(m[1]!);
+    return JSON.parse(m[1]!);
   } catch {
-    return [];
+    return null;
   }
+}
+
+async function fetchResults(url: string): Promise<SearchResult[]> {
+  const data = await fetchJson(url);
+  if (!data) return [];
   const out: SearchResult[] = [];
   walk(data, out, new Set());
   return out.filter((r) => r.title).slice(0, 30);
@@ -109,4 +136,224 @@ export const suggestYouTube = createServerFn({ method: "GET" })
     } catch {
       return [];
     }
+  });
+
+// ---------------- channel pages ----------------
+
+export type PlaylistItem = { id: string; title: string; thumbnail: string; count: string };
+export type ChannelPage = {
+  id: string;
+  name: string;
+  handle: string;
+  avatar: string;
+  banner: string;
+  subs: string;
+  videoCount: string;
+  tabs: string[];
+  videos: SearchResult[];
+  playlists: PlaylistItem[];
+};
+export type ChannelResponse = { ok: true; channel: ChannelPage } | { ok: false; error: string };
+
+const TAB_PATH: Record<string, string> = {
+  videos: "videos",
+  shorts: "shorts",
+  live: "streams",
+  playlists: "playlists",
+  podcasts: "podcasts",
+  posts: "community",
+};
+
+function findAll(node: any, key: string, out: any[] = [], limit = 400): any[] {
+  if (!node || typeof node !== "object" || out.length >= limit) return out;
+  if (Array.isArray(node)) {
+    for (const n of node) findAll(n, key, out, limit);
+    return out;
+  }
+  for (const k of Object.keys(node)) {
+    if (k === key) out.push(node[k]);
+    else findAll(node[k], key, out, limit);
+  }
+  return out;
+}
+
+function metadataStrings(vm: any): string[] {
+  const rows = vm?.metadata?.contentMetadataViewModel?.metadataRows ?? vm?.metadataRows ?? [];
+  const out: string[] = [];
+  for (const row of rows) for (const part of row?.metadataParts ?? []) {
+    const t = text(part?.text);
+    if (t) out.push(t);
+  }
+  return out;
+}
+
+function badgeTexts(vm: any): string[] {
+  return findAll(vm, "thumbnailBadgeViewModel")
+    .map((b: any) => text(b?.text))
+    .filter(Boolean);
+}
+
+function parseLockups(data: any, videos: SearchResult[], playlists: PlaylistItem[], authorName: string, channelId: string) {
+  const seen = new Set<string>();
+  for (const lv of findAll(data, "lockupViewModel")) {
+    const id = lv?.contentId;
+    const type = String(lv?.contentType ?? "");
+    if (typeof id !== "string" || seen.has(id)) continue;
+    seen.add(id);
+    const title = text(lv?.metadata?.lockupMetadataViewModel?.title);
+    const thumb = firstUrl(findAll(lv?.contentImage, "thumbnailViewModel")[0]?.image);
+    const meta = metadataStrings(lv?.metadata?.lockupMetadataViewModel);
+    const badges = badgeTexts(lv);
+    if (type.includes("PLAYLIST")) {
+      if (!title) continue;
+      playlists.push({ id, title, thumbnail: thumb, count: badges[0] ?? meta[0] ?? "" });
+    } else if (type.includes("VIDEO") || type.includes("SHORT")) {
+      if (!title) continue;
+      videos.push({
+        id,
+        title,
+        author: authorName,
+        thumbnail: thumb || `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+        duration: badges.find((b) => /^\d+(:\d+)+$/.test(b)) ?? "",
+        views: meta.find((m) => /view/i.test(m)) ?? "",
+        published: meta.find((m) => /ago|streamed|premier/i.test(m)) ?? "",
+        channelId,
+      });
+    }
+  }
+}
+
+export const channelData = createServerFn({ method: "GET" })
+  .inputValidator((d: { id: string; tab?: string }) => {
+    if (typeof d?.id !== "string" || !d.id) throw new Error("id required");
+    return { id: d.id.slice(0, 40), tab: typeof d?.tab === "string" ? d.tab : "videos" };
+  })
+  .handler(async ({ data }): Promise<ChannelResponse> => {
+    const path = TAB_PATH[data.tab] ?? "";
+    const base = data.id.startsWith("UC") ? `channel/${data.id}` : `${data.id.startsWith("@") ? "" : "@"}${data.id}`;
+    const url = `https://www.youtube.com/${base}${path ? `/${path}` : ""}?hl=en&gl=BD`;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const json = await fetchJson(url);
+        if (json) {
+          const header = findAll(json, "pageHeaderViewModel")[0];
+          const name =
+            text(header?.title?.dynamicTextViewModel?.text) ||
+            findAll(json, "c4TabbedHeaderRenderer")[0]?.title ||
+            "";
+          const avatar = firstUrl(findAll(header?.image ?? {}, "avatarViewModel")[0]?.image) || firstUrl(findAll(json, "avatar")[0]);
+          const banner = firstUrl(findAll(header?.banner ?? {}, "imageBannerViewModel")[0]?.image);
+          const rows = metadataStrings(header);
+          const videos: SearchResult[] = [];
+          const playlists: PlaylistItem[] = [];
+          const author = name || "";
+          parseLockups(json, videos, playlists, author, data.id);
+          const legacy: SearchResult[] = [];
+          walk(json, legacy, new Set(videos.map((v) => v.id)));
+          for (const v of legacy) videos.push({ ...v, author: v.author || author, channelId: v.channelId ?? data.id });
+          const tabs = findAll(json, "tabRenderer")
+            .map((t: any) => String(t?.title ?? ""))
+            .filter(Boolean);
+          return {
+            ok: true,
+            channel: {
+              id: data.id,
+              name,
+              handle: rows.find((r) => r.startsWith("@")) ?? "",
+              avatar,
+              banner,
+              subs: rows.find((r) => /subscriber/i.test(r)) ?? "",
+              videoCount: rows.find((r) => /video/i.test(r)) ?? "",
+              tabs,
+              videos: videos.slice(0, 40),
+              playlists: playlists.slice(0, 40),
+            },
+          };
+        }
+      } catch (e) {
+        console.error("channelData", e instanceof Error ? e.message : e);
+      }
+      await sleep(400 * (attempt + 1));
+    }
+    return { ok: false, error: "unavailable" };
+  });
+
+// ---------------- single video details (upload date, views, description) ----------------
+
+export type VideoMeta = {
+  published?: string;
+  publishedAgo?: string;
+  views?: string;
+  description?: string;
+  channelId?: string;
+  channelThumb?: string;
+  subs?: string;
+  likes?: string;
+};
+
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("bn-BD", { day: "numeric", month: "long", year: "numeric" });
+}
+
+export const videoMeta = createServerFn({ method: "GET" })
+  .inputValidator((d: { id: string }) => {
+    if (typeof d?.id !== "string" || !d.id) throw new Error("id required");
+    return { id: d.id.slice(0, 20) };
+  })
+  .handler(async ({ data }): Promise<VideoMeta> => {
+    const url = `https://www.youtube.com/watch?v=${encodeURIComponent(data.id)}&hl=en&gl=BD`;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await fetch(url, {
+          headers: {
+            "user-agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+            "accept-language": "en-US,en;q=0.9,bn;q=0.8",
+            cookie: "CONSENT=YES+1; SOCS=CAI",
+          },
+        });
+        const html = await res.text();
+        const out: VideoMeta = {};
+        const pr = html.match(/ytInitialPlayerResponse\s*=\s*(\{.+?\});\s*(?:var|<\/script>)/s);
+        if (pr) {
+          try {
+            const p = JSON.parse(pr[1]!);
+            const mf = p?.microformat?.playerMicroformatRenderer;
+            const iso = mf?.publishDate ?? mf?.uploadDate;
+            if (typeof iso === "string") out.published = formatDate(iso);
+            const vc = p?.videoDetails?.viewCount;
+            if (vc) out.views = `${Number(vc).toLocaleString("bn-BD")} বার দেখা হয়েছে`;
+            if (p?.videoDetails?.channelId) out.channelId = p.videoDetails.channelId;
+            const desc = p?.videoDetails?.shortDescription;
+            if (typeof desc === "string") out.description = desc.slice(0, 1200);
+          } catch {
+            /* ignore */
+          }
+        }
+        const idm = html.match(/var ytInitialData = (\{.*?\});<\/script>/s);
+        if (idm) {
+          try {
+            const d = JSON.parse(idm[1]!);
+            const primary = findAll(d, "videoPrimaryInfoRenderer")[0];
+            const secondary = findAll(d, "videoSecondaryInfoRenderer")[0];
+            out.publishedAgo = text(primary?.relativeDateText) || out.publishedAgo;
+            if (!out.published) out.published = text(primary?.dateText) || out.published;
+            if (!out.views) out.views = text(primary?.viewCount?.videoViewCountRenderer?.viewCount) || out.views;
+            const owner = secondary?.owner?.videoOwnerRenderer;
+            out.channelThumb = firstUrl(owner?.thumbnail) || out.channelThumb;
+            out.subs = text(owner?.subscriberCountText) || out.subs;
+            out.channelId = owner?.navigationEndpoint?.browseEndpoint?.browseId ?? out.channelId;
+          } catch {
+            /* ignore */
+          }
+        }
+        if (out.published || out.views || out.channelThumb) return out;
+      } catch (e) {
+        console.error("videoMeta", e instanceof Error ? e.message : e);
+      }
+      await sleep(500);
+    }
+    return {};
   });
