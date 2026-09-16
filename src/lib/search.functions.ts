@@ -152,7 +152,9 @@ export type ChannelPage = {
   tabs: string[];
   videos: SearchResult[];
   playlists: PlaylistItem[];
+  posts: PostItem[];
 };
+export type PostItem = { id: string; text: string; published: string; image: string };
 export type ChannelResponse = { ok: true; channel: ChannelPage } | { ok: false; error: string };
 
 const TAB_PATH: Record<string, string> = {
