@@ -315,6 +315,10 @@ function Index() {
   const [lastQuery, setLastQuery] = useState("");
   const [category, setCategory] = useState<string | null>("");
   const [channel, setChannel] = useState<string | null>(null);
+  const [chan, setChan] = useState<ChannelPage | null>(null);
+  const [chanState, setChanState] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [chanTab, setChanTab] = useState<"videos" | "shorts" | "live" | "playlists" | "posts">("videos");
+  const [meta, setMeta] = useState<VideoMeta | null>(null);
   const [searchState, setSearchState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [related, setRelated] = useState<SearchResult[]>([]);
   const [relatedState, setRelatedState] = useState<"idle" | "loading" | "ok" | "error">("idle");
