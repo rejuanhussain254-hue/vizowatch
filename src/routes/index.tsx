@@ -334,6 +334,10 @@ function Index() {
   const navigate = useNavigate();
   const runSearch = useServerFn(searchYouTube);
   const runSuggest = useServerFn(suggestYouTube);
+  const runChannel = useServerFn(channelData);
+  const runPlaylist = useServerFn(playlistData);
+  const runResolveChannel = useServerFn(resolveChannel);
+  const runVideoMeta = useServerFn(videoMeta);
   const [searches, setSearches] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [sugOpen, setSugOpen] = useState(false);
