@@ -280,6 +280,7 @@ export const channelData = createServerFn({ method: "GET" })
               tabs,
               videos: videos.slice(0, 40),
               playlists: playlists.slice(0, 40),
+              posts: posts.slice(0, 20),
             },
           };
         }
