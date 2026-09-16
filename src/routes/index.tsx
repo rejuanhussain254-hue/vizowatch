@@ -80,6 +80,14 @@ function genreOf(text: string) {
   return "";
 }
 
+const CHANNEL_TABS: { key: "videos" | "shorts" | "live" | "playlists" | "posts"; label: string }[] = [
+  { key: "videos", label: "ভিডিও" },
+  { key: "shorts", label: "শর্টস" },
+  { key: "live", label: "লাইভ" },
+  { key: "playlists", label: "প্লেলিস্ট" },
+  { key: "posts", label: "স্টোরি/পোস্ট" },
+];
+
 const CATEGORIES: { label: string; q: string }[] = [
   { label: "হোম", q: "" },
   { label: "ট্রেন্ডিং", q: "trending videos bangladesh today" },
