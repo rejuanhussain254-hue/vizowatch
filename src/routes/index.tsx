@@ -220,7 +220,7 @@ function Skeleton() {
   );
 }
 
-type Row = Track & { duration?: string | number; views?: string; channelThumb?: string; published?: string; channelId?: string };
+type Row = Track & { duration?: string | number | undefined; views?: string | undefined; channelThumb?: string | undefined; published?: string | undefined; channelId?: string | undefined };
 function Avatar({ src, name, size = "size-9", text = "text-[13px]" }: { src?: string | undefined; name?: string | undefined; size?: string; text?: string }) {
   const initial = (name ?? "?").trim()[0]?.toUpperCase() ?? "?";
   if (src) return <img src={src} alt="" className={`${size} shrink-0 rounded-full bg-lilac/50 object-cover ring-1 ring-border`} loading="lazy" referrerPolicy="no-referrer" />;
