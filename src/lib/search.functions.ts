@@ -7,9 +7,9 @@ export type SearchResult = {
   thumbnail: string;
   duration: string;
   views: string;
-  channelId?: string;
-  channelThumb?: string;
-  published?: string;
+  channelId?: string | undefined;
+  channelThumb?: string | undefined;
+  published?: string | undefined;
 };
 
 function text(v: any): string {
@@ -295,14 +295,14 @@ export const channelData = createServerFn({ method: "GET" })
 // ---------------- single video details (upload date, views, description) ----------------
 
 export type VideoMeta = {
-  published?: string;
-  publishedAgo?: string;
-  views?: string;
-  description?: string;
-  channelId?: string;
-  channelThumb?: string;
-  subs?: string;
-  likes?: string;
+  published?: string | undefined;
+  publishedAgo?: string | undefined;
+  views?: string | undefined;
+  description?: string | undefined;
+  channelId?: string | undefined;
+  channelThumb?: string | undefined;
+  subs?: string | undefined;
+  likes?: string | undefined;
 };
 
 function formatDate(iso: string): string {
