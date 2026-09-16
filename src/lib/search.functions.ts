@@ -371,3 +371,69 @@ export const videoMeta = createServerFn({ method: "GET" })
     }
     return {};
   });
+
+// ---------------- playlist contents ----------------
+
+export type PlaylistResponse = { ok: true; title: string; videos: SearchResult[] } | { ok: false; error: string };
+
+export const playlistData = createServerFn({ method: "GET" })
+  .inputValidator((d: { id: string }) => {
+    if (typeof d?.id !== "string" || !d.id) throw new Error("id required");
+    return { id: d.id.slice(0, 60) };
+  })
+  .handler(async ({ data }): Promise<PlaylistResponse> => {
+    const url = `https://www.youtube.com/playlist?list=${encodeURIComponent(data.id)}&hl=en&gl=BD`;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const json = await fetchJson(url);
+        if (json) {
+          const videos: SearchResult[] = [];
+          const seen = new Set<string>();
+          for (const pv of findAll(json, "playlistVideoRenderer")) {
+            const id = pv?.videoId;
+            if (typeof id !== "string" || seen.has(id)) continue;
+            seen.add(id);
+            videos.push({
+              id,
+              title: text(pv.title),
+              author: text(pv.shortBylineText),
+              thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+              duration: text(pv.lengthText),
+              views: "",
+              channelId: bylineChannelId(pv),
+            });
+          }
+          if (videos.length) {
+            const title = text(findAll(json, "dynamicTextViewModel")[0]?.text) || "প্লেলিস্ট";
+            return { ok: true, title, videos: videos.slice(0, 60) };
+          }
+        }
+      } catch (e) {
+        console.error("playlistData", e instanceof Error ? e.message : e);
+      }
+      await sleep(400 * (attempt + 1));
+    }
+    return { ok: false, error: "unavailable" };
+  });
+
+// resolve a channel id from a channel name (used when a row has no channelId)
+export const resolveChannel = createServerFn({ method: "GET" })
+  .inputValidator((d: { name: string }) => {
+    if (typeof d?.name !== "string") throw new Error("name required");
+    return { name: d.name.slice(0, 120) };
+  })
+  .handler(async ({ data }): Promise<string | null> => {
+    const q = data.name.trim();
+    if (!q) return null;
+    try {
+      const json = await fetchJson(
+        `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}&sp=EgIQAg%253D%253D&hl=en&gl=BD`,
+      );
+      if (!json) return null;
+      const cr = findAll(json, "channelRenderer")[0];
+      const id = cr?.channelId ?? findAll(json, "browseEndpoint").find((b: any) => String(b?.browseId ?? "").startsWith("UC"))?.browseId;
+      return typeof id === "string" ? id : null;
+    } catch {
+      return null;
+    }
+  });
