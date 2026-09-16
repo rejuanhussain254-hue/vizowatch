@@ -763,6 +763,28 @@ function Index() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated, player.ready, search.v]);
 
+  // upload date, view count, channel avatar for the video being watched
+  useEffect(() => {
+    if (!current?.id) return;
+    let cancelled = false;
+    const fromList =
+      results.find((r) => r.id === current.id) ?? related.find((r) => r.id === current.id) ?? null;
+    setMeta(fromList ? { publishedAgo: fromList.published, views: fromList.views, channelThumb: fromList.channelThumb, channelId: fromList.channelId } : null);
+    (async () => {
+      try {
+        const m = await runVideoMeta({ data: { id: current.id } });
+        if (cancelled) return;
+        setMeta((prev) => ({ ...(prev ?? {}), ...m }));
+      } catch {
+        /* keep list metadata */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current?.id]);
+
   // related videos for the watch page — same genre/topic first, then more of the same kind
   useEffect(() => {
     if (!open || !current) return;
