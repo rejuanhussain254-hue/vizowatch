@@ -4,7 +4,17 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { usePlayer } from "@/hooks/usePlayer";
 import { useAuth } from "@/hooks/useAuth";
 import { clearCloudHistory, mergeHistoryOnSignIn, updateCloudPosition, upsertCloudHistory } from "@/lib/history-sync";
-import { searchYouTube, suggestYouTube, type SearchResult } from "@/lib/search.functions";
+import {
+  channelData,
+  playlistData,
+  resolveChannel,
+  searchYouTube,
+  suggestYouTube,
+  videoMeta,
+  type ChannelPage,
+  type SearchResult,
+  type VideoMeta,
+} from "@/lib/search.functions";
 import {
   clearHistory,
   extractVideoId,
@@ -69,6 +79,14 @@ function genreOf(text: string) {
   for (const [re, name] of GENRES) if (re.test(text)) return name;
   return "";
 }
+
+const CHANNEL_TABS: { key: "videos" | "shorts" | "live" | "playlists" | "posts"; label: string }[] = [
+  { key: "videos", label: "ভিডিও" },
+  { key: "shorts", label: "শর্টস" },
+  { key: "live", label: "লাইভ" },
+  { key: "playlists", label: "প্লেলিস্ট" },
+  { key: "posts", label: "স্টোরি/পোস্ট" },
+];
 
 const CATEGORIES: { label: string; q: string }[] = [
   { label: "হোম", q: "" },
@@ -202,10 +220,14 @@ function Skeleton() {
   );
 }
 
-type Row = Track & { duration?: string | number; views?: string };
+type Row = Track & { duration?: string | number | undefined; views?: string | undefined; channelThumb?: string | undefined; published?: string | undefined; channelId?: string | undefined };
+function Avatar({ src, name, size = "size-9", text = "text-[13px]" }: { src?: string | undefined; name?: string | undefined; size?: string; text?: string }) {
+  const initial = (name ?? "?").trim()[0]?.toUpperCase() ?? "?";
+  if (src) return <img src={src} alt="" className={`${size} shrink-0 rounded-full bg-lilac/50 object-cover ring-1 ring-border`} loading="lazy" referrerPolicy="no-referrer" />;
+  return <span className={`grid ${size} shrink-0 place-items-center rounded-full bg-primary font-display ${text} font-bold text-primary-foreground`}>{initial}</span>;
+}
 function VideoRow({ r, active, playing, onPlay, onQueue, onChannel, sub, progress, compact }: { r: Row; active: boolean; playing: boolean; onPlay: () => void; onQueue?: () => void; onChannel?: () => void; sub?: string; progress?: number; compact?: boolean }) {
-  const initial = (r.author ?? "?").trim()[0]?.toUpperCase() ?? "?";
-  const meta = sub ?? `${r.author}${r.views ? ` · ${r.views}` : ""}`;
+  const meta = sub ?? [r.author, r.views, r.published].filter(Boolean).join(" · ");
 
   if (compact) {
     return (
@@ -245,9 +267,9 @@ function VideoRow({ r, active, playing, onPlay, onQueue, onChannel, sub, progres
       </button>
       <div className="flex gap-3 px-1 pt-2.5 pb-1">
         {onChannel ? (
-          <button onClick={onChannel} aria-label={`${r.author} চ্যানেল দেখুন`} className="grid size-9 shrink-0 place-items-center rounded-full bg-primary font-display text-[13px] font-bold text-primary-foreground transition active:scale-95">{initial}</button>
+          <button onClick={onChannel} aria-label={`${r.author} চ্যানেল দেখুন`} className="shrink-0 transition active:scale-95"><Avatar src={r.channelThumb} name={r.author} /></button>
         ) : (
-          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary font-display text-[13px] font-bold text-primary-foreground">{initial}</span>
+          <Avatar src={r.channelThumb} name={r.author} />
         )}
         <span className="min-w-0 flex-1">
           <button onClick={onPlay} className="block w-full text-left">
@@ -301,6 +323,10 @@ function Index() {
   const [lastQuery, setLastQuery] = useState("");
   const [category, setCategory] = useState<string | null>("");
   const [channel, setChannel] = useState<string | null>(null);
+  const [chan, setChan] = useState<ChannelPage | null>(null);
+  const [chanState, setChanState] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [chanTab, setChanTab] = useState<"videos" | "shorts" | "live" | "playlists" | "posts">("videos");
+  const [meta, setMeta] = useState<VideoMeta | null>(null);
   const [searchState, setSearchState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [related, setRelated] = useState<SearchResult[]>([]);
   const [relatedState, setRelatedState] = useState<"idle" | "loading" | "ok" | "error">("idle");
@@ -316,6 +342,10 @@ function Index() {
   const navigate = useNavigate();
   const runSearch = useServerFn(searchYouTube);
   const runSuggest = useServerFn(suggestYouTube);
+  const runChannel = useServerFn(channelData);
+  const runPlaylist = useServerFn(playlistData);
+  const runResolveChannel = useServerFn(resolveChannel);
+  const runVideoMeta = useServerFn(videoMeta);
   const [searches, setSearches] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [sugOpen, setSugOpen] = useState(false);
@@ -616,17 +646,82 @@ function Index() {
   const closeWatch = () => navigate({ to: "/", search: {}, replace: true });
 
   // open a channel: show that channel's videos on the home list
-  const openChannel = (name?: string) => {
+  const chanIdRef = useRef<string | null>(null);
+  const loadChannel = useCallback(
+    async (id: string, tab: typeof chanTab) => {
+      setChanState("loading");
+      try {
+        const res = await runChannel({ data: { id, tab } });
+        if (chanIdRef.current !== id) return;
+        if (res.ok) {
+          setChan(res.channel);
+          setChanState("ok");
+        } else setChanState("error");
+      } catch {
+        setChanState("error");
+      }
+    },
+    [runChannel],
+  );
+
+  const openChannel = (name?: string, channelId?: string) => {
     const n = (name ?? "").trim();
-    if (!n) return;
+    if (!n && !channelId) return;
     if (open) closeWatch();
     setProfileOpen(false);
     setCategory(null);
-    setChannel(n);
+    setChannel(n || channelId!);
     setInput("");
     setSugOpen(false);
-    void doSearch(`${n} ভিডিও`);
+    setChanTab("videos");
+    setChan(null);
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+    void (async () => {
+      let id = channelId ?? null;
+      setChanState("loading");
+      if (!id) {
+        try {
+          id = await runResolveChannel({ data: { name: n } });
+        } catch {
+          id = null;
+        }
+      }
+      chanIdRef.current = id;
+      if (id) void loadChannel(id, "videos");
+      else {
+        setChanState("idle");
+        void doSearch(`${n} ভিডিও`);
+      }
+    })();
+  };
+
+  const openChannelTab = (tab: typeof chanTab) => {
+    setChanTab(tab);
+    if (chanIdRef.current) void loadChannel(chanIdRef.current, tab);
+  };
+
+  const backHome = () => {
+    setChannel(null);
+    setChan(null);
+    setChanState("idle");
+    chanIdRef.current = null;
+    setCategory("");
+    doSearch("");
+  };
+
+  const openPlaylist = async (id: string, title: string) => {
+    flash(`${title} — লোড হচ্ছে…`);
+    try {
+      const res = await runPlaylist({ data: { id } });
+      if (!res.ok || res.videos.length === 0) return flash("প্লেলিস্ট আনা যায়নি");
+      const list = res.videos.map((v) => ({ id: v.id, title: v.title, author: v.author, thumbnail: v.thumbnail }));
+      setQueue(list);
+      saveQueue(list);
+      setTimeout(() => player.playAt(0), 80);
+      openWatch(list[0]!.id);
+    } catch {
+      flash("প্লেলিস্ট আনা যায়নি");
+    }
   };
 
   const playTrack = useCallback(
@@ -675,6 +770,33 @@ function Index() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated, player.ready, search.v]);
+
+  // upload date, view count, channel avatar for the video being watched
+  useEffect(() => {
+    if (!current?.id) return;
+    let cancelled = false;
+    const fromList =
+      results.find((r) => r.id === current.id) ?? related.find((r) => r.id === current.id) ?? null;
+    const seed: VideoMeta = {};
+    if (fromList?.published) seed.publishedAgo = fromList.published;
+    if (fromList?.views) seed.views = fromList.views;
+    if (fromList?.channelThumb) seed.channelThumb = fromList.channelThumb;
+    if (fromList?.channelId) seed.channelId = fromList.channelId;
+    setMeta(fromList ? seed : null);
+    (async () => {
+      try {
+        const m = await runVideoMeta({ data: { id: current.id } });
+        if (cancelled) return;
+        setMeta((prev) => ({ ...(prev ?? {}), ...m }));
+      } catch {
+        /* keep list metadata */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current?.id]);
 
   // related videos for the watch page — same genre/topic first, then more of the same kind
   useEffect(() => {
@@ -811,6 +933,7 @@ function Index() {
   const upNext = player.index !== null ? queue.slice(player.index + 1, player.index + 6) : queue.slice(0, 5);
   const isSearch = lastQuery.trim().length > 0;
   const catLabel = CATEGORIES.find((c) => c.q === category)?.label ?? null;
+  const chanView = !!channel && chanState !== "idle";
 
   return (
     <div className="relative min-h-screen overflow-hidden font-body">
@@ -945,20 +1068,108 @@ function Index() {
         )}
 
 
+        {/* Channel page */}
+        {chanView && (
+          <section className="mt-6">
+            <div className="flex items-center justify-between">
+              <button onClick={backHome} className="rounded-full bg-glass px-3 py-1 font-display text-[12px] font-semibold ring-1 ring-border">← হোম</button>
+              {chanState === "loading" && <span className="text-[12px] text-muted-foreground">লোড হচ্ছে…</span>}
+            </div>
+            {chan?.banner && (
+              <img src={chan.banner} alt="" className="mt-3 aspect-[6/1] w-full rounded-2xl object-cover ring-1 ring-border" referrerPolicy="no-referrer" />
+            )}
+            <div className="mt-3 flex items-center gap-3">
+              <Avatar src={chan?.avatar} name={chan?.name ?? channel ?? "?"} size="size-16" text="text-xl" />
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate font-display text-lg font-bold">{chan?.name || channel}</h2>
+                <p className="truncate text-[12px] text-muted-foreground">
+                  {[chan?.handle, chan?.subs, chan?.videoCount].filter(Boolean).join(" · ") || "চ্যানেল"}
+                </p>
+              </div>
+            </div>
+            <nav aria-label="চ্যানেল ট্যাব" className="-mx-5 mt-4 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {CHANNEL_TABS.map((t) => (
+                <button
+                  key={t.key}
+                  onClick={() => openChannelTab(t.key)}
+                  className={`shrink-0 rounded-full px-3.5 py-1.5 font-display text-[13px] font-semibold ring-1 transition active:scale-95 ${chanTab === t.key ? "bg-primary text-primary-foreground ring-primary shadow-primary" : "bg-glass ring-border"}`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </nav>
+
+            {chanState === "loading" && <Skeleton />}
+            {chanState === "error" && (
+              <div className="glass mt-3 rounded-3xl p-5 text-center">
+                <p className="font-display text-sm font-semibold">চ্যানেল আনা যায়নি</p>
+                <button onClick={() => chanIdRef.current && loadChannel(chanIdRef.current, chanTab)} className="mt-3 rounded-2xl bg-primary px-4 py-2 font-display text-[13px] font-semibold text-primary-foreground shadow-primary">আবার চেষ্টা</button>
+              </div>
+            )}
+            {chanState === "ok" && chan && chanTab === "playlists" && (
+              chan.playlists.length ? (
+                <ul className="mt-3 grid grid-cols-2 gap-3">
+                  {chan.playlists.map((p) => (
+                    <li key={p.id}>
+                      <button onClick={() => openPlaylist(p.id, p.title)} className="block w-full text-left">
+                        <span className="relative block">
+                          <img src={p.thumbnail} alt="" className="aspect-video w-full rounded-2xl object-cover ring-1 ring-border" loading="lazy" referrerPolicy="no-referrer" />
+                          {p.count && <span className="absolute right-1.5 bottom-1.5 rounded-md bg-foreground/80 px-1.5 py-0.5 text-[10.5px] font-medium text-background">{p.count}</span>}
+                        </span>
+                        <span className="mt-1.5 line-clamp-2 block font-display text-[13.5px] font-semibold leading-snug">{p.title}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="glass mt-3 rounded-3xl p-5 text-center text-[12.5px] text-muted-foreground">এই চ্যানেলে প্লেলিস্ট নেই।</p>
+              )
+            )}
+            {chanState === "ok" && chan && chanTab === "posts" && (
+              chan.posts.length ? (
+                <ul className="mt-3 space-y-3">
+                  {chan.posts.map((p) => (
+                    <li key={p.id} className="glass rounded-3xl p-3 ring-1 ring-border">
+                      <p className="whitespace-pre-line text-[13px] leading-relaxed">{p.text}</p>
+                      {p.image && <img src={p.image} alt="" className="mt-2 w-full rounded-2xl object-cover" loading="lazy" referrerPolicy="no-referrer" />}
+                      {p.published && <p className="mt-1.5 text-[11px] text-muted-foreground">{p.published}</p>}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="glass mt-3 rounded-3xl p-5 text-center text-[12.5px] text-muted-foreground">কোনো পোস্ট বা স্টোরি নেই।</p>
+              )
+            )}
+            {chanState === "ok" && chan && chanTab !== "playlists" && chanTab !== "posts" && (
+              chan.videos.length ? (
+                <ul className="mt-3 space-y-3">
+                  {chan.videos.map((r) => (
+                    <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} />
+                  ))}
+                </ul>
+              ) : (
+                <p className="glass mt-3 rounded-3xl p-5 text-center text-[12.5px] text-muted-foreground">এই ট্যাবে কিছু নেই।</p>
+              )
+            )}
+          </section>
+        )}
+
         {/* Search / trending */}
+        {!chanView && (
         <div className="mt-8 flex items-center justify-between">
           <h2 className="font-display text-xl font-semibold">{channel ? `চ্যানেল · ${channel}` : catLabel ? (catLabel === "হোম" ? "আপনার জন্য" : catLabel) : isSearch ? `"${lastQuery}"` : "আপনার জন্য"}</h2>
           {channel && (
-            <button onClick={() => { setChannel(null); setCategory(""); doSearch(""); }} className="rounded-full bg-glass px-3 py-1 font-display text-[12px] font-semibold ring-1 ring-border">
+            <button onClick={backHome} className="rounded-full bg-glass px-3 py-1 font-display text-[12px] font-semibold ring-1 ring-border">
               হোম
             </button>
           )}
           {searchState === "loading" && <span className="text-[12px] text-muted-foreground">খোঁজা হচ্ছে…</span>}
         </div>
+        )}
 
-        {searchState === "loading" && <Skeleton />}
+        {!chanView && searchState === "loading" && <Skeleton />}
 
-        {searchState === "error" && (
+        {!chanView && searchState === "error" && (
           <div className="glass mt-3 rounded-3xl p-5 text-center">
             <p className="font-display text-sm font-semibold">ইউটিউব থেকে ফলাফল আনা যায়নি</p>
             <p className="mt-1 text-[12.5px] text-muted-foreground">ইন্টারনেট দেখুন বা একটু পরে আবার চেষ্টা করুন।</p>
@@ -968,7 +1179,7 @@ function Index() {
           </div>
         )}
 
-        {searchState === "ok" && results.length === 0 && (
+        {!chanView && searchState === "ok" && results.length === 0 && (
           <div className="glass mt-3 rounded-3xl p-5 text-center">
             <p className="font-display text-sm font-semibold">{catLabel ?? `"${lastQuery}"`} — কিছু পাওয়া যায়নি</p>
             <p className="mt-1 text-[12.5px] text-muted-foreground">বানান বদলে দেখুন, বা ইউটিউব লিংক সরাসরি পেস্ট করুন।</p>
@@ -978,15 +1189,15 @@ function Index() {
           </div>
         )}
 
-        {searchState === "ok" && results.length > 0 && (
+        {!chanView && searchState === "ok" && results.length > 0 && (
           <ul className="mt-3 space-y-3">
             {results.map((r) => (
-              <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author)} />
+              <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} />
             ))}
           </ul>
         )}
 
-        {isHome && searchState === "ok" && (
+        {!chanView && isHome && searchState === "ok" && (
           <div ref={sentinel} className="py-4 text-center text-[12px] text-muted-foreground">
             {feedLoadingMore ? "আরও ভিডিও আসছে…" : feedDone ? "আজকের মতো এটুকুই" : ""}
           </div>
@@ -1156,11 +1367,17 @@ function Index() {
         <div className="min-h-0 flex-1 overflow-y-auto pb-8">
           <div className="px-5 pt-4">
             <p className="line-clamp-2 font-display text-lg font-bold leading-snug">{current?.title ?? "কোনো ভিডিও বাছাই হয়নি"}</p>
+            {current && (meta?.views || meta?.published || meta?.publishedAgo) && (
+              <p className="mt-1 text-[12.5px] text-muted-foreground">
+                {[meta?.views, meta?.published ? `আপলোড: ${meta.published}` : "", meta?.publishedAgo].filter(Boolean).join(" · ")}
+              </p>
+            )}
             {current?.author ? (
-              <button onClick={() => openChannel(current.author)} className="mt-1 inline-flex max-w-full items-center gap-2 rounded-full bg-glass px-3 py-1.5 ring-1 ring-border transition active:scale-95">
-                <span className="grid size-6 shrink-0 place-items-center rounded-full bg-primary font-display text-[11px] font-bold text-primary-foreground">{current.author.trim()[0]?.toUpperCase() ?? "?"}</span>
+              <button onClick={() => openChannel(current.author, meta?.channelId)} className="mt-2 inline-flex max-w-full items-center gap-2 rounded-full bg-glass px-2.5 py-1.5 ring-1 ring-border transition active:scale-95">
+                <Avatar src={meta?.channelThumb} name={current.author} size="size-7" text="text-[11px]" />
                 <span className="truncate font-display text-[13px] font-semibold">{current.author}</span>
-                <span className="text-[11.5px] text-muted-foreground">চ্যানেল দেখুন</span>
+                {meta?.subs && <span className="shrink-0 text-[11px] text-muted-foreground">{meta.subs}</span>}
+                <span className="shrink-0 text-[11.5px] text-muted-foreground">চ্যানেল দেখুন</span>
               </button>
             ) : (
               <p className="mt-0.5 truncate text-sm text-muted-foreground">কুই থেকে একটি ভিডিও বেছে নিন</p>
@@ -1262,7 +1479,7 @@ function Index() {
             {relatedState === "ok" && related.length > 0 && (
               <ul className="mt-2 space-y-3">
                 {related.map((r) => (
-                  <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author)} />
+                  <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} />
                 ))}
               </ul>
             )}
