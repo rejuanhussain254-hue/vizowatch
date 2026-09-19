@@ -386,7 +386,70 @@ function Index() {
   const slotRef = useRef<HTMLDivElement>(null);
   const [slotRect, setSlotRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const [pipDismissed, setPipDismissed] = useState(false);
+  const [pipMin, setPipMin] = useState(false);
+  const [pipPos, setPipPos] = useState<{ left: number; top: number } | null>(null);
+  const dragRef = useRef<{ dx: number; dy: number; moved: boolean } | null>(null);
   const playerMode: "big" | "watch" | "pip" | "hidden" = bigVideo ? "big" : open ? "watch" : current && !pipDismissed ? "pip" : "hidden";
+  const pipW = pipMin ? 116 : 190;
+  const pipH = pipMin ? 44 : 107;
+
+  // keep the pop-up inside the screen (rotation / keyboard / resize)
+  const clampPip = useCallback(
+    (left: number, top: number) => {
+      const vw = window.visualViewport?.width ?? window.innerWidth;
+      const vh = window.visualViewport?.height ?? window.innerHeight;
+      return {
+        left: Math.min(Math.max(8, left), Math.max(8, vw - pipW - 8)),
+        top: Math.min(Math.max(8, top), Math.max(8, vh - pipH - 8)),
+      };
+    },
+    [pipW, pipH],
+  );
+
+  useEffect(() => {
+    if (playerMode !== "pip" || typeof window === "undefined") return;
+    setPipPos((p) => {
+      const vw = window.visualViewport?.width ?? window.innerWidth;
+      const vh = window.visualViewport?.height ?? window.innerHeight;
+      return clampPip(p?.left ?? vw - pipW - 12, p?.top ?? vh - pipH - 88);
+    });
+    const onResize = () => setPipPos((p) => (p ? clampPip(p.left, p.top) : p));
+    window.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
+    };
+  }, [playerMode, clampPip, pipW, pipH]);
+
+  const pipDragStart = (e: React.PointerEvent) => {
+    if (!pipPos) return;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    dragRef.current = { dx: e.clientX - pipPos.left, dy: e.clientY - pipPos.top, moved: false };
+  };
+  const pipDragMove = (e: React.PointerEvent) => {
+    const d = dragRef.current;
+    if (!d) return;
+    d.moved = true;
+    setPipPos(clampPip(e.clientX - d.dx, e.clientY - d.dy));
+  };
+  const pipDragEnd = () => {
+    const moved = dragRef.current?.moved ?? false;
+    dragRef.current = null;
+    return moved;
+  };
+
+  // playing in the background: bring the pop-up player back on screen when the user returns
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "visible" && playing) {
+        setPipDismissed(false);
+        setPipMin(false);
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [playing]);
   // where the player docks on the watch page — the sheet slides for 500ms, so measure again once it settles
   useEffect(() => {
     if (!open) return;
