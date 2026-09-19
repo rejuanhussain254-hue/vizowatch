@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type PointerEvent as RPointerEvent } from "react";
 import { usePlayer } from "@/hooks/usePlayer";
 import { useAuth } from "@/hooks/useAuth";
 import { clearCloudHistory, mergeHistoryOnSignIn, updateCloudPosition, upsertCloudHistory } from "@/lib/history-sync";
@@ -422,12 +422,12 @@ function Index() {
     };
   }, [playerMode, clampPip, pipW, pipH]);
 
-  const pipDragStart = (e: React.PointerEvent) => {
+  const pipDragStart = (e: RPointerEvent) => {
     if (!pipPos) return;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     dragRef.current = { dx: e.clientX - pipPos.left, dy: e.clientY - pipPos.top, moved: false };
   };
-  const pipDragMove = (e: React.PointerEvent) => {
+  const pipDragMove = (e: RPointerEvent) => {
     const d = dragRef.current;
     if (!d) return;
     d.moved = true;
