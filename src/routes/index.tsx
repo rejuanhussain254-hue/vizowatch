@@ -389,6 +389,7 @@ function Index() {
   const [pipMin, setPipMin] = useState(false);
   const [pipPos, setPipPos] = useState<{ left: number; top: number } | null>(null);
   const dragRef = useRef<{ dx: number; dy: number; moved: boolean } | null>(null);
+  const [pipDragging, setPipDragging] = useState(false);
   const playerMode: "big" | "watch" | "pip" | "hidden" = bigVideo ? "big" : open ? "watch" : current && !pipDismissed ? "pip" : "hidden";
   const pipW = pipMin ? 116 : 190;
   const pipH = pipMin ? 44 : 107;
@@ -426,6 +427,7 @@ function Index() {
     if (!pipPos) return;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     dragRef.current = { dx: e.clientX - pipPos.left, dy: e.clientY - pipPos.top, moved: false };
+    setPipDragging(true);
   };
   const pipDragMove = (e: RPointerEvent) => {
     const d = dragRef.current;
@@ -436,6 +438,7 @@ function Index() {
   const pipDragEnd = () => {
     const moved = dragRef.current?.moved ?? false;
     dragRef.current = null;
+    setPipDragging(false);
     return moved;
   };
 
@@ -483,7 +486,7 @@ function Index() {
     };
   }, [open, hydrated]);
 
-  useEffect(() => { setPipDismissed(false); }, [current?.id, open]);
+  useEffect(() => { setPipDismissed(false); setPipMin(false); }, [current?.id, open]);
   const feedSeen = useRef<Set<string>>(new Set());
   const [feedLoadingMore, setFeedLoadingMore] = useState(false);
   const feedDone = feedPage.current >= feedOrder.current.length && feedOrder.current.length > 0;
@@ -1558,7 +1561,7 @@ function Index() {
 
       {/* Floating player — one element, moved between big / watch slot / pop-up corner so playback never restarts */}
       <div
-        className={`fixed z-[45] overflow-hidden bg-foreground transition-all duration-500 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)] ${
+        className={`fixed z-[45] overflow-hidden bg-foreground ${pipDragging ? "" : "transition-all duration-500 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)]"} ${
           playerMode === "big" ? "grid place-items-center rounded-none" : playerMode === "pip" ? "rounded-2xl shadow-primary ring-1 ring-border" : playerMode === "watch" ? "rounded-3xl ring-1 ring-border" : "pointer-events-none opacity-0"
         }`}
         style={
@@ -1567,7 +1570,7 @@ function Index() {
             : playerMode === "watch" && slotRect
               ? { top: slotRect.top, left: slotRect.left, width: slotRect.width, height: slotRect.height }
               : playerMode === "pip"
-                ? { right: 12, bottom: 16, width: 190, height: 107 }
+                ? { left: pipPos?.left ?? 12, top: pipPos?.top ?? 12, width: pipW, height: pipH }
                 : { right: 12, bottom: 16, width: 1, height: 1 }
         }
       >
@@ -1590,15 +1593,36 @@ function Index() {
             <p className="pointer-events-none absolute inset-x-0 top-16 text-center text-[11px] text-background/70">উপরে সোয়াইপ করলে পরের ভিডিও · ট্যাপ করলে প্লে/পজ</p>
           </div>
         )}
-        {playerMode === "pip" && (
+        {playerMode === "pip" && !pipMin && (
           <>
-            <button onClick={() => current && openWatch(current.id)} aria-label="ভিডিও পেইজ খুলুন" className="absolute inset-0" />
-            <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-foreground/80 to-transparent px-2 pb-1.5 pt-4 text-background">
+            {/* drag handle — press and move to place the pop-up anywhere, tap to open the video page */}
+            <div
+              className="absolute inset-0 touch-none"
+              onPointerDown={pipDragStart}
+              onPointerMove={pipDragMove}
+              onPointerUp={() => { if (!pipDragEnd() && current) openWatch(current.id); }}
+              onPointerCancel={pipDragEnd}
+            />
+            <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-foreground/80 to-transparent px-1.5 pb-1.5 pt-4 text-background">
               <button onClick={player.toggle} aria-label={playing ? "পজ" : "প্লে"} className="grid size-8 place-items-center rounded-lg bg-background/20"><PlayIcon playing={playing} className="size-4" /></button>
               <button onClick={player.next} aria-label="পরের" className="grid size-8 place-items-center rounded-lg bg-background/20"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z" /></svg></button>
+              <button onClick={() => setPipMin(true)} aria-label="মিনিমাইজ" className="grid size-8 place-items-center rounded-lg bg-background/20"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M5 12h14" /></svg></button>
               <button onClick={() => { player.toggle(); setPipDismissed(true); }} aria-label="বন্ধ" className="grid size-8 place-items-center rounded-lg bg-background/20"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg></button>
             </div>
           </>
+        )}
+        {playerMode === "pip" && pipMin && (
+          <div
+            className="absolute inset-0 flex touch-none items-center justify-between bg-foreground px-1.5 text-background"
+            onPointerDown={pipDragStart}
+            onPointerMove={pipDragMove}
+            onPointerUp={pipDragEnd}
+            onPointerCancel={pipDragEnd}
+          >
+            <button onClick={player.toggle} aria-label={playing ? "পজ" : "প্লে"} className="grid size-8 place-items-center rounded-lg bg-background/20"><PlayIcon playing={playing} className="size-4" /></button>
+            <button onClick={() => setPipMin(false)} aria-label="বড় করুন" className="grid size-8 place-items-center rounded-lg bg-background/20"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg></button>
+            <button onClick={() => { player.toggle(); setPipDismissed(true); }} aria-label="বন্ধ" className="grid size-8 place-items-center rounded-lg bg-background/20"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg></button>
+          </div>
         )}
         {(playerMode === "big" || playerMode === "watch") && (
           <button
