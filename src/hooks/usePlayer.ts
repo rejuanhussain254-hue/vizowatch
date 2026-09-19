@@ -213,12 +213,23 @@ export function usePlayer(queue: Track[], containerId: string, onEnded?: () => b
       const st = p.getPlayerState?.();
       if (st === 2 || st === -1) p.playVideo?.();
     };
+    // Hidden = audio only for the user, so drop to the lowest video quality:
+    // far less decoding work, which keeps the phone cooler and saves battery.
+    const quality = (q: string) => {
+      try {
+        playerRef.current?.setPlaybackQuality?.(q);
+      } catch {
+        /* unsupported */
+      }
+    };
     const start = () => {
+      quality("tiny");
       if (timer) return;
       resume();
-      timer = setInterval(resume, 4000);
+      timer = setInterval(resume, 10000);
     };
     const stop = () => {
+      quality("default");
       if (timer) clearInterval(timer);
       timer = null;
     };
