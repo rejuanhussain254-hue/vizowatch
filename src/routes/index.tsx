@@ -482,8 +482,8 @@ function Index() {
     const onVis = () => {
       if (document.visibilityState === "visible" && playing) {
         setPipDismissed(false);
-        setPipMin(false);
       }
+
     };
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
