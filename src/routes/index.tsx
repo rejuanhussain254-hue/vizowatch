@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { usePlayer } from "@/hooks/usePlayer";
 import { useAuth } from "@/hooks/useAuth";
 import { clearCloudHistory, mergeHistoryOnSignIn, updateCloudPosition, upsertCloudHistory } from "@/lib/history-sync";
+import { cached, TTL } from "@/lib/cache";
 import {
   channelData,
   playlistData,
@@ -366,7 +367,7 @@ function Index() {
     async (q: string): Promise<SearchResult[] | null> => {
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
-          const res = await runSearch({ data: { q } });
+          const res = await cached(`search:${q}`, TTL.search, () => runSearch({ data: { q } }), (r) => r.ok);
           if (res.ok) return res.results;
         } catch {
           /* retry */
@@ -520,7 +521,7 @@ function Index() {
     let cancelled = false;
     const t = setTimeout(async () => {
       try {
-        const list = await runSuggest({ data: { q } });
+        const list = await cached(`sug:${q}`, TTL.suggest, () => runSuggest({ data: { q } }), (l) => l.length > 0);
         if (!cancelled) setSuggestions(list);
       } catch {
         if (!cancelled) setSuggestions([]);
@@ -651,7 +652,7 @@ function Index() {
     async (id: string, tab: typeof chanTab) => {
       setChanState("loading");
       try {
-        const res = await runChannel({ data: { id, tab } });
+        const res = await cached(`chan:${id}:${tab}`, TTL.channel, () => runChannel({ data: { id, tab } }), (r) => r.ok);
         if (chanIdRef.current !== id) return;
         if (res.ok) {
           setChan(res.channel);
@@ -681,7 +682,7 @@ function Index() {
       setChanState("loading");
       if (!id) {
         try {
-          id = await runResolveChannel({ data: { name: n } });
+          id = await cached(`chanid:${n}`, TTL.channel, () => runResolveChannel({ data: { name: n } }), (v) => !!v);
         } catch {
           id = null;
         }
@@ -712,7 +713,7 @@ function Index() {
   const openPlaylist = async (id: string, title: string) => {
     flash(`${title} — লোড হচ্ছে…`);
     try {
-      const res = await runPlaylist({ data: { id } });
+      const res = await cached(`pl:${id}`, TTL.playlist, () => runPlaylist({ data: { id } }), (r) => r.ok);
       if (!res.ok || res.videos.length === 0) return flash("প্লেলিস্ট আনা যায়নি");
       const list = res.videos.map((v) => ({ id: v.id, title: v.title, author: v.author, thumbnail: v.thumbnail }));
       setQueue(list);
@@ -785,7 +786,7 @@ function Index() {
     setMeta(fromList ? seed : null);
     (async () => {
       try {
-        const m = await runVideoMeta({ data: { id: current.id } });
+        const m = await cached(`meta:${current.id}`, TTL.meta, () => runVideoMeta({ data: { id: current.id } }), (x) => !!x && Object.keys(x).length > 0);
         if (cancelled) return;
         setMeta((prev) => ({ ...(prev ?? {}), ...m }));
       } catch {
@@ -821,7 +822,7 @@ function Index() {
       for (const q of queries.slice(0, 2)) {
         if (cancelled) return;
         try {
-          const res = await runSearch({ data: { q } });
+          const res = await cached(`search:${q}`, TTL.search, () => runSearch({ data: { q } }), (r) => r.ok);
           if (res.ok) {
             for (const r of res.results) {
               if (seen.has(r.id)) continue;
@@ -858,7 +859,7 @@ function Index() {
     setRelatedMore(true);
     try {
       const q = relQueriesRef.current.shift()!;
-      const res = await runSearch({ data: { q } });
+      const res = await cached(`search:${q}`, TTL.search, () => runSearch({ data: { q } }), (r) => r.ok);
       if (res.ok) {
         const seen = relSeenRef.current;
         const add: SearchResult[] = [];
