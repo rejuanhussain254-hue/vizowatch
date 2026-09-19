@@ -388,6 +388,7 @@ function Index() {
   const [pipDismissed, setPipDismissed] = useState(false);
   const [pipMin, setPipMin] = useState(false);
   const [pipPos, setPipPos] = useState<{ left: number; top: number } | null>(null);
+  const pipPrefLoaded = useRef(false);
   const dragRef = useRef<{ dx: number; dy: number; moved: boolean } | null>(null);
   const [pipDragging, setPipDragging] = useState(false);
   const playerMode: "big" | "watch" | "pip" | "hidden" = bigVideo ? "big" : open ? "watch" : current && !pipDismissed ? "pip" : "hidden";
@@ -407,6 +408,39 @@ function Index() {
     [pipW, pipH],
   );
 
+  // remember the pop-up's last place and size between sessions
+  useEffect(() => {
+    if (typeof window === "undefined" || pipPrefLoaded.current) return;
+    pipPrefLoaded.current = true;
+    try {
+      const raw = localStorage.getItem("echo.pip");
+      if (!raw) return;
+      const p = JSON.parse(raw) as { xr?: number; yr?: number; min?: boolean };
+      if (typeof p.min === "boolean") setPipMin(p.min);
+      if (typeof p.xr === "number" && typeof p.yr === "number") {
+        const vw = window.visualViewport?.width ?? window.innerWidth;
+        const vh = window.visualViewport?.height ?? window.innerHeight;
+        setPipPos({ left: p.xr * vw, top: p.yr * vh });
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !pipPrefLoaded.current) return;
+    const vw = window.visualViewport?.width ?? window.innerWidth;
+    const vh = window.visualViewport?.height ?? window.innerHeight;
+    try {
+      localStorage.setItem(
+        "echo.pip",
+        JSON.stringify(pipPos ? { xr: pipPos.left / vw, yr: pipPos.top / vh, min: pipMin } : { min: pipMin }),
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [pipPos, pipMin]);
+
   useEffect(() => {
     if (playerMode !== "pip" || typeof window === "undefined") return;
     setPipPos((p) => {
@@ -422,6 +456,7 @@ function Index() {
       window.removeEventListener("orientationchange", onResize);
     };
   }, [playerMode, clampPip, pipW, pipH]);
+
 
   const pipDragStart = (e: RPointerEvent) => {
     if (!pipPos) return;
