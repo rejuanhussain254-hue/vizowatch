@@ -486,6 +486,34 @@ function Index() {
     return moved;
   };
 
+  // ---- floating window that stays on top of other apps (where the browser supports it) ----
+  const playerBoxRef = useRef<HTMLDivElement>(null);
+  const [docPip, setDocPip] = useState(false);
+  const openDocPip = useCallback(async () => {
+    const dpip = (window as unknown as { documentPictureInPicture?: { requestWindow: (o: { width: number; height: number }) => Promise<Window> } }).documentPictureInPicture;
+    const box = playerBoxRef.current;
+    if (!dpip || !box) {
+      flash("এই ফোনের ব্রাউজার অ্যাপের বাইরে ভাসমান ভিডিও দেখায় না — শব্দ চলতে থাকবে");
+      return;
+    }
+    try {
+      const w = await dpip.requestWindow({ width: 400, height: 225 });
+      w.document.body.style.cssText = "margin:0;background:#000;overflow:hidden";
+      w.document.body.append(box);
+      setDocPip(true);
+      const back = () => {
+        document.body.append(box);
+        setDocPip(false);
+      };
+      w.addEventListener("pagehide", back);
+      w.addEventListener("unload", back);
+    } catch {
+      flash("ভাসমান উইন্ডো খোলা যায়নি");
+    }
+  }, []);
+
+
+
   // playing in the background: bring the pop-up player back on screen when the user returns
   useEffect(() => {
     const onVis = () => {
