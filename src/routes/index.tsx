@@ -626,10 +626,12 @@ function Index() {
       setCategory(null);
       setChannel(null);
       setSearches(pushSearch(term));
+      bump("terms", term, 1);
       void doSearch(term);
     },
-    [doSearch],
+    [doSearch, bump],
   );
+
 
   // live suggestions while typing (debounced)
   useEffect(() => {
