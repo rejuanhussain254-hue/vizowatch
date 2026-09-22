@@ -638,6 +638,9 @@ function Index() {
   useEffect(() => {
     const genreScore = new Map<string, number>();
     const chanScore = new Map<string, number>();
+    // long-lived profile (survives app restarts, decays over weeks)
+    for (const [g, v] of Object.entries(taste.genres)) genreScore.set(g, v * 10);
+    for (const [c, v] of Object.entries(taste.channels)) chanScore.set(c, v * 10);
     history.slice(0, 30).forEach((h, i) => {
       const w = 30 - i;
       const g = genreOf(`${h.title} ${h.author ?? ""}`);
@@ -649,8 +652,10 @@ function Index() {
     tasteRef.current = [
       ...top(genreScore, 3).map((g) => `${g} নতুন ভিডিও`),
       ...top(chanScore, 2).map((c) => `${c} ভিডিও`),
+      ...topTaste(taste.terms, 2),
     ];
-  }, [history]);
+  }, [history, taste]);
+
 
   useEffect(() => {
     if (!hydrated) return;
