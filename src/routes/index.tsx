@@ -1509,8 +1509,6 @@ function Index() {
           </div>
         </div>
 
-        </div>
-
 
         <div className="min-h-0 flex-1 overflow-y-auto pb-8">
           <div className="px-5 pt-4">
