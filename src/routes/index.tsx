@@ -34,6 +34,8 @@ import {
   type HistoryItem,
   type Track,
 } from "@/lib/youtube";
+import { bumpTaste, emptyTaste, loadTaste, tasteScore, topTaste, type Taste } from "@/lib/taste";
+
 
 type Search = { url?: string; text?: string; title?: string; v?: string };
 
