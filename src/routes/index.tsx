@@ -34,6 +34,8 @@ import {
   type HistoryItem,
   type Track,
 } from "@/lib/youtube";
+import { bumpTaste, emptyTaste, loadTaste, tasteScore, topTaste, type Taste } from "@/lib/taste";
+
 
 type Search = { url?: string; text?: string; title?: string; v?: string };
 
@@ -298,6 +300,13 @@ function VideoRow({ r, active, playing, onPlay, onQueue, onChannel, sub, progres
 function Index() {
   const [queue, setQueue] = useState<Track[]>([]);
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [taste, setTaste] = useState<Taste>(() => emptyTaste());
+  const tasteObjRef = useRef(taste);
+  tasteObjRef.current = taste;
+  const bump = useCallback((kind: "genres" | "channels" | "terms", key: string, w = 1) => {
+    setTaste((t) => bumpTaste(t, kind, key, w));
+  }, []);
+
   const [hydrated, setHydrated] = useState(false);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -563,20 +572,27 @@ function Index() {
           }
         }
       }
+      // rank the mix so videos closest to this person's taste show up first
+      const t = tasteObjRef.current;
+      const ranked = fresh
+        .map((r, i) => ({ r, i, s: tasteScore(t, r.title, r.author, genreOf(`${r.title} ${r.author ?? ""}`)) }))
+        .sort((a, b) => (b.s === a.s ? a.i - b.i : b.s - a.s))
+        .map((x) => x.r);
       if (reset) {
         if (batches.every((b) => b === null)) {
           setSearchState("error");
         } else {
-          setResults(fresh);
+          setResults(ranked);
           setSearchState("ok");
         }
       } else {
-        setResults((prev) => [...prev, ...fresh]);
+        setResults((prev) => [...prev, ...ranked]);
         setFeedLoadingMore(false);
       }
     },
     [fetchWithRetry, feedLoadingMore],
   );
+
 
   const doSearch = useCallback(
     async (q: string) => {
@@ -610,10 +626,12 @@ function Index() {
       setCategory(null);
       setChannel(null);
       setSearches(pushSearch(term));
+      bump("terms", term, 1);
       void doSearch(term);
     },
-    [doSearch],
+    [doSearch, bump],
   );
+
 
   // live suggestions while typing (debounced)
   useEffect(() => {
@@ -638,6 +656,9 @@ function Index() {
   useEffect(() => {
     const genreScore = new Map<string, number>();
     const chanScore = new Map<string, number>();
+    // long-lived profile (survives app restarts, decays over weeks)
+    for (const [g, v] of Object.entries(taste.genres)) genreScore.set(g, v * 10);
+    for (const [c, v] of Object.entries(taste.channels)) chanScore.set(c, v * 10);
     history.slice(0, 30).forEach((h, i) => {
       const w = 30 - i;
       const g = genreOf(`${h.title} ${h.author ?? ""}`);
@@ -649,8 +670,10 @@ function Index() {
     tasteRef.current = [
       ...top(genreScore, 3).map((g) => `${g} নতুন ভিডিও`),
       ...top(chanScore, 2).map((c) => `${c} ভিডিও`),
+      ...topTaste(taste.terms, 2),
     ];
-  }, [history]);
+  }, [history, taste]);
+
 
   useEffect(() => {
     if (!hydrated) return;
@@ -675,6 +698,8 @@ function Index() {
   useEffect(() => {
     setQueue(loadQueue());
     setHistory(loadHistory());
+    setTaste(loadTaste());
+
     setSearches(loadSearches());
     setHydrated(true);
   }, []);
@@ -717,7 +742,23 @@ function Index() {
     setHistory(next);
     const item = next.find((h) => h.id === current.id);
     if (userId && item) upsertCloudHistory(userId, item);
+    // learn what this person watches, so the home feed leans that way
+    const g = genreOf(`${current.title} ${current.author ?? ""}`);
+    if (g) bump("genres", g, 1);
+    if (current.author) bump("channels", current.author, 1);
   }, [current?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // watched more than half → a much stronger signal than just opening it
+  const deepRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!current || !duration || time / duration < 0.5) return;
+    if (deepRef.current.has(current.id)) return;
+    deepRef.current.add(current.id);
+    const g = genreOf(`${current.title} ${current.author ?? ""}`);
+    if (g) bump("genres", g, 2);
+    if (current.author) bump("channels", current.author, 2);
+  }, [time, duration, current, bump]);
+
   const lastSaved = useRef(0);
   useEffect(() => {
     if (!current || !duration) return;
@@ -1146,7 +1187,7 @@ function Index() {
             return (
               <button
                 key={c.label}
-                onClick={() => { setCategory(c.q); setChannel(null); setInput(""); doSearch(c.q); }}
+                onClick={() => { setCategory(c.q); setChannel(null); setInput(""); if (c.q) bump("terms", c.q, 0.5); doSearch(c.q); }}
                 className={`shrink-0 rounded-full px-3.5 py-1.5 font-display text-[13px] font-semibold ring-1 transition active:scale-95 ${on ? "bg-primary text-primary-foreground ring-primary shadow-primary" : "bg-glass text-foreground ring-border"}`}
               >
                 {c.label}
