@@ -572,20 +572,27 @@ function Index() {
           }
         }
       }
+      // rank the mix so videos closest to this person's taste show up first
+      const t = tasteObjRef.current;
+      const ranked = fresh
+        .map((r, i) => ({ r, i, s: tasteScore(t, r.title, r.author, genreOf(`${r.title} ${r.author ?? ""}`)) }))
+        .sort((a, b) => (b.s === a.s ? a.i - b.i : b.s - a.s))
+        .map((x) => x.r);
       if (reset) {
         if (batches.every((b) => b === null)) {
           setSearchState("error");
         } else {
-          setResults(fresh);
+          setResults(ranked);
           setSearchState("ok");
         }
       } else {
-        setResults((prev) => [...prev, ...fresh]);
+        setResults((prev) => [...prev, ...ranked]);
         setFeedLoadingMore(false);
       }
     },
     [fetchWithRetry, feedLoadingMore],
   );
+
 
   const doSearch = useCallback(
     async (q: string) => {
