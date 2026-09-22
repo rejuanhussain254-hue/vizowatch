@@ -486,6 +486,34 @@ function Index() {
     return moved;
   };
 
+  // ---- floating window that stays on top of other apps (where the browser supports it) ----
+  const playerBoxRef = useRef<HTMLDivElement>(null);
+  const [docPip, setDocPip] = useState(false);
+  const openDocPip = useCallback(async () => {
+    const dpip = (window as unknown as { documentPictureInPicture?: { requestWindow: (o: { width: number; height: number }) => Promise<Window> } }).documentPictureInPicture;
+    const box = playerBoxRef.current;
+    if (!dpip || !box) {
+      flash("এই ফোনের ব্রাউজার অ্যাপের বাইরে ভাসমান ভিডিও দেখায় না — শব্দ চলতে থাকবে");
+      return;
+    }
+    try {
+      const w = await dpip.requestWindow({ width: 400, height: 225 });
+      w.document.body.style.cssText = "margin:0;background:#000;overflow:hidden";
+      w.document.body.append(box);
+      setDocPip(true);
+      const back = () => {
+        document.body.append(box);
+        setDocPip(false);
+      };
+      w.addEventListener("pagehide", back);
+      w.addEventListener("unload", back);
+    } catch {
+      flash("ভাসমান উইন্ডো খোলা যায়নি");
+    }
+  }, []);
+
+
+
   // playing in the background: bring the pop-up player back on screen when the user returns
   useEffect(() => {
     const onVis = () => {
@@ -1503,6 +1531,9 @@ function Index() {
               <PlayIcon playing={playing} />
             </button>
             <button onClick={player.next} aria-label="পরের ভিডিও" className="grid size-8 place-items-center rounded-full bg-glass ring-1 ring-border active:scale-95"><SkipIcon /></button>
+            <button onClick={openDocPip} aria-label="ভাসমান পপ-আপে চালান" className="grid size-8 place-items-center rounded-full bg-glass ring-1 ring-border active:scale-95">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="4" width="19" height="16" rx="2.5" /><rect x="12" y="12" width="8" height="6" rx="1.4" fill="currentColor" /></svg>
+            </button>
           </div>
         </div>
 
@@ -1637,18 +1668,26 @@ function Index() {
 
       {/* Floating player — one element, moved between big / watch slot / pop-up corner so playback never restarts */}
       <div
-        className={`fixed z-[45] overflow-hidden bg-foreground ${pipDragging ? "" : "transition-all duration-500 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)]"} ${
-          playerMode === "big" ? "grid place-items-center rounded-none" : playerMode === "pip" ? "rounded-2xl shadow-primary ring-1 ring-border" : playerMode === "watch" ? "rounded-3xl ring-1 ring-border" : "pointer-events-none opacity-0"
-        }`}
-        style={
-          playerMode === "big"
-            ? { inset: 0 }
-            : playerMode === "watch" && slotRect
-              ? { top: slotRect.top, left: slotRect.left, width: slotRect.width, height: slotRect.height }
-              : playerMode === "pip"
-                ? { left: pipPos?.left ?? 12, top: pipPos?.top ?? 12, width: pipW, height: pipH }
-                : { right: 12, bottom: 16, width: 1, height: 1 }
+        ref={playerBoxRef}
+        className={
+          docPip
+            ? "size-full overflow-hidden bg-foreground"
+            : `fixed z-[45] overflow-hidden bg-foreground ${pipDragging ? "" : "transition-all duration-500 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)]"} ${
+                playerMode === "big" ? "grid place-items-center rounded-none" : playerMode === "pip" ? "rounded-2xl shadow-primary ring-1 ring-border" : playerMode === "watch" ? "rounded-3xl ring-1 ring-border" : "pointer-events-none opacity-0"
+              }`
         }
+        style={
+          docPip
+            ? { position: "static", width: "100%", height: "100%" }
+            : playerMode === "big"
+              ? { inset: 0 }
+              : playerMode === "watch" && slotRect
+                ? { top: slotRect.top, left: slotRect.left, width: slotRect.width, height: slotRect.height }
+                : playerMode === "pip"
+                  ? { left: pipPos?.left ?? 12, top: pipPos?.top ?? 12, width: pipW, height: pipH }
+                  : { right: 12, bottom: 16, width: 1, height: 1 }
+        }
+
       >
         <div id={PLAYER_ID} className={playerMode === "big" ? "aspect-video w-full max-w-[min(100vw,calc(100dvh*16/9))]" : "size-full"} />
         {playerMode === "big" && (
