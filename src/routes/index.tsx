@@ -733,7 +733,23 @@ function Index() {
     setHistory(next);
     const item = next.find((h) => h.id === current.id);
     if (userId && item) upsertCloudHistory(userId, item);
+    // learn what this person watches, so the home feed leans that way
+    const g = genreOf(`${current.title} ${current.author ?? ""}`);
+    if (g) bump("genres", g, 1);
+    if (current.author) bump("channels", current.author, 1);
   }, [current?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // watched more than half → a much stronger signal than just opening it
+  const deepRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!current || !duration || time / duration < 0.5) return;
+    if (deepRef.current.has(current.id)) return;
+    deepRef.current.add(current.id);
+    const g = genreOf(`${current.title} ${current.author ?? ""}`);
+    if (g) bump("genres", g, 2);
+    if (current.author) bump("channels", current.author, 2);
+  }, [time, duration, current, bump]);
+
   const lastSaved = useRef(0);
   useEffect(() => {
     if (!current || !duration) return;
