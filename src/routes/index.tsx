@@ -1187,7 +1187,7 @@ function Index() {
             return (
               <button
                 key={c.label}
-                onClick={() => { setCategory(c.q); setChannel(null); setInput(""); doSearch(c.q); }}
+                onClick={() => { setCategory(c.q); setChannel(null); setInput(""); if (c.q) bump("terms", c.q, 0.5); doSearch(c.q); }}
                 className={`shrink-0 rounded-full px-3.5 py-1.5 font-display text-[13px] font-semibold ring-1 transition active:scale-95 ${on ? "bg-primary text-primary-foreground ring-primary shadow-primary" : "bg-glass text-foreground ring-border"}`}
               >
                 {c.label}
