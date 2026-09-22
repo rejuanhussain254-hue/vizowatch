@@ -1668,18 +1668,26 @@ function Index() {
 
       {/* Floating player — one element, moved between big / watch slot / pop-up corner so playback never restarts */}
       <div
-        className={`fixed z-[45] overflow-hidden bg-foreground ${pipDragging ? "" : "transition-all duration-500 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)]"} ${
-          playerMode === "big" ? "grid place-items-center rounded-none" : playerMode === "pip" ? "rounded-2xl shadow-primary ring-1 ring-border" : playerMode === "watch" ? "rounded-3xl ring-1 ring-border" : "pointer-events-none opacity-0"
-        }`}
-        style={
-          playerMode === "big"
-            ? { inset: 0 }
-            : playerMode === "watch" && slotRect
-              ? { top: slotRect.top, left: slotRect.left, width: slotRect.width, height: slotRect.height }
-              : playerMode === "pip"
-                ? { left: pipPos?.left ?? 12, top: pipPos?.top ?? 12, width: pipW, height: pipH }
-                : { right: 12, bottom: 16, width: 1, height: 1 }
+        ref={playerBoxRef}
+        className={
+          docPip
+            ? "size-full overflow-hidden bg-foreground"
+            : `fixed z-[45] overflow-hidden bg-foreground ${pipDragging ? "" : "transition-all duration-500 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)]"} ${
+                playerMode === "big" ? "grid place-items-center rounded-none" : playerMode === "pip" ? "rounded-2xl shadow-primary ring-1 ring-border" : playerMode === "watch" ? "rounded-3xl ring-1 ring-border" : "pointer-events-none opacity-0"
+              }`
         }
+        style={
+          docPip
+            ? { position: "static", width: "100%", height: "100%" }
+            : playerMode === "big"
+              ? { inset: 0 }
+              : playerMode === "watch" && slotRect
+                ? { top: slotRect.top, left: slotRect.left, width: slotRect.width, height: slotRect.height }
+                : playerMode === "pip"
+                  ? { left: pipPos?.left ?? 12, top: pipPos?.top ?? 12, width: pipW, height: pipH }
+                  : { right: 12, bottom: 16, width: 1, height: 1 }
+        }
+
       >
         <div id={PLAYER_ID} className={playerMode === "big" ? "aspect-video w-full max-w-[min(100vw,calc(100dvh*16/9))]" : "size-full"} />
         {playerMode === "big" && (
