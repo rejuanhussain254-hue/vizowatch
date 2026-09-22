@@ -689,6 +689,8 @@ function Index() {
   useEffect(() => {
     setQueue(loadQueue());
     setHistory(loadHistory());
+    setTaste(loadTaste());
+
     setSearches(loadSearches());
     setHydrated(true);
   }, []);
