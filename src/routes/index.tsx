@@ -298,6 +298,13 @@ function VideoRow({ r, active, playing, onPlay, onQueue, onChannel, sub, progres
 function Index() {
   const [queue, setQueue] = useState<Track[]>([]);
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [taste, setTaste] = useState<Taste>(() => emptyTaste());
+  const tasteObjRef = useRef(taste);
+  tasteObjRef.current = taste;
+  const bump = useCallback((kind: "genres" | "channels" | "terms", key: string, w = 1) => {
+    setTaste((t) => bumpTaste(t, kind, key, w));
+  }, []);
+
   const [hydrated, setHydrated] = useState(false);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
