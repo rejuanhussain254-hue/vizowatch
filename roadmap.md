@@ -8,4 +8,4 @@
 - [x] Play queue + recent history with resume position
 - [x] Search hardening: retries, skeleton loading, clear empty/error states
 - [x] YouTube-style category browser (chips: drama, news, music, islamic, sports, comedy, cooking, vlog, podcast, education, tech, movies, kids…) to explore any video type
-- [ ] Fit the PWA on narrow mobile screens and prevent automatic zoom when focusing search and sign-in fields
+- [x] Fit the PWA on narrow mobile screens and prevent automatic zoom when focusing search and sign-in fields
