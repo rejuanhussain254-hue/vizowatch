@@ -489,30 +489,47 @@ function Index() {
   // ---- floating window that stays on top of other apps (where the browser supports it) ----
   const playerBoxRef = useRef<HTMLDivElement>(null);
   const [docPip, setDocPip] = useState(false);
-  const openDocPip = useCallback(async () => {
-    const dpip = (window as unknown as { documentPictureInPicture?: { requestWindow: (o: { width: number; height: number }) => Promise<Window> } }).documentPictureInPicture;
+  const docPipWinRef = useRef<Window | null>(null);
+  const openDocPip = useCallback(async (silent = false) => {
+    const dpip = (window as unknown as { documentPictureInPicture?: { requestWindow: (o: { width: number; height: number }) => Promise<Window>; window?: Window | null } }).documentPictureInPicture;
     const box = playerBoxRef.current;
+    if (docPipWinRef.current && !docPipWinRef.current.closed) return;
     if (!dpip || !box) {
-      flash("এই ফোনের ব্রাউজার অ্যাপের বাইরে ভাসমান ভিডিও দেখায় না — শব্দ চলতে থাকবে");
+      if (!silent) flash("এই ফোনের ব্রাউজার অ্যাপের বাইরে ভাসমান ভিডিও দেখায় না — শব্দ চলতে থাকবে");
       return;
     }
     try {
       const w = await dpip.requestWindow({ width: 400, height: 225 });
+      docPipWinRef.current = w;
       w.document.body.style.cssText = "margin:0;background:#000;overflow:hidden";
       w.document.body.append(box);
       setDocPip(true);
       const back = () => {
         document.body.append(box);
+        docPipWinRef.current = null;
         setDocPip(false);
       };
       w.addEventListener("pagehide", back);
       w.addEventListener("unload", back);
     } catch {
-      flash("ভাসমান উইন্ডো খোলা যায়নি");
+      if (!silent) flash("ভাসমান উইন্ডো খোলা যায়নি");
     }
   }, []);
 
-
+  // leaving the app while a video plays: float it automatically, no button press needed
+  useEffect(() => {
+    if (!playing) return;
+    const tryFloat = () => { void openDocPip(true); };
+    window.addEventListener("blur", tryFloat);
+    window.addEventListener("pagehide", tryFloat);
+    const onHide = () => { if (document.visibilityState === "hidden") tryFloat(); };
+    document.addEventListener("visibilitychange", onHide);
+    return () => {
+      window.removeEventListener("blur", tryFloat);
+      window.removeEventListener("pagehide", tryFloat);
+      document.removeEventListener("visibilitychange", onHide);
+    };
+  }, [playing, openDocPip]);
 
   // playing in the background: bring the pop-up player back on screen when the user returns
   useEffect(() => {
@@ -525,6 +542,7 @@ function Index() {
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [playing]);
+
   // where the player docks on the watch page — the sheet slides for 500ms, so measure again once it settles
   useEffect(() => {
     if (!open) return;
@@ -1531,7 +1549,7 @@ function Index() {
               <PlayIcon playing={playing} />
             </button>
             <button onClick={player.next} aria-label="পরের ভিডিও" className="grid size-8 place-items-center rounded-full bg-glass ring-1 ring-border active:scale-95"><SkipIcon /></button>
-            <button onClick={openDocPip} aria-label="ভাসমান পপ-আপে চালান" className="grid size-8 place-items-center rounded-full bg-glass ring-1 ring-border active:scale-95">
+            <button onClick={() => void openDocPip()} aria-label="ভাসমান পপ-আপে চালান" className="grid size-8 place-items-center rounded-full bg-glass ring-1 ring-border active:scale-95">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="4" width="19" height="16" rx="2.5" /><rect x="12" y="12" width="8" height="6" rx="1.4" fill="currentColor" /></svg>
             </button>
           </div>
