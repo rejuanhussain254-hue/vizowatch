@@ -1133,15 +1133,15 @@ function Index() {
         <div className="animate-glow absolute -bottom-16 right-6 size-60 rounded-full bg-lilac/60 blur-3xl" style={{ animationDelay: "-9s" }} />
       </div>
 
-      <main className="relative mx-auto flex min-h-screen max-w-[420px] flex-col px-5 pb-10">
-        <header className="relative z-30 flex items-center gap-3 pt-6">
+      <main className="relative mx-auto flex min-h-screen w-full min-w-0 max-w-[420px] flex-col px-5 pb-[max(2.5rem,env(safe-area-inset-bottom))]">
+        <header className="relative z-30 flex flex-wrap items-center gap-3 pt-[max(1.5rem,env(safe-area-inset-top))] max-[400px]:justify-between">
           <div className="flex shrink-0 items-center gap-2">
             <div className="grid size-9 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-primary">
               <Eq className="bg-primary-foreground" />
             </div>
             <span className="font-display text-lg font-bold tracking-tight">Echo</span>
           </div>
-          <form onSubmit={submit} className="relative flex min-w-0 flex-1 items-center gap-2">
+          <form onSubmit={submit} className="relative flex min-w-0 flex-1 items-center gap-2 max-[400px]:order-3 max-[400px]:basis-full">
             <div className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl bg-background px-3 py-2 ring-1 ring-border focus-within:ring-2 focus-within:ring-ring">
               <input
                 value={input}
@@ -1150,7 +1150,7 @@ function Index() {
                 onBlur={() => setTimeout(() => setSugOpen(false), 150)}
                 placeholder=""
                 aria-label="ইউটিউবে খুঁজুন"
-                className="min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-muted-foreground"
+                className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
                 inputMode="search"
                 autoComplete="off"
               />
@@ -1522,7 +1522,7 @@ function Index() {
         aria-hidden={!open}
         data-watch-sheet
       >
-        <div className="flex items-center justify-between px-5 pt-5">
+        <div className="flex items-center justify-between px-5 pt-[max(1.25rem,env(safe-area-inset-top))]">
           <button onClick={closeWatch} aria-label="বন্ধ" className="grid size-10 place-items-center rounded-2xl bg-glass ring-1 ring-border">
             <span className="block h-[2px] w-4 rounded-full bg-foreground" />
           </button>
@@ -1593,7 +1593,7 @@ function Index() {
                     value={player.captionLang ?? ""}
                     onChange={(e) => player.setCaptions(true, e.target.value)}
                     aria-label="সাবটাইটেল ভাষা"
-                    className="max-w-[140px] rounded-xl bg-background px-2 py-1 text-[12px] ring-1 ring-border outline-none"
+                    className="max-w-[140px] rounded-xl bg-background px-2 py-1 text-base ring-1 ring-border outline-none"
                   >
                     {player.captionTracks.map((t) => (
                       <option key={t.code} value={t.code}>{t.name}</option>

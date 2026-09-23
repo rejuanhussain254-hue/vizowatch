@@ -76,7 +76,7 @@ function AuthPage() {
         <div className="animate-glow absolute -bottom-16 left-1/4 size-72 rounded-full bg-rose/50 blur-3xl" style={{ animationDelay: "-3s" }} />
       </div>
 
-      <main className="relative mx-auto flex min-h-screen max-w-[420px] flex-col px-5 pb-16 pt-6">
+      <main className="relative mx-auto flex min-h-screen w-full min-w-0 max-w-[420px] flex-col px-5 pb-[max(4rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))]">
         <Link to="/" className="self-start rounded-full bg-glass px-3 py-1 text-[12px] font-medium ring-1 ring-border">← ফিরে যান</Link>
 
         <section className="glass mt-8 rounded-3xl p-5">
@@ -105,7 +105,7 @@ function AuthPage() {
               placeholder="ইমেইল"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-2xl bg-background px-4 py-3 text-[14px] ring-1 ring-border outline-none focus:ring-2 focus:ring-ring"
+              className="w-full rounded-2xl bg-background px-4 py-3 text-base ring-1 ring-border outline-none focus:ring-2 focus:ring-ring"
             />
             <input
               type="password"
@@ -115,7 +115,7 @@ function AuthPage() {
               placeholder="পাসওয়ার্ড (কমপক্ষে ৬ অক্ষর)"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-2xl bg-background px-4 py-3 text-[14px] ring-1 ring-border outline-none focus:ring-2 focus:ring-ring"
+              className="w-full rounded-2xl bg-background px-4 py-3 text-base ring-1 ring-border outline-none focus:ring-2 focus:ring-ring"
             />
             {msg && (
               <p role="status" className={`rounded-2xl px-4 py-2.5 text-[13px] ${msg.kind === "error" ? "bg-rose/40 text-foreground" : "bg-mint/50 text-foreground"}`}>{msg.text}</p>
