@@ -3,7 +3,6 @@ import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type PointerEvent as RPointerEvent } from "react";
 import { usePlayer } from "@/hooks/usePlayer";
 import { useAuth } from "@/hooks/useAuth";
-import { InstallApp } from "@/components/InstallApp";
 import { clearCloudHistory, mergeHistoryOnSignIn, updateCloudPosition, upsertCloudHistory } from "@/lib/history-sync";
 import { cached, TTL } from "@/lib/cache";
 import {
@@ -1434,79 +1433,49 @@ function Index() {
       </div>
 
       <main className="relative mx-auto flex min-h-screen w-full min-w-0 max-w-[420px] flex-col px-5 pb-[max(2.5rem,env(safe-area-inset-bottom))]">
-        <header className="relative z-30 flex flex-col gap-3 pt-[max(1.5rem,env(safe-area-inset-top))]">
-          {/* Top Bar: Brand Logo on Left, Action Buttons on Right */}
-          <div className="flex items-center justify-between w-full">
-            <div className="flex items-center gap-2.5">
-              <div className="relative grid size-10 place-items-center rounded-2xl bg-gradient-to-br from-primary via-indigo-600 to-rose-500 text-primary-foreground shadow-md shadow-primary/25 transition-transform active:scale-95">
-                <Eq className="bg-white" />
-              </div>
-              <div className="flex flex-col">
-                <span className="font-display text-xl font-black tracking-tight text-foreground">
-                  Vizo<span className="text-primary font-black">Watch</span>
-                </span>
-                <span className="text-[10px] -mt-1 font-semibold text-muted-foreground tracking-wider uppercase">
-                  Background Player
-                </span>
-              </div>
+        <header className="relative z-30 flex items-center gap-2.5 pt-[max(1.5rem,env(safe-area-inset-top))]">
+          {/* Logo on Left */}
+          <button onClick={backHome} className="flex shrink-0 items-center gap-2 text-left group">
+            <div className="relative grid size-9 place-items-center rounded-xl bg-gradient-to-br from-primary via-indigo-600 to-rose-500 text-primary-foreground shadow-sm shadow-primary/25 transition-transform group-active:scale-95">
+              <Eq className="bg-white" />
             </div>
+            <span className="font-display text-lg font-black tracking-tight text-foreground hidden min-[360px]:inline">
+              Vizo<span className="text-primary font-black">Watch</span>
+            </span>
+          </button>
 
-            <div className="flex items-center gap-2">
-              <InstallApp />
-              <button
-                onClick={() => setProfileOpen(true)}
-                aria-label="প্রোফাইল"
-                className={`relative grid size-10 shrink-0 place-items-center rounded-2xl ring-1 transition-all active:scale-95 ${user ? "bg-gradient-to-tr from-primary to-indigo-600 text-primary-foreground ring-primary shadow-md shadow-primary/25 font-display text-sm font-bold" : "glass-card ring-border/80 hover:bg-white"}`}
-              >
-                {user ? (
-                  (user.email ?? "?")[0]?.toUpperCase()
-                ) : (
-                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-                    <circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" />
-                  </svg>
-                )}
-                {hydrated && queue.length > 0 && (
-                  <span className="absolute -right-1 -top-1 grid min-w-[20px] place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-extrabold text-white ring-2 ring-background shadow">{queue.length}</span>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Full-Width Modern Search Bar */}
-          <form onSubmit={submit} className="relative flex w-full items-center gap-2">
-            <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl glass-card px-3.5 py-2.5 ring-1 ring-border/80 focus-within:ring-2 focus-within:ring-primary focus-within:shadow-md focus-within:shadow-primary/10 transition-all">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-muted-foreground" aria-hidden>
-                <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
-              </svg>
+          {/* Search Box in the Middle (where Install was) */}
+          <form onSubmit={submit} className="relative flex min-w-0 flex-1 items-center">
+            <div className="flex min-w-0 w-full items-center gap-1.5 rounded-2xl glass-card px-3 py-1.5 ring-1 ring-border/80 focus-within:ring-2 focus-within:ring-primary focus-within:shadow-md focus-within:shadow-primary/10 transition-all">
               <input
                 value={input}
                 onChange={(e) => { setInput(e.target.value); setSugOpen(true); }}
                 onFocus={() => setSugOpen(true)}
                 onBlur={() => setTimeout(() => setSugOpen(false), 150)}
-                placeholder="গান, নাটক, ওয়াজ বা লিংক খুঁজুন..."
+                placeholder="গান, নাটক, লিংক খুঁজুন..."
                 aria-label="ইউটিউবে খুঁজুন"
-                className="min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-muted-foreground/80"
+                className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/80"
                 inputMode="search"
                 autoComplete="off"
               />
               {input && (
-                <button type="button" onClick={() => { setInput(""); setSuggestions([]); setCategory(""); doSearch(""); }} aria-label="মুছুন" className="grid size-5 place-items-center rounded-full bg-muted/80 text-[11px] text-muted-foreground hover:bg-muted transition-colors">✕</button>
+                <button type="button" onClick={() => { setInput(""); setSuggestions([]); setCategory(""); doSearch(""); }} aria-label="মুছুন" className="grid size-4 shrink-0 place-items-center rounded-full bg-muted/80 text-[10px] text-muted-foreground hover:bg-muted transition-colors">✕</button>
               )}
+              <button
+                type="submit"
+                disabled={busy || searchState === "loading"}
+                aria-label="খুঁজুন"
+                className="shrink-0 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+              >
+                {busy ? (
+                  <span className="inline-block size-3.5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                ) : (
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
+                  </svg>
+                )}
+              </button>
             </div>
-            <button
-              type="submit"
-              disabled={busy || searchState === "loading"}
-              aria-label="খুঁজুন"
-              className="grid size-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-tr from-primary to-indigo-600 text-primary-foreground shadow-md shadow-primary/30 transition-all hover:opacity-95 active:scale-95 disabled:opacity-60"
-            >
-              {busy ? (
-                <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
-              ) : (
-                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
-                </svg>
-              )}
-            </button>
 
             {sugOpen && (suggestions.length > 0 || (input.trim().length < 2 && searches.length > 0)) && (
               <div className="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-2xl bg-background/98 shadow-xl shadow-primary/10 ring-1 ring-border/80 backdrop-blur-xl">
@@ -1542,6 +1511,24 @@ function Index() {
               </div>
             )}
           </form>
+
+          {/* Profile on Right */}
+          <button
+            onClick={() => setProfileOpen(true)}
+            aria-label="প্রোফাইল"
+            className={`relative grid size-9 shrink-0 place-items-center rounded-xl ring-1 transition-all active:scale-95 ${user ? "bg-gradient-to-tr from-primary to-indigo-600 text-primary-foreground ring-primary shadow-sm shadow-primary/25 font-display text-sm font-bold" : "glass-card ring-border/80 hover:bg-white"}`}
+          >
+            {user ? (
+              (user.email ?? "?")[0]?.toUpperCase()
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                <circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" />
+              </svg>
+            )}
+            {hydrated && queue.length > 0 && (
+              <span className="absolute -right-1 -top-1 grid min-w-[18px] place-items-center rounded-full bg-rose-500 px-1 text-[9.5px] font-extrabold text-white ring-2 ring-background shadow">{queue.length}</span>
+            )}
+          </button>
         </header>
         {error && <p className="mt-2 text-center text-[12px] text-muted-foreground">{error}</p>}
 
