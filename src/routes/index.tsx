@@ -238,17 +238,20 @@ function SeekBar({ time, duration, loaded, onSeek, dark }: { time: number; durat
 
 function Skeleton() {
   return (
-    <ul className="mt-3 space-y-3" aria-label="লোড হচ্ছে">
-      {[0, 1, 2, 3, 4].map((i) => (
-        <li key={i} className="glass flex animate-pulse items-center gap-3 rounded-3xl p-2.5 ring-1 ring-border">
-          <span className="h-[88px] w-[156px] shrink-0 rounded-2xl bg-lilac/50" />
-          <span className="flex-1 space-y-2">
-            <span className="block h-4 w-4/5 rounded-full bg-lilac/50" />
-            <span className="block h-3 w-1/2 rounded-full bg-lilac/40" />
-          </span>
-        </li>
+    <div className="mt-2 divide-y divide-border/20" aria-label="লোড হচ্ছে">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="w-full animate-pulse pb-4">
+          <div className="aspect-video w-full bg-muted/60" />
+          <div className="flex items-start gap-3 px-3.5 pt-3">
+            <div className="size-9 shrink-0 rounded-full bg-muted/70" />
+            <div className="flex-1 space-y-2 pt-1">
+              <div className="h-4 w-4/5 rounded bg-muted/70" />
+              <div className="h-3 w-1/2 rounded bg-muted/50" />
+            </div>
+          </div>
+        </div>
       ))}
-    </ul>
+    </div>
   );
 }
 
@@ -263,9 +266,9 @@ function VideoRow({ r, active, playing, onPlay, onQueue, onChannel, sub, progres
 
   if (compact) {
     return (
-      <li className={`group relative flex items-center gap-2.5 rounded-2xl p-2 ring-1 transition-all duration-200 ${active ? "glass-card ring-2 ring-primary/80 bg-primary/10 shadow-sm" : "glass-card ring-border/70 hover:ring-primary/30 hover:bg-white/90"}`}>
+      <li className={`group relative flex items-center gap-2.5 rounded-2xl p-2 transition-all duration-200 ${active ? "bg-primary/10 shadow-sm ring-1 ring-primary/40" : "hover:bg-foreground/[0.04]"}`}>
         <button onClick={onPlay} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-          <span className="relative shrink-0 overflow-hidden rounded-xl">
+          <span className="relative shrink-0 overflow-hidden rounded-xl bg-black/10">
             <img src={r.thumbnail} alt="" className="h-[72px] w-[128px] object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
             {typeof r.duration === "string" && r.duration && (
               <span className="absolute right-1.5 bottom-1.5 rounded-md bg-black/80 px-1.5 py-0.5 text-[10.5px] font-semibold text-white backdrop-blur-sm">
@@ -273,8 +276,8 @@ function VideoRow({ r, active, playing, onPlay, onQueue, onChannel, sub, progres
               </span>
             )}
             {progress != null && progress > 0.01 && (
-              <span className="absolute inset-x-1 bottom-1 h-1 overflow-hidden rounded-full bg-white/30">
-                <span className="block h-full rounded-full bg-primary" style={{ width: `${Math.min(100, progress * 100)}%` }} />
+              <span className="absolute inset-x-0 bottom-0 h-1 overflow-hidden bg-white/30">
+                <span className="block h-full bg-red-600" style={{ width: `${Math.min(100, progress * 100)}%` }} />
               </span>
             )}
           </span>
@@ -295,30 +298,32 @@ function VideoRow({ r, active, playing, onPlay, onQueue, onChannel, sub, progres
   }
 
   return (
-    <li className={`group glass-card relative flex flex-col overflow-hidden rounded-3xl p-2.5 ring-1 transition-all duration-300 hover:shadow-xl hover:shadow-primary/8 ${active ? "ring-2 ring-primary/80 bg-primary/5 shadow-md shadow-primary/15" : "ring-border/80 hover:ring-primary/40 hover:-translate-y-0.5"}`}>
+    <li className={`group relative flex flex-col w-full pb-4 transition-colors ${active ? "bg-primary/5" : "hover:bg-foreground/[0.02]"}`}>
+      {/* 16:9 Thumbnail - Full width edge-to-edge */}
       <button onClick={onPlay} className="relative block w-full text-left">
-        <span className="relative block aspect-video w-full overflow-hidden rounded-2xl bg-muted/40 ring-1 ring-border/50">
-          <img src={r.thumbnail} alt="" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" loading="lazy" />
+        <span className="relative block aspect-video w-full overflow-hidden bg-muted/40">
+          <img src={r.thumbnail} alt="" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]" loading="lazy" />
           {/* Hover play overlay */}
-          <span className="absolute inset-0 grid place-items-center bg-black/25 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-            <span className="grid size-12 place-items-center rounded-full bg-gradient-to-tr from-primary to-indigo-600 text-white shadow-lg shadow-black/40 transition-transform duration-300 group-hover:scale-105">
+          <span className="absolute inset-0 grid place-items-center bg-black/25 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+            <span className="grid size-12 place-items-center rounded-full bg-black/75 text-white backdrop-blur-sm shadow-lg">
               <PlayIcon playing={active && playing} />
             </span>
           </span>
           {typeof r.duration === "string" && r.duration && (
-            <span className="absolute right-2 bottom-2 rounded-lg bg-black/85 backdrop-blur-md px-2 py-0.5 text-[11px] font-semibold text-white tracking-wide shadow-sm">
+            <span className="absolute right-2 bottom-2 rounded bg-black/85 px-1.5 py-0.5 font-display text-[11px] font-semibold text-white tracking-wide shadow-sm">
               {r.duration}
             </span>
           )}
           {progress != null && progress > 0.01 && (
-            <span className="absolute inset-x-2 bottom-1.5 h-1 overflow-hidden rounded-full bg-white/30 backdrop-blur-sm">
-              <span className="block h-full rounded-full bg-primary" style={{ width: `${Math.min(100, progress * 100)}%` }} />
+            <span className="absolute inset-x-0 bottom-0 h-1 overflow-hidden bg-white/30">
+              <span className="block h-full bg-red-600" style={{ width: `${Math.min(100, progress * 100)}%` }} />
             </span>
           )}
         </span>
       </button>
 
-      <div className="flex items-start gap-3 px-1 pt-3 pb-1">
+      {/* Video metadata row */}
+      <div className="flex items-start gap-3 px-3.5 pt-3 pb-1">
         {onChannel ? (
           <button onClick={onChannel} aria-label={`${r.author} চ্যানেল দেখুন`} className="shrink-0 transition active:scale-95 hover:opacity-85">
             <Avatar src={r.channelThumb} name={r.author} size="size-9" />
@@ -326,26 +331,40 @@ function VideoRow({ r, active, playing, onPlay, onQueue, onChannel, sub, progres
         ) : (
           <Avatar src={r.channelThumb} name={r.author} size="size-9" />
         )}
-        <span className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1">
           <button onClick={onPlay} className="block w-full text-left">
-            <span className="line-clamp-2 font-display text-[14.5px] font-bold leading-snug text-foreground group-hover:text-primary transition-colors">{r.title}</span>
+            <h3 className="line-clamp-2 font-display text-[14px] font-bold leading-snug text-foreground group-hover:text-primary transition-colors">{r.title}</h3>
           </button>
-          {onChannel ? (
-            <button onClick={onChannel} className="mt-1 block max-w-full truncate text-left text-[12px] font-medium text-muted-foreground hover:text-foreground hover:underline transition-colors">{meta}</button>
-          ) : (
-            <span className="mt-1 block truncate text-[12px] font-medium text-muted-foreground">{meta}</span>
-          )}
-        </span>
+          <div className="mt-1 flex flex-wrap items-center text-[12px] text-muted-foreground gap-1 leading-none">
+            {onChannel ? (
+              <button onClick={onChannel} className="truncate max-w-[200px] hover:text-foreground transition-colors">{r.author}</button>
+            ) : (
+              <span className="truncate max-w-[200px]">{r.author}</span>
+            )}
+            {r.views && (
+              <>
+                <span className="opacity-60">•</span>
+                <span>{r.views}</span>
+              </>
+            )}
+            {r.published && (
+              <>
+                <span className="opacity-60">•</span>
+                <span>{r.published}</span>
+              </>
+            )}
+          </div>
+        </div>
         {active && playing ? (
-          <span className="pt-1.5 shrink-0"><Eq /></span>
+          <span className="pt-1 shrink-0"><Eq /></span>
         ) : onQueue ? (
           <button
             onClick={onQueue}
             aria-label="প্লেলিস্টে যোগ"
             title="প্লেলিস্টে যোগ"
-            className="grid size-8 shrink-0 place-items-center rounded-xl bg-muted/60 text-muted-foreground hover:bg-primary hover:text-primary-foreground transition-all active:scale-90"
+            className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted/70 hover:text-foreground transition-all active:scale-90"
           >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
           </button>
         ) : null}
       </div>
@@ -1691,8 +1710,8 @@ function Index() {
         <div className="animate-glow absolute -bottom-16 right-6 size-60 rounded-full bg-lilac/60 blur-3xl" style={{ animationDelay: "-9s" }} />
       </div>
 
-      <main className="relative mx-auto flex min-h-screen w-full min-w-0 max-w-[420px] flex-col px-5 pb-[max(2.5rem,env(safe-area-inset-bottom))]">
-        <header className="relative z-30 flex items-center gap-2.5 pt-[max(1.5rem,env(safe-area-inset-top))]">
+      <main className="relative mx-auto flex min-h-screen w-full min-w-0 max-w-[480px] flex-col pb-[max(2.5rem,env(safe-area-inset-bottom))]">
+        <header className="relative z-30 flex items-center gap-2.5 px-4 pt-[max(1.25rem,env(safe-area-inset-top))]">
           {/* Logo on Left OR Back Button when in Search mode */}
           {isSearch ? (
             <button
@@ -1953,9 +1972,9 @@ function Index() {
             )}
           </button>
         </header>
-        {error && <p className="mt-2 text-center text-[12px] text-muted-foreground">{error}</p>}
+        {error && <p className="mt-2 text-center text-[12px] text-muted-foreground px-4">{error}</p>}
 
-        <nav aria-label="ক্যাটাগরি" className="-mx-5 mt-4 flex items-center gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <nav aria-label="ক্যাটাগরি" className="mt-3.5 flex items-center gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {CATEGORIES.map((c) => {
             const on = category === c.q;
             return (
@@ -1976,15 +1995,15 @@ function Index() {
 
         {/* Channel page */}
         {chanView && (
-          <section className="mt-6">
-            <div className="flex items-center justify-between">
+          <section className="mt-4">
+            <div className="flex items-center justify-between px-4">
               <button onClick={backHome} className="rounded-full bg-glass px-3 py-1 font-display text-[12px] font-semibold ring-1 ring-border">← হোম</button>
               {chanState === "loading" && <span className="text-[12px] text-muted-foreground">লোড হচ্ছে…</span>}
             </div>
             {chan?.banner && (
-              <img src={chan.banner} alt="" className="mt-3 aspect-[6/1] w-full rounded-2xl object-cover ring-1 ring-border" referrerPolicy="no-referrer" />
+              <img src={chan.banner} alt="" className="mt-3 aspect-[6/1] w-full object-cover ring-1 ring-border" referrerPolicy="no-referrer" />
             )}
-            <div className="mt-3 flex items-center gap-3">
+            <div className="mt-3 flex items-center gap-3 px-4">
               <Avatar src={chan?.avatar} name={chan?.name ?? channel ?? "?"} size="size-16" text="text-xl" />
               <div className="min-w-0 flex-1">
                 <h2 className="truncate font-display text-lg font-bold">{chan?.name || channel}</h2>
@@ -1993,7 +2012,7 @@ function Index() {
                 </p>
               </div>
             </div>
-            <nav aria-label="চ্যানেল ট্যাব" className="-mx-5 mt-4 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <nav aria-label="চ্যানেল ট্যাব" className="mt-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {CHANNEL_TABS.map((t) => (
                 <button
                   key={t.key}
@@ -2007,14 +2026,14 @@ function Index() {
 
             {chanState === "loading" && <Skeleton />}
             {chanState === "error" && (
-              <div className="glass mt-3 rounded-3xl p-5 text-center">
+              <div className="glass mx-4 mt-3 rounded-3xl p-5 text-center">
                 <p className="font-display text-sm font-semibold">চ্যানেল আনা যায়নি</p>
                 <button onClick={() => chanIdRef.current && loadChannel(chanIdRef.current, chanTab)} className="mt-3 rounded-2xl bg-primary px-4 py-2 font-display text-[13px] font-semibold text-primary-foreground shadow-primary">আবার চেষ্টা</button>
               </div>
             )}
             {chanState === "ok" && chan && chanTab === "playlists" && (
               chan.playlists.length ? (
-                <ul className="mt-3 grid grid-cols-2 gap-3">
+                <ul className="mt-3 grid grid-cols-2 gap-3 px-4">
                   {chan.playlists.map((p) => (
                     <li key={p.id}>
                       <button onClick={() => openPlaylist(p.id, p.title)} className="block w-full text-left">
@@ -2028,12 +2047,12 @@ function Index() {
                   ))}
                 </ul>
               ) : (
-                <p className="glass mt-3 rounded-3xl p-5 text-center text-[12.5px] text-muted-foreground">এই চ্যানেলে প্লেলিস্ট নেই।</p>
+                <p className="glass mx-4 mt-3 rounded-3xl p-5 text-center text-[12.5px] text-muted-foreground">এই চ্যানেলে প্লেলিস্ট নেই।</p>
               )
             )}
             {chanState === "ok" && chan && chanTab === "posts" && (
               chan.posts.length ? (
-                <ul className="mt-3 space-y-3">
+                <ul className="mt-3 space-y-3 px-4">
                   {chan.posts.map((p) => (
                     <li key={p.id} className="glass rounded-3xl p-3 ring-1 ring-border">
                       <p className="whitespace-pre-line text-[13px] leading-relaxed">{p.text}</p>
@@ -2043,18 +2062,18 @@ function Index() {
                   ))}
                 </ul>
               ) : (
-                <p className="glass mt-3 rounded-3xl p-5 text-center text-[12.5px] text-muted-foreground">কোনো পোস্ট বা স্টোরি নেই।</p>
+                <p className="glass mx-4 mt-3 rounded-3xl p-5 text-center text-[12.5px] text-muted-foreground">কোনো পোস্ট বা স্টোরি নেই।</p>
               )
             )}
             {chanState === "ok" && chan && chanTab !== "playlists" && chanTab !== "posts" && (
               chan.videos.length ? (
-                <ul className="mt-3 space-y-3">
+                <ul className="mt-3 divide-y divide-border/20">
                   {chan.videos.map((r) => (
                     <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} />
                   ))}
                 </ul>
               ) : (
-                <p className="glass mt-3 rounded-3xl p-5 text-center text-[12.5px] text-muted-foreground">এই ট্যাবে কিছু নেই।</p>
+                <p className="glass mx-4 mt-3 rounded-3xl p-5 text-center text-[12.5px] text-muted-foreground">এই ট্যাবে কিছু নেই।</p>
               )
             )}
           </section>
@@ -2062,8 +2081,8 @@ function Index() {
 
         {/* Search / trending */}
         {!chanView && (
-          <div className="mt-6 flex items-center justify-between">
-            <h2 className="font-display text-lg font-bold">
+          <div className="mt-5 flex items-center justify-between px-4">
+            <h2 className="font-display text-base font-bold">
               {channel ? `চ্যানেল · ${channel}` : isSearch ? `"${lastQuery}" এর ফলাফল` : catLabel && catLabel !== "হোম" ? catLabel : "আপনার জন্য"}
             </h2>
             {isSearch ? (
@@ -2087,7 +2106,7 @@ function Index() {
 
         {/* YouTube Channel Card (when search matches a creator/channel) */}
         {!chanView && isSearch && searchChannel && searchState === "ok" && (
-          <div className="glass-card mt-3 overflow-hidden rounded-3xl p-3.5 ring-1 ring-border/80 shadow-md shadow-primary/5 transition-all">
+          <div className="mx-4 mt-3 overflow-hidden rounded-2xl glass-card p-3.5 ring-1 ring-border/80 shadow-md shadow-primary/5 transition-all">
             <div className="flex items-center gap-3">
               <Avatar src={searchChannel.avatar} name={searchChannel.name} size="size-14" text="text-lg" />
               <div className="min-w-0 flex-1">
@@ -2122,7 +2141,7 @@ function Index() {
         {!chanView && searchState === "loading" && <Skeleton />}
 
         {!chanView && searchState === "error" && (
-          <div className="glass mt-3 rounded-3xl p-5 text-center">
+          <div className="glass mx-4 mt-3 rounded-3xl p-5 text-center">
             <p className="font-display text-sm font-semibold">ইউটিউব থেকে ফলাফল আনা যায়নি</p>
             <p className="mt-1 text-[12.5px] text-muted-foreground">ইন্টারনেট দেখুন বা একটু পরে আবার চেষ্টা করুন।</p>
             <button onClick={() => doSearch(lastQuery)} className="mt-3 rounded-2xl bg-primary px-4 py-2 font-display text-[13px] font-semibold text-primary-foreground shadow-primary">
@@ -2132,7 +2151,7 @@ function Index() {
         )}
 
         {!chanView && searchState === "ok" && results.length === 0 && (
-          <div className="glass mt-3 rounded-3xl p-5 text-center">
+          <div className="glass mx-4 mt-3 rounded-3xl p-5 text-center">
             <p className="font-display text-sm font-semibold">{catLabel ?? `"${lastQuery}"`} — কিছু পাওয়া যায়নি</p>
             <p className="mt-1 text-[12.5px] text-muted-foreground">বানান বদলে দেখুন, বা ইউটিউব লিংক সরাসরি পেস্ট করুন।</p>
             <button onClick={() => { setInput(""); setCategory(""); doSearch(""); }} className="mt-3 rounded-2xl bg-glass px-4 py-2 font-display text-[13px] font-semibold ring-1 ring-border">
@@ -2143,9 +2162,9 @@ function Index() {
 
         {/* If user picked "পাবলিক প্লেলিস্ট" category */}
         {!chanView && category === "playlists" && searchState === "ok" && (
-          <div className="mt-4">
+          <div className="mt-4 px-4">
             {publicPlaylistsList.length === 0 ? (
-              <p className="glass mt-3 rounded-3xl p-5 text-center text-[12.5px] text-muted-foreground">কোনো প্লেলিস্ট পাওয়া যায়নি।</p>
+              <p className="glass rounded-3xl p-5 text-center text-[12.5px] text-muted-foreground">কোনো প্লেলিস্ট পাওয়া যায়নি।</p>
             ) : (
               <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 {publicPlaylistsList.map((pl) => (
@@ -2172,7 +2191,7 @@ function Index() {
 
         {/* If user picked "স্টোরি / শর্টস" category */}
         {!chanView && category === "shorts" && searchState === "ok" && results.length > 0 && (
-          <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className="mt-4 px-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
             {results.map((s) => (
               <button
                 key={s.id}
@@ -2195,115 +2214,69 @@ function Index() {
           </div>
         )}
 
-        {/* Regular Videos List with YouTube-style embedded Shorts & Playlists */}
+        {/* Regular Videos List - Seamless YouTube Mobile Feed */}
         {!chanView && category !== "playlists" && category !== "shorts" && searchState === "ok" && results.length > 0 && (
-          <div className="mt-3 space-y-3">
-            {/* Top videos */}
-            <ul className="space-y-3">
-              {results.slice(0, isHome ? 2 : undefined).map((r) => (
-                <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} />
-              ))}
-            </ul>
-
-            {/* Embedded Shorts / Stories Carousel */}
-            {isHome && homeShorts.length > 0 && (
-              <div className="py-2 my-1">
-                <div className="flex items-center justify-between px-1 mb-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className="grid size-6 place-items-center rounded-lg bg-red-600 text-white shadow-sm shadow-red-500/30">
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M17.77 10.32l-1.2-.5-1.1-.47.6-1.46c.74-1.8.06-3.9-1.63-4.9-1.92-1.12-4.38-.55-5.6 1.3l-4.2 6.8c-.85 1.37-.8 3.1.13 4.4 1 1.4 2.7 2.1 4.4 1.8l1.2.5 1.1.46-.6 1.47c-.74 1.8-.06 3.9 1.63 4.9 1.92 1.12 4.38.55 5.6-1.3l4.2-6.8c.85-1.37.8-3.1-.13-4.4-1-1.4-2.7-2.1-4.4-1.8z" />
-                      </svg>
-                    </span>
-                    <div>
-                      <h3 className="font-display text-[14.5px] font-bold text-foreground">শর্টস ও স্টোরি</h3>
-                      <p className="text-[11px] text-muted-foreground">ইউটিউব ট্রেন্ডিং শর্টস</p>
-                    </div>
-                  </div>
-                  <button onClick={() => { setCategory("shorts"); doSearch("shorts"); }} className="text-[11.5px] font-bold text-primary hover:underline">
-                    সব দেখুন →
-                  </button>
-                </div>
-                <div className="-mx-5 flex gap-2.5 overflow-x-auto px-5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  {homeShorts.slice(0, 10).map((s) => (
-                    <button
-                      key={s.id}
-                      onClick={() => playTrack(s)}
-                      className="group relative w-[124px] shrink-0 overflow-hidden rounded-2xl glass-card ring-1 ring-border/80 hover:ring-primary/40 text-left transition-all active:scale-95"
-                    >
-                      <div className="relative aspect-[9/16] w-full overflow-hidden bg-black/80">
-                        <img src={s.thumbnail} alt="" className="size-full object-cover transition duration-300 group-hover:scale-105" loading="lazy" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
-                        <div className="absolute top-2 left-2">
-                          <span className="grid size-5 place-items-center rounded-full bg-red-600/90 text-white text-[10px]">▶</span>
-                        </div>
-                        <div className="absolute inset-x-2 bottom-2">
-                          <p className="line-clamp-2 font-display text-[12px] font-bold text-white leading-snug drop-shadow">{s.title}</p>
-                          {s.views && <p className="text-[10px] text-white/80 mt-0.5">{s.views}</p>}
-                        </div>
-                      </div>
-                    </button>
+          <div className="mt-2">
+            {isHome ? (
+              <>
+                {/* Top videos before Shorts */}
+                <ul className="divide-y divide-border/20">
+                  {results.slice(0, 4).map((r) => (
+                    <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} />
                   ))}
-                </div>
-              </div>
-            )}
+                </ul>
 
-            {/* Middle videos */}
-            {isHome && results.length > 2 && (
-              <ul className="space-y-3">
-                {results.slice(2, 5).map((r) => (
-                  <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} />
-                ))}
-              </ul>
-            )}
-
-            {/* Embedded Playlists Shelf */}
-            {isHome && homePlaylists.length > 0 && (
-              <div className="py-2 my-1">
-                <div className="flex items-center justify-between px-1 mb-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className="grid size-6 place-items-center rounded-lg bg-indigo-600 text-white shadow-sm shadow-indigo-500/30">
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z" />
-                      </svg>
-                    </span>
-                    <div>
-                      <h3 className="font-display text-[14.5px] font-bold text-foreground">জনপ্রিয় পাবলিক প্লেলিস্ট</h3>
-                      <p className="text-[11px] text-muted-foreground">ইউটিউব অ্যালবাম ও সংকলন</p>
-                    </div>
-                  </div>
-                  <button onClick={() => { setCategory("playlists"); doSearch("playlists"); }} className="text-[11.5px] font-bold text-primary hover:underline">
-                    সব দেখুন →
-                  </button>
-                </div>
-                <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  {homePlaylists.slice(0, 8).map((pl) => (
-                    <button
-                      key={pl.id}
-                      onClick={() => openPlaylist(pl.id, pl.title)}
-                      className="group relative w-[190px] shrink-0 overflow-hidden rounded-2xl glass-card p-2 ring-1 ring-border/80 hover:ring-primary/40 text-left transition-all active:scale-95"
-                    >
-                      <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black/60">
-                        <img src={pl.thumbnail} alt="" className="size-full object-cover transition duration-300 group-hover:scale-105" loading="lazy" />
-                        <div className="absolute inset-y-0 right-0 w-11 bg-black/75 backdrop-blur-[2px] flex flex-col items-center justify-center text-white gap-0.5">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z" />
+                {/* Embedded Shorts Shelf */}
+                {homeShorts.length > 0 && (
+                  <div className="my-2 py-3 border-y border-border/20">
+                    <div className="flex items-center justify-between px-4 mb-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="grid size-6 place-items-center rounded-lg bg-red-600 text-white shadow-sm shadow-red-500/30">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M17.77 10.32l-1.2-.5-1.1-.47.6-1.46c.74-1.8.06-3.9-1.63-4.9-1.92-1.12-4.38-.55-5.6 1.3l-4.2 6.8c-.85 1.37-.8 3.1.13 4.4 1 1.4 2.7 2.1 4.4 1.8l1.2.5 1.1.46-.6 1.47c-.74 1.8-.06 3.9 1.63 4.9 1.92 1.12 4.38.55 5.6-1.3l4.2-6.8c.85-1.37.8-3.1-.13-4.4-1-1.4-2.7-2.1-4.4-1.8z" />
                           </svg>
-                          <span className="text-[10px] font-bold">{pl.count}</span>
+                        </span>
+                        <div>
+                          <h3 className="font-display text-[14.5px] font-bold text-foreground">শর্টস</h3>
                         </div>
                       </div>
-                      <p className="mt-1.5 line-clamp-1 font-display text-[12.5px] font-bold text-foreground group-hover:text-primary transition-colors">{pl.title}</p>
-                      {pl.author && <p className="truncate text-[11px] text-muted-foreground">{pl.author}</p>}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+                      <button onClick={() => { setCategory("shorts"); doSearch("shorts"); }} className="text-[12px] font-semibold text-primary hover:underline">
+                        সব দেখুন →
+                      </button>
+                    </div>
+                    <div className="flex gap-2.5 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                      {homeShorts.slice(0, 10).map((s) => (
+                        <button
+                          key={s.id}
+                          onClick={() => playTrack(s)}
+                          className="group relative w-[130px] shrink-0 overflow-hidden rounded-xl bg-black/80 text-left transition-all active:scale-95 shadow-sm"
+                        >
+                          <div className="relative aspect-[9/16] w-full overflow-hidden">
+                            <img src={s.thumbnail} alt="" className="size-full object-cover transition duration-300 group-hover:scale-105" loading="lazy" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/20" />
+                            <div className="absolute inset-x-2 bottom-2">
+                              <p className="line-clamp-2 font-display text-[12px] font-bold text-white leading-snug drop-shadow">{s.title}</p>
+                              {s.views && <p className="text-[10px] text-white/80 mt-0.5">{s.views}</p>}
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-            {/* Remaining videos */}
-            {isHome && results.length > 5 && (
-              <ul className="space-y-3">
-                {results.slice(5).map((r) => (
+                {/* Remaining Videos */}
+                {results.length > 4 && (
+                  <ul className="divide-y divide-border/20">
+                    {results.slice(4).map((r) => (
+                      <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} />
+                    ))}
+                  </ul>
+                )}
+              </>
+            ) : (
+              <ul className="divide-y divide-border/20">
+                {results.map((r) => (
                   <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} />
                 ))}
               </ul>
@@ -2312,7 +2285,7 @@ function Index() {
         )}
 
         {!chanView && searchState === "ok" && (
-          <div ref={sentinel} className="py-4 text-center text-[12px] text-muted-foreground">
+          <div ref={sentinel} className="py-4 text-center text-[12px] text-muted-foreground px-4">
             {isHome ? (
               feedLoadingMore ? "আরও ভিডিও আসছে…" : feedDone ? "আজকের মতো এটুকুই" : ""
             ) : (
@@ -2330,7 +2303,7 @@ function Index() {
           </div>
         )}
 
-        <section className="glass mt-8 rounded-3xl p-4 text-[12.5px] leading-relaxed text-muted-foreground">
+        <section className="glass mx-4 mt-8 rounded-3xl p-4 text-[12.5px] leading-relaxed text-muted-foreground">
           <p className="font-display text-sm font-semibold text-foreground">ব্যাকগ্রাউন্ডে চালাতে</p>
           <ul className="mt-1.5 list-disc space-y-1 pl-4">
             <li>ব্রাউজারের মেনু থেকে <b className="text-foreground">Add to Home screen</b> করে অ্যাপের মতো খুলুন।</li>
@@ -2343,7 +2316,7 @@ function Index() {
       {/* Profile sheet — account, playlist, history */}
       {profileOpen && <button aria-label="বন্ধ" onClick={() => setProfileOpen(false)} className="fixed inset-0 z-20 bg-foreground/20 backdrop-blur-[2px]" />}
       <div
-        className={`fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-[420px] flex-col rounded-t-[28px] bg-background/95 backdrop-blur-xl transition-transform duration-500 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)] ${profileOpen ? "translate-y-0" : "translate-y-full"}`}
+        className={`fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-[480px] flex-col rounded-t-[28px] bg-background/95 backdrop-blur-xl transition-transform duration-500 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)] ${profileOpen ? "translate-y-0" : "translate-y-full"}`}
         style={{ height: "92dvh" }}
         aria-hidden={!profileOpen}
         role="dialog"
@@ -2853,7 +2826,7 @@ function Index() {
 
       {/* Watch page (?v=ID) — the player iframe lives here permanently so audio never stops */}
       <div
-        className={`fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-[420px] flex-col bg-background/95 backdrop-blur-xl transition-transform duration-500 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)] ${open ? "translate-y-0" : "translate-y-full"}`}
+        className={`fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-[480px] flex-col bg-background/95 backdrop-blur-xl transition-transform duration-500 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)] ${open ? "translate-y-0" : "translate-y-full"}`}
         style={{ height: "100dvh" }}
         aria-hidden={!open}
         data-watch-sheet
@@ -3040,29 +3013,29 @@ function Index() {
             )}
 
             {/* Direct Related Videos matching the current video - YouTube Style */}
-            <div className="mt-5">
-              <div className="flex items-center justify-between mb-2.5">
+            <div className="mt-5 -mx-4">
+              <div className="flex items-center justify-between px-4 mb-2.5">
                 <h3 className="font-display text-[15px] font-bold text-foreground">সম্পর্কিত ভিডিও</h3>
                 <span className="text-[11px] font-medium text-muted-foreground">ইউটিউব রিকমেন্ডেশন</span>
               </div>
             {relatedState === "loading" && <Skeleton />}
             {relatedState === "error" && (
-              <p className="glass mt-2 rounded-2xl p-4 text-center text-[12.5px] text-muted-foreground">
+              <p className="glass mx-4 mt-2 rounded-2xl p-4 text-center text-[12.5px] text-muted-foreground">
                 সম্পর্কিত ভিডিও আনা যায়নি। <button onClick={() => setRelatedTick((t) => t + 1)} className="font-semibold text-primary">আবার চেষ্টা</button>
               </p>
             )}
             {relatedState === "ok" && related.length === 0 && (
-              <p className="glass mt-2 rounded-2xl p-4 text-center text-[12.5px] text-muted-foreground">এই ভিডিওর সাথে মেলে এমন কিছু পাওয়া যায়নি।</p>
+              <p className="glass mx-4 mt-2 rounded-2xl p-4 text-center text-[12.5px] text-muted-foreground">এই ভিডিওর সাথে মেলে এমন কিছু পাওয়া যায়নি।</p>
             )}
             {relatedState === "ok" && related.length > 0 && (
-              <ul className="mt-2 space-y-3">
+              <ul className="mt-2 divide-y divide-border/20">
                 {related.map((r) => (
                   <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} />
                 ))}
               </ul>
             )}
             {relatedState === "ok" && (
-              <div ref={relSentinelRef} className="py-4 text-center text-[11.5px] text-muted-foreground">
+              <div ref={relSentinelRef} className="py-4 text-center text-[11.5px] text-muted-foreground px-4">
                 {relatedMore ? "আরও ভিডিও আসছে…" : relQueriesRef.current.length === 0 ? "" : " "}
               </div>
             )}
@@ -3291,7 +3264,7 @@ function Index() {
           onClick={() => { setSaveModalTrack(null); setShowNewPlaylistInput(false); }}
         >
           <div
-            className="w-full max-w-[420px] rounded-t-[28px] sm:rounded-3xl bg-background/95 backdrop-blur-2xl p-5 shadow-2xl ring-1 ring-border border-t sm:border animate-in slide-in-from-bottom-6 duration-300"
+            className="w-full max-w-[480px] rounded-t-[28px] sm:rounded-3xl bg-background/95 backdrop-blur-2xl p-5 shadow-2xl ring-1 ring-border border-t sm:border animate-in slide-in-from-bottom-6 duration-300"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-3 border-b border-border/60">
