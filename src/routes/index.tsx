@@ -261,7 +261,7 @@ function Avatar({ src, name, size = "size-9", text = "text-[13px]" }: { src?: st
   return <span className={`grid ${size} shrink-0 place-items-center rounded-full bg-gradient-to-tr from-primary to-indigo-600 font-display ${text} font-bold text-primary-foreground shadow-sm`}>{initial}</span>;
 }
 
-function VideoRow({ r, active, playing, onPlay, onQueue, onChannel, sub, progress, compact }: { r: Row; active: boolean; playing: boolean; onPlay: () => void; onQueue?: () => void; onChannel?: () => void; sub?: string; progress?: number; compact?: boolean }) {
+function VideoRow({ r, active, playing, onPlay, onQueue, onChannel, onMore, sub, progress, compact }: { r: Row; active: boolean; playing: boolean; onPlay: () => void; onQueue?: () => void; onChannel?: () => void; onMore?: () => void; sub?: string; progress?: number; compact?: boolean }) {
   const meta = sub ?? [r.author, r.views, r.published].filter(Boolean).join(" · ");
 
   if (compact) {
@@ -288,6 +288,12 @@ function VideoRow({ r, active, playing, onPlay, onQueue, onChannel, sub, progres
         </button>
         {active && playing ? (
           <span className="px-2 shrink-0"><Eq /></span>
+        ) : onMore ? (
+          <button onClick={onMore} aria-label="অপশন" title="অপশন" className="grid size-8 shrink-0 place-items-center rounded-xl text-muted-foreground hover:bg-muted/70 hover:text-foreground transition-all active:scale-90">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <circle cx="12" cy="5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="19" r="2" />
+            </svg>
+          </button>
         ) : onQueue ? (
           <button onClick={onQueue} aria-label="প্লেলিস্টে যোগ" title="প্লেলিস্টে যোগ" className="grid size-8 shrink-0 place-items-center rounded-xl text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
@@ -357,16 +363,32 @@ function VideoRow({ r, active, playing, onPlay, onQueue, onChannel, sub, progres
         </div>
         {active && playing ? (
           <span className="pt-1 shrink-0"><Eq /></span>
-        ) : onQueue ? (
-          <button
-            onClick={onQueue}
-            aria-label="প্লেলিস্টে যোগ"
-            title="প্লেলিস্টে যোগ"
-            className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted/70 hover:text-foreground transition-all active:scale-90"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-          </button>
-        ) : null}
+        ) : (
+          <div className="flex items-center gap-0.5 shrink-0">
+            {onQueue && (
+              <button
+                onClick={onQueue}
+                aria-label="প্লেলিস্টে যোগ"
+                title="প্লেলিস্টে যোগ"
+                className="grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-muted/70 hover:text-foreground transition-all active:scale-90"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+              </button>
+            )}
+            {onMore && (
+              <button
+                onClick={onMore}
+                aria-label="আরও অপশন"
+                title="আরও অপশন"
+                className="grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-muted/70 hover:text-foreground transition-all active:scale-90"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <circle cx="12" cy="5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="19" r="2" />
+                </svg>
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </li>
   );
@@ -391,6 +413,7 @@ function Index() {
   const [userPlaylists, setUserPlaylists] = useState<UserPlaylist[]>([]);
   const [activePlaylistId, setActivePlaylistId] = useState<string | null>(null);
   const [saveModalTrack, setSaveModalTrack] = useState<Track | null>(null);
+  const [actionSheetTrack, setActionSheetTrack] = useState<Row | null>(null);
   const [newPlaylistName, setNewPlaylistName] = useState("");
   const [showNewPlaylistInput, setShowNewPlaylistInput] = useState(false);
   const [showProfileNewPl, setShowProfileNewPl] = useState(false);
@@ -524,9 +547,10 @@ function Index() {
     (left: number, top: number) => {
       const vw = window.visualViewport?.width ?? window.innerWidth;
       const vh = window.visualViewport?.height ?? window.innerHeight;
+      const bottomInset = vw < 768 ? 76 : 16;
       return {
         left: Math.min(Math.max(8, left), Math.max(8, vw - pipW - 8)),
-        top: Math.min(Math.max(8, top), Math.max(8, vh - pipH - 8)),
+        top: Math.min(Math.max(8, top), Math.max(8, vh - pipH - bottomInset)),
       };
     },
     [pipW, pipH],
@@ -603,6 +627,17 @@ function Index() {
     const moved = dragRef.current?.moved ?? false;
     dragRef.current = null;
     setPipDragging(false);
+    if (moved && pipPos && typeof window !== "undefined") {
+      const vw = window.visualViewport?.width ?? window.innerWidth;
+      const snapToRight = pipPos.left + pipW / 2 > vw / 2;
+      const targetLeft = snapToRight ? vw - pipW - 12 : 12;
+      setPipPos((p) => (p ? clampPip(targetLeft, p.top) : p));
+      try {
+        if ("vibrate" in navigator) navigator.vibrate?.(10);
+      } catch {
+        /* ignore */
+      }
+    }
     return moved;
   };
 
@@ -1974,7 +2009,7 @@ function Index() {
         <div className="animate-glow absolute -bottom-16 right-6 size-60 rounded-full bg-lilac/60 blur-3xl" style={{ animationDelay: "-9s" }} />
       </div>
 
-      <main className="relative mx-auto flex min-h-screen w-full min-w-0 max-w-[480px] flex-col pb-[max(2.5rem,env(safe-area-inset-bottom))]">
+      <main className="relative mx-auto flex min-h-screen w-full min-w-0 max-w-[480px] flex-col pb-[max(5.5rem,calc(env(safe-area-inset-bottom)+4.5rem))]">
         <header className="relative z-30 flex items-center gap-2.5 px-4 pt-[max(1.25rem,env(safe-area-inset-top))]">
           {/* Logo on Left OR Back Button when in Search mode */}
           {isSearch ? (
@@ -2014,7 +2049,7 @@ function Index() {
                 }}
                 placeholder="গান, নাটক, লিংক খুঁজুন..."
                 aria-label="ইউটিউবে খুঁজুন"
-                className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/80"
+                className="min-w-0 flex-1 bg-transparent text-[16px] sm:text-[13px] outline-none placeholder:text-muted-foreground/80"
                 inputMode="search"
                 autoComplete="off"
               />
@@ -2360,7 +2395,7 @@ function Index() {
               chan.videos.length ? (
                 <ul className="mt-3 divide-y divide-border/20">
                   {chan.videos.map((r) => (
-                    <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} />
+                    <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} onMore={() => setActionSheetTrack(r)} />
                   ))}
                 </ul>
               ) : (
@@ -2513,7 +2548,7 @@ function Index() {
                 {/* Top videos before Shorts */}
                 <ul className="divide-y divide-border/20">
                   {results.slice(0, 4).map((r) => (
-                    <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => handleAnyVideoPlay(r)} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} />
+                    <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => handleAnyVideoPlay(r)} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} onMore={() => setActionSheetTrack(r)} />
                   ))}
                 </ul>
 
@@ -2560,7 +2595,7 @@ function Index() {
                 {results.length > 4 && (
                   <ul className="divide-y divide-border/20">
                     {results.slice(4).map((r) => (
-                      <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => handleAnyVideoPlay(r)} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} />
+                      <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => handleAnyVideoPlay(r)} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} onMore={() => setActionSheetTrack(r)} />
                     ))}
                   </ul>
                 )}
@@ -2568,7 +2603,7 @@ function Index() {
             ) : (
               <ul className="divide-y divide-border/20">
                 {results.map((r) => (
-                  <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => handleAnyVideoPlay(r)} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} />
+                  <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => handleAnyVideoPlay(r)} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} onMore={() => setActionSheetTrack(r)} />
                 ))}
               </ul>
             )}
@@ -2643,7 +2678,7 @@ function Index() {
             </Link>
           )}
         </header>
-        <div className="flex-1 overflow-y-auto px-4 pb-[max(3rem,env(safe-area-inset-bottom))]">
+        <div className="flex-1 overflow-y-auto px-4 pb-[max(5.5rem,calc(env(safe-area-inset-bottom)+4.5rem))]">
           {user ? (
             <div className="glass mt-4 flex items-center gap-3 rounded-3xl p-4">
               <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary font-display text-base font-bold text-primary-foreground shadow-primary">{(user.email ?? "?")[0]?.toUpperCase()}</span>
@@ -2892,6 +2927,7 @@ function Index() {
                         progress={progressOf(h.id)}
                         onPlay={() => { setProfileOpen(false); playTrack(h, h.position); }}
                         onQueue={() => addToQueue(h)}
+                        onMore={() => setActionSheetTrack(h)}
                         sub={`${timeAgo(h.at)}${h.position > 10 ? ` · ${formatTime(h.position)} থেকে` : ""}`}
                       />
                     ))}
@@ -3352,7 +3388,7 @@ function Index() {
             {relatedState === "ok" && related.length > 0 && (
               <ul className="mt-2 divide-y divide-border/20">
                 {related.map((r) => (
-                  <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} />
+                  <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} onMore={() => setActionSheetTrack(r)} />
                 ))}
               </ul>
             )}
@@ -3977,9 +4013,248 @@ function Index() {
         </div>
       )}
 
+      {/* 3-Dot Bottom Action Sheet (YouTube Mobile standard) */}
+      {actionSheetTrack && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setActionSheetTrack(null)}
+        >
+          <div
+            className="w-full max-w-[480px] rounded-t-[28px] bg-background/95 backdrop-blur-2xl p-4 pb-[max(1.5rem,calc(env(safe-area-inset-bottom)+0.75rem))] shadow-2xl ring-1 ring-border border-t animate-in slide-in-from-bottom-6 duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Grab pill handle */}
+            <div className="flex justify-center pb-3">
+              <span className="h-1.5 w-10 rounded-full bg-muted-foreground/30" />
+            </div>
+
+            {/* Video preview row */}
+            <div className="flex items-center gap-3 pb-3 border-b border-border/50">
+              <img src={actionSheetTrack.thumbnail} alt="" className="size-12 rounded-xl object-cover ring-1 ring-border shrink-0" />
+              <div className="min-w-0 flex-1">
+                <h4 className="line-clamp-1 font-display text-[13.5px] font-bold text-foreground">{actionSheetTrack.title}</h4>
+                <p className="truncate text-[11.5px] text-muted-foreground">{actionSheetTrack.author}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActionSheetTrack(null)}
+                aria-label="বন্ধ"
+                className="grid size-8 shrink-0 place-items-center rounded-full bg-muted/60 text-muted-foreground hover:text-foreground text-xs transition active:scale-90"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Action buttons */}
+            <div className="py-2 space-y-1">
+              <button
+                type="button"
+                onClick={() => {
+                  const t = actionSheetTrack;
+                  setActionSheetTrack(null);
+                  setSaveModalTrack({ id: t.id, title: t.title, author: t.author, thumbnail: t.thumbnail, duration: typeof t.duration === "number" ? t.duration : 0 });
+                }}
+                className="flex w-full items-center gap-3.5 px-3 py-3 rounded-2xl text-left font-display text-[14px] font-semibold text-foreground hover:bg-muted/60 active:scale-[0.99] transition-all"
+              >
+                <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
+                </div>
+                <span>প্লেলিস্টে সংরক্ষণ করুন</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  addToQueue(actionSheetTrack);
+                  setActionSheetTrack(null);
+                }}
+                className="flex w-full items-center gap-3.5 px-3 py-3 rounded-2xl text-left font-display text-[14px] font-semibold text-foreground hover:bg-muted/60 active:scale-[0.99] transition-all"
+              >
+                <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>
+                </div>
+                <span>পরের হিসেবে কিউতে যোগ করুন</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  const url = `https://www.youtube.com/watch?v=${actionSheetTrack.id}`;
+                  try {
+                    if (navigator.share) {
+                      await navigator.share({ title: actionSheetTrack.title, url });
+                    } else if (navigator.clipboard) {
+                      await navigator.clipboard.writeText(url);
+                      flash("ভিডিও লিংক কপি করা হয়েছে!");
+                    }
+                  } catch {
+                    /* ignore share cancel */
+                  }
+                  setActionSheetTrack(null);
+                }}
+                className="flex w-full items-center gap-3.5 px-3 py-3 rounded-2xl text-left font-display text-[14px] font-semibold text-foreground hover:bg-muted/60 active:scale-[0.99] transition-all"
+              >
+                <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" /></svg>
+                </div>
+                <span>শেয়ার করুন</span>
+              </button>
+
+              {actionSheetTrack.channelId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const ch = actionSheetTrack;
+                    setActionSheetTrack(null);
+                    openChannel(ch.author, ch.channelId);
+                  }}
+                  className="flex w-full items-center gap-3.5 px-3 py-3 rounded-2xl text-left font-display text-[14px] font-semibold text-foreground hover:bg-muted/60 active:scale-[0.99] transition-all"
+                >
+                  <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" /></svg>
+                  </div>
+                  <span>চ্যানেল দেখুন ({actionSheetTrack.author})</span>
+                </button>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setActionSheetTrack(null)}
+              className="mt-2 w-full rounded-2xl bg-muted/60 py-3 text-center font-display text-[13.5px] font-bold text-muted-foreground hover:text-foreground active:scale-[0.99] transition-all"
+            >
+              বাতিল
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Fixed Modern Bottom Navigation Bar (YouTube Mobile standard) */}
+      {!open && !shortsOpen && !bigVideo && (
+        <nav
+          aria-label="মোবাইল নেভিগেশন"
+          className="fixed inset-x-0 bottom-0 z-40 mx-auto flex max-w-[480px] items-center justify-around border-t border-border/60 bg-background/95 px-2 pt-2 pb-[max(0.6rem,env(safe-area-inset-bottom))] backdrop-blur-xl shadow-lg transition-transform duration-200"
+        >
+          {/* Tab 1: Home */}
+          <button
+            type="button"
+            onClick={() => {
+              try { if ("vibrate" in navigator) navigator.vibrate?.(10); } catch {}
+              setProfileOpen(false);
+              if (isSearch || channel || category !== "") {
+                backHome();
+              } else {
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }
+            }}
+            className={`group flex flex-1 flex-col items-center justify-center gap-0.5 py-1 text-center transition active:scale-90 ${
+              !profileOpen && !isSearch && category === "" && !channel
+                ? "text-primary font-bold"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <div className="relative">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill={!profileOpen && !isSearch && category === "" && !channel ? "currentColor" : "none"} stroke="currentColor" strokeWidth={!profileOpen && !isSearch && category === "" && !channel ? "0" : "2"} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 10.5L12 3l9 7.5V20a1.5 1.5 0 0 1-1.5 1.5h-4.5a1 1 0 0 1-1-1v-4a1 1 0 0 0-1-1h-2a1 1 0 0 0-1 1v4a1 1 0 0 1-1 1H4.5A1.5 1.5 0 0 1 3 20v-9.5z" />
+              </svg>
+            </div>
+            <span className="font-display text-[10.5px] leading-tight tracking-tight">হোম</span>
+          </button>
+
+          {/* Tab 2: Shorts */}
+          <button
+            type="button"
+            onClick={() => {
+              try { if ("vibrate" in navigator) navigator.vibrate?.(10); } catch {}
+              if (homeShorts.length > 0) {
+                openShorts(homeShorts, 0);
+              } else {
+                runTrendingShorts().then((res) => {
+                  if (res.ok && res.shorts.length > 0) {
+                    setHomeShorts(res.shorts);
+                    openShorts(res.shorts, 0);
+                  } else {
+                    setCategory("shorts");
+                    doSearch("shorts");
+                  }
+                });
+              }
+            }}
+            className={`group flex flex-1 flex-col items-center justify-center gap-0.5 py-1 text-center transition active:scale-90 ${
+              shortsOpen || category === "shorts" ? "text-primary font-bold" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <div className="relative">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 8l6 4-6 4V8z" fill={shortsOpen || category === "shorts" ? "currentColor" : "none"} />
+                <rect x="5" y="2" width="14" height="20" rx="3" />
+                <line x1="12" y1="18" x2="12.01" y2="18" strokeWidth="3" />
+              </svg>
+            </div>
+            <span className="font-display text-[10.5px] leading-tight tracking-tight">শর্টস</span>
+          </button>
+
+          {/* Tab 3: Playlists */}
+          <button
+            type="button"
+            onClick={() => {
+              try { if ("vibrate" in navigator) navigator.vibrate?.(10); } catch {}
+              setProfileOpen(false);
+              setCategory("playlists");
+              setChannel(null);
+              setInput("");
+              bump("terms", "playlists", 0.5);
+              doSearch("playlists");
+            }}
+            className={`group flex flex-1 flex-col items-center justify-center gap-0.5 py-1 text-center transition active:scale-90 ${
+              !profileOpen && category === "playlists" ? "text-primary font-bold" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <div className="relative">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 6h16M4 12h10M4 18h10" />
+                <polygon points="17 14 22 17 17 20 17 14" fill={!profileOpen && category === "playlists" ? "currentColor" : "none"} />
+              </svg>
+            </div>
+            <span className="font-display text-[10.5px] leading-tight tracking-tight">প্লেলিস্ট</span>
+          </button>
+
+          {/* Tab 4: You / Profile */}
+          <button
+            type="button"
+            onClick={() => {
+              try { if ("vibrate" in navigator) navigator.vibrate?.(10); } catch {}
+              setProfileOpen(true);
+            }}
+            className={`group flex flex-1 flex-col items-center justify-center gap-0.5 py-1 text-center transition active:scale-90 ${
+              profileOpen ? "text-primary font-bold" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <div className="relative">
+              {user ? (
+                <span className={`grid size-5 place-items-center rounded-full font-display text-[10px] font-bold text-white shadow-sm ${profileOpen ? "bg-primary ring-2 ring-primary ring-offset-1 ring-offset-background" : "bg-gradient-to-tr from-primary to-indigo-600"}`}>
+                  {(user.email ?? "?")[0]?.toUpperCase()}
+                </span>
+              ) : (
+                <svg width="22" height="22" viewBox="0 0 24 24" fill={profileOpen ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+              )}
+              {hydrated && queue.length > 0 && (
+                <span className="absolute -top-1.5 -right-2 grid min-w-[15px] h-[15px] place-items-center rounded-full bg-rose-500 px-0.5 text-[8.5px] font-black text-white ring-2 ring-background">
+                  {queue.length}
+                </span>
+              )}
+            </div>
+            <span className="font-display text-[10.5px] leading-tight tracking-tight">আপনি</span>
+          </button>
+        </nav>
+      )}
+
       {toast && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-6 z-40 flex justify-center">
-          <span className="rounded-full bg-foreground px-4 py-2 text-[12px] font-semibold text-background shadow-primary">{toast}</span>
+        <div className="pointer-events-none fixed inset-x-0 bottom-20 z-50 flex justify-center">
+          <span className="rounded-full bg-foreground px-4 py-2 text-[12px] font-semibold text-background shadow-lg shadow-black/20">{toast}</span>
         </div>
       )}
     </div>
