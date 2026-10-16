@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type PointerEvent as RPointerEvent } from "react";
 import { usePlayer } from "@/hooks/usePlayer";
 import { useAuth } from "@/hooks/useAuth";
+import { InstallApp } from "@/components/InstallApp";
 import { clearCloudHistory, mergeHistoryOnSignIn, updateCloudPosition, upsertCloudHistory } from "@/lib/history-sync";
 import { cached, TTL } from "@/lib/cache";
 import {
@@ -1208,6 +1209,7 @@ function Index() {
             )}
           </form>
 
+          <InstallApp />
           <button
             onClick={() => setProfileOpen(true)}
             aria-label="প্রোফাইল"
