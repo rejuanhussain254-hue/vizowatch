@@ -368,7 +368,12 @@ export function calculateAlgorithmScore(
     score -= 1.5;
   }
 
-  // 9. Exploration Factor (Epsilon-greedy discovery)
+  // 9. Deprioritize already-watched / seen videos so user sees FRESH videos on reload
+  if (options.seenVideoIds && options.seenVideoIds.has(video.id)) {
+    score -= 3.5; // Watched videos move down, fresh videos move up
+  }
+
+  // 10. Exploration Factor (Epsilon-greedy discovery)
   // Add a minor deterministic pseudo-random jitter based on title hash so results don't stagnate
   let hash = 0;
   for (let i = 0; i < video.title.length; i++) hash = (hash * 31 + video.title.charCodeAt(i)) & 0xfffff;
@@ -443,12 +448,24 @@ export function diversifyVideoFeed<T extends { author?: string }>(videos: T[], m
   return result;
 }
 
+const DYNAMIC_TRENDING_SEEDS = [
+  "trending videos bangladesh",
+  "bangla new viral song",
+  "বাংলা নতুন নাটক trending",
+  "bangladesh viral news today",
+  "bangla comedy funny drama",
+  "bangla islamic waz new",
+  "bangladesh sports cricket highlights",
+  "bangla new gadgets tech review",
+  "bangla cooking food recipe",
+  "bangla popular podcast",
+  "bangladesh travel vlog viral",
+  "bangla acoustic unplugged songs",
+];
+
 /**
  * YouTube Candidate Generation:
- * Builds balanced candidate queries:
- * 1. Broad regional trending & viral mix FIRST (guarantees diverse creators on initial load)
- * 2. User's top genres & exploration categories
- * 3. User search terms & favorite artists (interleaved)
+ * Dynamically rotates candidate seeds so that every page refresh produces FRESH, NEW videos
  */
 export function buildYouTubeCandidateQueries(
   t: Taste,
@@ -466,22 +483,26 @@ export function buildYouTubeCandidateQueries(
     }
   };
 
-  // 1. Broad Regional & Trending Mix FIRST (Diverse, multi-channel videos)
-  add("trending videos bangladesh");
-  add("bangla viral song");
+  // 1. Dynamic Rotating Trending Seeds (Randomized on every refresh so user gets fresh mix)
+  const shuffledSeeds = [...DYNAMIC_TRENDING_SEEDS].sort(() => Math.random() - 0.5);
+  for (const s of shuffledSeeds.slice(0, 3)) {
+    add(s);
+  }
 
-  // 2. User's Top Genres (Broad topic mixes, e.g. "বাংলা নাটক", "ইসলামিক ওয়াজ", "গান")
+  // 2. User's Top Genres with dynamic modifiers
   const topGenres = topTaste(t.genres, 3);
+  const genreModifiers = ["নতুন", "সেরা ভিডিও", "trending", "viral"];
   for (const g of topGenres) {
-    add(`${g} trending`);
+    const mod = genreModifiers[Math.floor(Math.random() * genreModifiers.length)]!;
+    add(`${g} ${mod}`);
   }
 
   // 3. Exploration: Pick 4-5 diverse categories from base pool
   const categoryPool = baseCategories
     .filter((c) => c.q && !c.q.includes("trending"))
     .map((c) => c.q);
-  const shuffled = [...categoryPool].sort(() => Math.random() - 0.5);
-  for (const exp of shuffled.slice(0, 5)) {
+  const shuffledCats = [...categoryPool].sort(() => Math.random() - 0.5);
+  for (const exp of shuffledCats.slice(0, 5)) {
     add(exp);
   }
 

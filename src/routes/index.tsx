@@ -413,11 +413,16 @@ function Index() {
 
   // ---- search with client-side retry ----
   const fetchWithRetry = useCallback(
-    async (q: string): Promise<SearchResult[] | null> => {
+    async (q: string, bypassCache = false): Promise<SearchResult[] | null> => {
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
-          const res = await cached(`search:${q}`, TTL.search, () => runSearch({ data: { q } }), (r) => r.ok);
-          if (res.ok) return res.results;
+          if (bypassCache) {
+            const res = await runSearch({ data: { q } });
+            if (res.ok) return res.results;
+          } else {
+            const res = await cached(`search:${q}`, TTL.search, () => runSearch({ data: { q } }), (r) => r.ok);
+            if (res.ok) return res.results;
+          }
         } catch {
           /* retry */
         }
@@ -640,7 +645,7 @@ function Index() {
       const take = reset ? 3 : 2;
       const qs = feedOrder.current.slice(feedPage.current, feedPage.current + take);
       feedPage.current += take;
-      const batches = await Promise.all(qs.map((q) => fetchWithRetry(q)));
+      const batches = await Promise.all(qs.map((q) => fetchWithRetry(q, reset)));
       const fresh: SearchResult[] = [];
       const channelFeedCount: Record<string, number> = {};
 
@@ -665,6 +670,7 @@ function Index() {
       // rank the mix using YouTube Multi-factor Scoring with Channel Frequency & Fatigue Penalty
       const t = tasteObjRef.current;
       const channelCounts: Record<string, number> = {};
+      const seenIds = new Set(history.map((h) => h.id));
       const ranked = fresh
         .map((r, i) => {
           const author = r.author?.trim() || "";
@@ -673,6 +679,7 @@ function Index() {
           const score = calculateAlgorithmScore(t, r, {
             genre,
             channelOccurrencesInFeed: occurrences,
+            seenVideoIds: seenIds,
           });
           channelCounts[author] = occurrences + 1;
           return { r, i, s: score };
@@ -1490,7 +1497,24 @@ function Index() {
         {/* Search / trending */}
         {!chanView && (
         <div className="mt-8 flex items-center justify-between">
-          <h2 className="font-display text-xl font-semibold">{channel ? `চ্যানেল · ${channel}` : catLabel ? (catLabel === "হোম" ? "আপনার জন্য" : catLabel) : isSearch ? `"${lastQuery}"` : "আপনার জন্য"}</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="font-display text-xl font-semibold">{channel ? `চ্যানেল · ${channel}` : catLabel ? (catLabel === "হোম" ? "আপনার জন্য" : catLabel) : isSearch ? `"${lastQuery}"` : "আপনার জন্য"}</h2>
+            {!channel && !isSearch && (!catLabel || catLabel === "হোম") && (
+              <button
+                type="button"
+                onClick={() => void loadFeedPage(true)}
+                disabled={searchState === "loading"}
+                title="নতুন ভিডিও রিফ্রেশ করুন"
+                aria-label="নতুন ভিডিও রিফ্রেশ করুন"
+                className="flex items-center gap-1.5 rounded-full bg-lilac/40 hover:bg-lilac/70 px-3 py-1 font-display text-[12px] font-semibold text-primary transition-all active:scale-95 disabled:opacity-50 ring-1 ring-primary/20"
+              >
+                <svg className={`size-3.5 ${searchState === "loading" ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span>নতুন ভিডিও</span>
+              </button>
+            )}
+          </div>
           {channel && (
             <button onClick={backHome} className="rounded-full bg-glass px-3 py-1 font-display text-[12px] font-semibold ring-1 ring-border">
               হোম
