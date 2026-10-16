@@ -257,7 +257,7 @@ export const suggestYouTube = createServerFn({ method: "GET" })
 
 // ---------------- channel pages ----------------
 
-export type PlaylistItem = { id: string; title: string; thumbnail: string; count: string };
+export type PlaylistItem = { id: string; title: string; thumbnail: string; count: string; author?: string };
 export type ChannelPage = {
   id: string;
   name: string;
@@ -552,5 +552,128 @@ export const resolveChannel = createServerFn({ method: "GET" })
       return typeof id === "string" ? id : null;
     } catch {
       return null;
+    }
+  });
+
+// ---------------- public YouTube playlists ----------------
+export const publicPlaylists = createServerFn({ method: "GET" })
+  .validator((d: { q?: string }) => {
+    return { q: typeof d?.q === "string" ? d.q.slice(0, 100) : "bangla songs popular playlist" };
+  })
+  .handler(async ({ data }): Promise<{ ok: boolean; playlists: PlaylistItem[] }> => {
+    const q = (data?.q ?? "").trim() || "bangla songs popular playlist";
+    const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}&sp=EgIQAw%253D%253D&gl=BD&hl=en`;
+    try {
+      const json = await fetchJson(url);
+      if (!json) return { ok: false, playlists: [] };
+      const playlists: PlaylistItem[] = [];
+      const seen = new Set<string>();
+
+      for (const lv of findAll(json, "lockupViewModel")) {
+        const id = lv?.contentId;
+        const type = String(lv?.contentType ?? "");
+        if (typeof id !== "string" || seen.has(id)) continue;
+        if (type.includes("PLAYLIST")) {
+          seen.add(id);
+          const title = text(lv?.metadata?.lockupMetadataViewModel?.title);
+          const thumb = firstUrl(findAll(lv?.contentImage, "thumbnailViewModel")[0]?.image);
+          const badges = badgeTexts(lv);
+          const meta = metadataStrings(lv?.metadata?.lockupMetadataViewModel);
+          if (title) {
+            playlists.push({
+              id,
+              title,
+              thumbnail: thumb || `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+              count: badges[0] ?? meta[0] ?? "প্লেলিস্ট",
+              author: meta.find((m) => !m.includes("video") && !m.includes("view")) || "",
+            });
+          }
+        }
+      }
+
+      for (const pr of findAll(json, "playlistRenderer")) {
+        const id = pr?.playlistId;
+        if (typeof id !== "string" || seen.has(id)) continue;
+        seen.add(id);
+        const title = text(pr.title);
+        const thumb = firstUrl(pr.thumbnails) || firstUrl(pr.thumbnail);
+        const count = text(pr.videoCount) || text(pr.videoCountShortText) || "প্লেলিস্ট";
+        const author = text(pr.shortBylineText) || text(pr.longBylineText) || "";
+        if (title) {
+          playlists.push({ id, title, thumbnail: thumb, count, author });
+        }
+      }
+
+      return { ok: true, playlists: playlists.slice(0, 16) };
+    } catch (e) {
+      console.error("publicPlaylists error", e);
+      return { ok: false, playlists: [] };
+    }
+  });
+
+// ---------------- YouTube Shorts / Stories ----------------
+export const trendingShorts = createServerFn({ method: "GET" })
+  .validator((d: { q?: string }) => {
+    return { q: typeof d?.q === "string" ? d.q.slice(0, 100) : "bangla shorts viral trending" };
+  })
+  .handler(async ({ data }): Promise<{ ok: boolean; shorts: SearchResult[] }> => {
+    const q = (data?.q ?? "").trim() || "bangla shorts viral trending";
+    const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}&gl=BD&hl=en`;
+    try {
+      const json = await fetchJson(url);
+      if (!json) return { ok: false, shorts: [] };
+      const shorts: SearchResult[] = [];
+      const seen = new Set<string>();
+
+      for (const rir of findAll(json, "reelItemRenderer")) {
+        const id = rir?.videoId;
+        if (typeof id !== "string" || seen.has(id)) continue;
+        seen.add(id);
+        shorts.push({
+          id,
+          title: text(rir.headline) || "Shorts",
+          author: text(rir.ownerText) || text(rir.shortBylineText) || "YouTube",
+          thumbnail: firstUrl(rir.thumbnail) || `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+          duration: "শর্টস",
+          views: text(rir.viewCountText),
+          channelId: bylineChannelId(rir),
+        });
+      }
+
+      for (const lv of findAll(json, "lockupViewModel")) {
+        const id = lv?.contentId;
+        const type = String(lv?.contentType ?? "");
+        if (typeof id !== "string" || seen.has(id)) continue;
+        if (type.includes("SHORT")) {
+          seen.add(id);
+          const title = text(lv?.metadata?.lockupMetadataViewModel?.title);
+          const thumb = firstUrl(findAll(lv?.contentImage, "thumbnailViewModel")[0]?.image);
+          const meta = metadataStrings(lv?.metadata?.lockupMetadataViewModel);
+          shorts.push({
+            id,
+            title: title || "Shorts",
+            author: meta.find((m) => !m.includes("view")) || "YouTube",
+            thumbnail: thumb || `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+            duration: "শর্টস",
+            views: meta.find((m) => m.includes("view")) || "",
+          });
+        }
+      }
+
+      if (shorts.length < 6) {
+        const vids: SearchResult[] = [];
+        walk(json, vids, seen);
+        for (const v of vids) {
+          if (shorts.length >= 12) break;
+          if (v.title.toLowerCase().includes("short") || (v.duration && v.duration.length <= 4 && !v.duration.includes(":00"))) {
+            shorts.push({ ...v, duration: "শর্টস" });
+          }
+        }
+      }
+
+      return { ok: true, shorts: shorts.slice(0, 16) };
+    } catch (e) {
+      console.error("trendingShorts error", e);
+      return { ok: false, shorts: [] };
     }
   });

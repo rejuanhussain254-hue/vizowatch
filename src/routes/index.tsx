@@ -8,12 +8,15 @@ import { cached, TTL } from "@/lib/cache";
 import {
   channelData,
   playlistData,
+  publicPlaylists,
   resolveChannel,
   searchYouTube,
   suggestYouTube,
+  trendingShorts,
   videoMeta,
   type ChannelCard,
   type ChannelPage,
+  type PlaylistItem,
   type SearchResult,
   type VideoMeta,
 } from "@/lib/search.functions";
@@ -115,6 +118,8 @@ const CHANNEL_TABS: { key: "videos" | "shorts" | "live" | "playlists" | "posts";
 
 const CATEGORIES: { label: string; q: string }[] = [
   { label: "হোম", q: "" },
+  { label: "স্টোরি / শর্টস", q: "shorts" },
+  { label: "পাবলিক প্লেলিস্ট", q: "playlists" },
   { label: "ট্রেন্ডিং", q: "trending videos bangladesh today" },
   { label: "নাটক", q: "bangla natok new" },
   { label: "খবর", q: "bangla news today live" },
@@ -422,6 +427,11 @@ function Index() {
   const runPlaylist = useServerFn(playlistData);
   const runResolveChannel = useServerFn(resolveChannel);
   const runVideoMeta = useServerFn(videoMeta);
+  const runPublicPlaylists = useServerFn(publicPlaylists);
+  const runTrendingShorts = useServerFn(trendingShorts);
+  const [homeShorts, setHomeShorts] = useState<SearchResult[]>([]);
+  const [homePlaylists, setHomePlaylists] = useState<PlaylistItem[]>([]);
+  const [publicPlaylistsList, setPublicPlaylistsList] = useState<PlaylistItem[]>([]);
   const [searches, setSearches] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [sugOpen, setSugOpen] = useState(false);
@@ -752,18 +762,69 @@ function Index() {
   );
 
 
+  const loadHomeExtras = useCallback(async () => {
+    try {
+      const [shortsRes, plRes] = await Promise.all([
+        cached("home:shorts:v2", TTL.feed, () => runTrendingShorts({ data: { q: "bangla viral shorts trending" } }), (r) => r.ok && r.shorts.length > 0),
+        cached("home:playlists:v2", TTL.feed, () => runPublicPlaylists({ data: { q: "bangla popular playlist songs natok" } }), (r) => r.ok && r.playlists.length > 0),
+      ]);
+      if (shortsRes?.ok && shortsRes.shorts?.length) setHomeShorts(shortsRes.shorts);
+      if (plRes?.ok && plRes.playlists?.length) setHomePlaylists(plRes.playlists);
+    } catch {
+      /* ignore */
+    }
+  }, [runTrendingShorts, runPublicPlaylists]);
+
   const doSearch = useCallback(
     async (q: string) => {
       const term = q.trim();
       setLastQuery(term);
       setSearchChannel(undefined);
       setSearchContinuationToken(undefined);
+      setPublicPlaylistsList([]);
       if (!term) {
         await loadFeedPage(true);
+        void loadHomeExtras();
         return;
       }
       feedOrder.current = [];
       setSearchState("loading");
+
+      if (term === "shorts") {
+        try {
+          const res = await cached("cat:shorts:v1", TTL.feed, () => runTrendingShorts({ data: { q: "bangla viral shorts trending" } }), (r) => r.ok);
+          if (res.ok && res.shorts.length > 0) {
+            setResults(res.shorts);
+            setSearchState("ok");
+          } else {
+            setResults([]);
+            setSearchState("error");
+          }
+        } catch {
+          setResults([]);
+          setSearchState("error");
+        }
+        return;
+      }
+
+      if (term === "playlists") {
+        try {
+          const res = await cached("cat:playlists:v1", TTL.feed, () => runPublicPlaylists({ data: { q: "bangla popular playlist songs natok" } }), (r) => r.ok);
+          if (res.ok && res.playlists.length > 0) {
+            setPublicPlaylistsList(res.playlists);
+            setResults([]);
+            setSearchState("ok");
+          } else {
+            setPublicPlaylistsList([]);
+            setSearchState("error");
+          }
+        } catch {
+          setPublicPlaylistsList([]);
+          setSearchState("error");
+        }
+        return;
+      }
+
       try {
         const res = await cached(`search:v3:${term}`, TTL.search, () => runSearch({ data: { q: term } }), (r) => r.ok);
         if (res.ok) {
@@ -780,7 +841,7 @@ function Index() {
         setSearchState("error");
       }
     },
-    [loadFeedPage, runSearch],
+    [loadFeedPage, loadHomeExtras, runSearch, runTrendingShorts, runPublicPlaylists],
   );
 
   const loadMoreSearchResults = useCallback(async () => {
@@ -1176,22 +1237,22 @@ function Index() {
     if (!open || !current) return;
     let cancelled = false;
     setRelatedState("loading");
-    const topic = current.title.split(/[|(\[\]•·]/)[0]!.replace(/\d{4}/g, "").trim().split(/\s+/).slice(0, 7).join(" ");
-    const genre = genreOf(`${current.title} ${current.author}`);
+    const cleanTitle = current.title.replace(/[|(\[\]•·].*$/, "").replace(/\d{4}/g, "").trim();
+    const topicWords = cleanTitle.split(/\s+/).slice(0, 5).join(" ");
+    const author = current.author?.trim();
+    const genre = genreOf(`${current.title} ${author}`);
     const queries = [
-      topic,
-      genre ? `${genre} ${topic.split(/\s+/).slice(0, 3).join(" ")}` : "",
-      current.author,
-      genre ? `${genre} নতুন` : `${topic} নতুন`,
-      genre ? `সেরা ${genre}` : `${current.author} ভিডিও`,
-      genre ? `${genre} ফুল ভিডিও` : topic.split(/\s+/).slice(0, 3).join(" "),
+      author ? `${author} ${topicWords}` : topicWords,
+      topicWords,
+      author ? `${author} video` : `${genre} ${topicWords}`,
+      genre ? `${genre} নতুন` : `${topicWords} new`,
     ].filter((q) => q && q.trim().length > 1);
     relQueriesRef.current = queries.slice(2);
     relSeenRef.current = new Set<string>([current.id]);
     (async () => {
       const seen = relSeenRef.current;
       const list: SearchResult[] = [];
-      for (const q of queries.slice(0, 2)) {
+      for (const q of queries.slice(0, 3)) {
         if (cancelled) return;
         try {
           const res = await cached(`search:${q}`, TTL.search, () => runSearch({ data: { q } }), (r) => r.ok);
@@ -1203,18 +1264,11 @@ function Index() {
             }
           }
         } catch {
-          /* try the next query */
+          /* try next */
         }
-        if (list.length >= 14) break;
+        if (list.length >= 12) break;
       }
       if (cancelled) return;
-      // top up with the home feed so the list is never empty
-      for (const r of results) {
-        if (list.length >= 16) break;
-        if (seen.has(r.id)) continue;
-        seen.add(r.id);
-        list.push(r);
-      }
       if (list.length > 0) {
         const t = tasteObjRef.current;
         const currentGenre = genreOf(`${current.title} ${current.author ?? ""}`);
@@ -1388,7 +1442,7 @@ function Index() {
   }
 
   const resume = history.find((h) => h.position > 10 && h.id !== current?.id);
-  const upNext = player.index !== null ? queue.slice(player.index + 1, player.index + 6) : queue.slice(0, 5);
+  const upNext = player.index !== null && queue.length > 1 ? queue.slice(player.index + 1, player.index + 6) : [];
   const isSearch = lastQuery.trim().length > 0;
   const catLabel = CATEGORIES.find((c) => c.q === category)?.label ?? null;
   const chanView = !!channel && chanState !== "idle";
@@ -1405,9 +1459,9 @@ function Index() {
     if (isSearch) {
       await doSearch(lastQuery);
     } else {
-      await loadFeedPage(true);
+      await Promise.all([loadFeedPage(true), loadHomeExtras()]);
     }
-  }, [isSearch, lastQuery, doSearch, loadFeedPage]);
+  }, [isSearch, lastQuery, doSearch, loadFeedPage, loadHomeExtras]);
 
   useEffect(() => {
     if (open || chanView) return;
@@ -2055,7 +2109,148 @@ function Index() {
           </div>
         )}
 
-        {!chanView && searchState === "ok" && results.length > 0 && (
+        {/* If user picked "পাবলিক প্লেলিস্ট" category */}
+        {!chanView && category === "playlists" && searchState === "ok" && (
+          <div className="mt-4">
+            {publicPlaylistsList.length === 0 ? (
+              <p className="glass mt-3 rounded-3xl p-5 text-center text-[12.5px] text-muted-foreground">কোনো প্লেলিস্ট পাওয়া যায়নি।</p>
+            ) : (
+              <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                {publicPlaylistsList.map((pl) => (
+                  <li key={pl.id} className="glass-card rounded-2xl p-2.5 ring-1 ring-border/80 hover:ring-primary/40 transition-all">
+                    <button onClick={() => openPlaylist(pl.id, pl.title)} className="block w-full text-left group">
+                      <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black/60">
+                        <img src={pl.thumbnail} alt="" className="size-full object-cover transition duration-300 group-hover:scale-105" loading="lazy" />
+                        <div className="absolute inset-y-0 right-0 w-12 bg-black/75 backdrop-blur-[2px] flex flex-col items-center justify-center text-white gap-0.5">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z" />
+                          </svg>
+                          <span className="text-[10.5px] font-bold">{pl.count}</span>
+                        </div>
+                      </div>
+                      <h4 className="mt-2 line-clamp-2 font-display text-[13.5px] font-bold text-foreground group-hover:text-primary transition-colors">{pl.title}</h4>
+                      {pl.author && <p className="truncate text-[11.5px] text-muted-foreground mt-0.5">{pl.author}</p>}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {/* If user picked "স্টোরি / শর্টস" category */}
+        {!chanView && category === "shorts" && searchState === "ok" && results.length > 0 && (
+          <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {results.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => playTrack(s)}
+                className="group relative overflow-hidden rounded-2xl glass-card ring-1 ring-border/80 hover:ring-primary/40 text-left transition-all active:scale-95"
+              >
+                <div className="relative aspect-[9/16] w-full overflow-hidden bg-black/80">
+                  <img src={s.thumbnail} alt="" className="size-full object-cover transition duration-300 group-hover:scale-105" loading="lazy" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
+                  <div className="absolute top-2 left-2">
+                    <span className="grid size-5 place-items-center rounded-full bg-red-600/90 text-white text-[10px]">▶</span>
+                  </div>
+                  <div className="absolute inset-x-2 bottom-2">
+                    <p className="line-clamp-2 font-display text-[12px] font-bold text-white leading-snug drop-shadow">{s.title}</p>
+                    {s.views && <p className="text-[10px] text-white/80 mt-0.5">{s.views}</p>}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Home Feed Shorts / Stories Carousel */}
+        {!chanView && isHome && searchState === "ok" && homeShorts.length > 0 && (
+          <div className="mt-5 mb-3">
+            <div className="flex items-center justify-between px-1 mb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="grid size-6 place-items-center rounded-lg bg-red-600 text-white shadow-sm shadow-red-500/30">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M17.77 10.32l-1.2-.5-1.1-.47.6-1.46c.74-1.8.06-3.9-1.63-4.9-1.92-1.12-4.38-.55-5.6 1.3l-4.2 6.8c-.85 1.37-.8 3.1.13 4.4 1 1.4 2.7 2.1 4.4 1.8l1.2.5 1.1.46-.6 1.47c-.74 1.8-.06 3.9 1.63 4.9 1.92 1.12 4.38.55 5.6-1.3l4.2-6.8c.85-1.37.8-3.1-.13-4.4-1-1.4-2.7-2.1-4.4-1.8z" />
+                  </svg>
+                </span>
+                <div>
+                  <h3 className="font-display text-[14.5px] font-bold text-foreground">শর্টস ও স্টোরি</h3>
+                  <p className="text-[11px] text-muted-foreground">ইউটিউব ট্রেন্ডিং শর্টস</p>
+                </div>
+              </div>
+              <button onClick={() => { setCategory("shorts"); doSearch("shorts"); }} className="text-[11.5px] font-bold text-primary hover:underline">
+                সব দেখুন →
+              </button>
+            </div>
+            <div className="-mx-5 flex gap-2.5 overflow-x-auto px-5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {homeShorts.slice(0, 10).map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => playTrack(s)}
+                  className="group relative w-[124px] shrink-0 overflow-hidden rounded-2xl glass-card ring-1 ring-border/80 hover:ring-primary/40 text-left transition-all active:scale-95"
+                >
+                  <div className="relative aspect-[9/16] w-full overflow-hidden bg-black/80">
+                    <img src={s.thumbnail} alt="" className="size-full object-cover transition duration-300 group-hover:scale-105" loading="lazy" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
+                    <div className="absolute top-2 left-2">
+                      <span className="grid size-5 place-items-center rounded-full bg-red-600/90 text-white text-[10px]">▶</span>
+                    </div>
+                    <div className="absolute inset-x-2 bottom-2">
+                      <p className="line-clamp-2 font-display text-[12px] font-bold text-white leading-snug drop-shadow">{s.title}</p>
+                      {s.views && <p className="text-[10px] text-white/80 mt-0.5">{s.views}</p>}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Home Feed Public Playlists Shelf */}
+        {!chanView && isHome && searchState === "ok" && homePlaylists.length > 0 && (
+          <div className="mt-4 mb-3">
+            <div className="flex items-center justify-between px-1 mb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="grid size-6 place-items-center rounded-lg bg-indigo-600 text-white shadow-sm shadow-indigo-500/30">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z" />
+                  </svg>
+                </span>
+                <div>
+                  <h3 className="font-display text-[14.5px] font-bold text-foreground">জনপ্রিয় পাবলিক প্লেলিস্ট</h3>
+                  <p className="text-[11px] text-muted-foreground">ইউটিউব অ্যালবাম ও সংকলন</p>
+                </div>
+              </div>
+              <button onClick={() => { setCategory("playlists"); doSearch("playlists"); }} className="text-[11.5px] font-bold text-primary hover:underline">
+                সব দেখুন →
+              </button>
+            </div>
+            <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {homePlaylists.slice(0, 8).map((pl) => (
+                <button
+                  key={pl.id}
+                  onClick={() => openPlaylist(pl.id, pl.title)}
+                  className="group relative w-[190px] shrink-0 overflow-hidden rounded-2xl glass-card p-2 ring-1 ring-border/80 hover:ring-primary/40 text-left transition-all active:scale-95"
+                >
+                  <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black/60">
+                    <img src={pl.thumbnail} alt="" className="size-full object-cover transition duration-300 group-hover:scale-105" loading="lazy" />
+                    <div className="absolute inset-y-0 right-0 w-11 bg-black/75 backdrop-blur-[2px] flex flex-col items-center justify-center text-white gap-0.5">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z" />
+                      </svg>
+                      <span className="text-[10px] font-bold">{pl.count}</span>
+                    </div>
+                  </div>
+                  <p className="mt-1.5 line-clamp-1 font-display text-[12.5px] font-bold text-foreground group-hover:text-primary transition-colors">{pl.title}</p>
+                  {pl.author && <p className="truncate text-[11px] text-muted-foreground">{pl.author}</p>}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Regular Videos List (if not in public playlists category) */}
+        {!chanView && category !== "playlists" && category !== "shorts" && searchState === "ok" && results.length > 0 && (
           <ul className="mt-3 space-y-3">
             {results.map((r) => (
               <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} />
@@ -2592,48 +2787,40 @@ function Index() {
               </div>
             )}
 
-            {upNext.length > 0 && (
-              <>
-                <h3 className="mt-6 font-display text-base font-semibold">পরে বাজবে</h3>
-                <ul className="mt-2 space-y-2.5">
-                  {upNext.map((t) => {
+            {/* Playlist Queue (only when a playlist is actively being played) */}
+            {player.index !== null && upNext.length > 0 && (
+              <div className="mt-4 rounded-2xl glass-card p-3 ring-1 ring-primary/30">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-display text-[12.5px] font-bold text-primary flex items-center gap-1.5">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z" /></svg>
+                    <span>চলমান প্লেলিস্ট ({player.index + 1}/{queue.length})</span>
+                  </span>
+                </div>
+                <ul className="space-y-2">
+                  {upNext.slice(0, 3).map((t) => {
                     const i = queue.findIndex((x) => x.id === t.id);
                     return (
-                      <li key={t.id} className="glass flex items-center gap-3 rounded-2xl p-2 ring-1 ring-border">
-                        <button onClick={() => { player.playAt(i); openWatch(t.id); }} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-                          <img src={t.thumbnail} alt="" className="size-12 shrink-0 rounded-xl object-cover ring-1 ring-border" loading="lazy" />
+                      <li key={t.id} className="flex items-center gap-2.5 rounded-xl bg-background/60 p-1.5 ring-1 ring-border/60">
+                        <button onClick={() => { player.playAt(i); openWatch(t.id); }} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
+                          <img src={t.thumbnail} alt="" className="size-10 shrink-0 rounded-lg object-cover ring-1 ring-border" loading="lazy" />
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-[13px] font-semibold">{t.title}</span>
-                            <span className="block truncate text-[11px] text-muted-foreground">{t.author}</span>
+                            <span className="block truncate text-[12px] font-semibold text-foreground">{t.title}</span>
+                            <span className="block truncate text-[10.5px] text-muted-foreground">{t.author}</span>
                           </span>
                         </button>
-                        <button onClick={() => remove(i)} aria-label="কুই থেকে মুছুন" className="grid size-8 place-items-center rounded-full text-muted-foreground"><span className="block h-[2px] w-3 rounded-full bg-current" /></button>
                       </li>
                     );
                   })}
                 </ul>
-              </>
+              </div>
             )}
 
-            {nextUp && (
-              <>
-                <h3 className="mt-6 font-display text-base font-semibold">পরবর্তী ভিডিও</h3>
-                <button
-                  onClick={playUpNext}
-                  className="glass mt-2 flex w-full items-center gap-3 rounded-2xl p-2 text-left ring-1 ring-primary/40"
-                >
-                  <img src={nextUp.thumbnail} alt="" className="h-16 w-[108px] shrink-0 rounded-2xl object-cover ring-1 ring-border" loading="lazy" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] font-semibold">{nextUp.title}</span>
-                    <span className="block truncate text-[11px] text-muted-foreground">{nextUp.author}</span>
-                  </span>
-                  <span className="shrink-0 rounded-xl bg-primary px-3 py-1.5 text-[12px] font-semibold text-primary-foreground">চালান</span>
-                </button>
-                <p className="mt-1 px-1 text-[11px] text-muted-foreground">এই ভিডিও শেষ হলে নিজে থেকেই চালু হবে</p>
-              </>
-            )}
-
-            <h3 className="mt-6 font-display text-base font-semibold">সম্পর্কিত ভিডিও</h3>
+            {/* Direct Related Videos matching the current video - YouTube Style */}
+            <div className="mt-5">
+              <div className="flex items-center justify-between mb-2.5">
+                <h3 className="font-display text-[15px] font-bold text-foreground">সম্পর্কিত ভিডিও</h3>
+                <span className="text-[11px] font-medium text-muted-foreground">ইউটিউব রিকমেন্ডেশন</span>
+              </div>
             {relatedState === "loading" && <Skeleton />}
             {relatedState === "error" && (
               <p className="glass mt-2 rounded-2xl p-4 text-center text-[12.5px] text-muted-foreground">
@@ -2655,6 +2842,7 @@ function Index() {
                 {relatedMore ? "আরও ভিডিও আসছে…" : relQueriesRef.current.length === 0 ? "" : " "}
               </div>
             )}
+            </div>
           </div>
         </div>
       </div>
