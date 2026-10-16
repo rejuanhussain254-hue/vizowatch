@@ -2649,7 +2649,7 @@ function Index() {
         aria-label="ইউজার প্রোফাইল"
       >
         {/* Full Page Navigation Header */}
-        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border/40 bg-background/95 px-4 py-2.5 backdrop-blur-xl pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border/40 bg-background/95 px-4 py-3 backdrop-blur-xl pt-[max(0.75rem,env(safe-area-inset-top))]">
           <button
             onClick={() => setProfileOpen(false)}
             aria-label="হোমে ফিরে যান"
@@ -2661,40 +2661,43 @@ function Index() {
             <span>হোমে ফিরুন</span>
           </button>
           <h1 className="font-display text-[16px] font-bold text-foreground">আপনার প্রোফাইল</h1>
-          {user ? (
-            <button
-              onClick={() => signOut()}
-              aria-label="সাইন-আউট"
-              className="rounded-full bg-rose-500/10 px-3 py-1.5 font-display text-[11.5px] font-bold text-rose-600 hover:bg-rose-500/20 transition-colors"
-            >
-              সাইন-আউট
-            </button>
-          ) : (
-            <Link
-              to="/auth"
-              className="rounded-full bg-primary px-3.5 py-1.5 font-display text-[12px] font-bold text-primary-foreground shadow-sm shadow-primary/25 hover:opacity-90 transition-opacity"
-            >
-              লগইন
-            </Link>
-          )}
+          <div className="w-[104px]" aria-hidden="true" />
         </header>
         <div className="flex-1 overflow-y-auto px-4 pb-[max(5.5rem,calc(env(safe-area-inset-bottom)+4.5rem))]">
           {user ? (
-            <div className="glass mt-4 flex items-center gap-3 rounded-3xl p-4">
-              <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary font-display text-base font-bold text-primary-foreground shadow-primary">{(user.email ?? "?")[0]?.toUpperCase()}</span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-display text-[14px] font-semibold">{user.email}</span>
-                <span className="block text-[12px] text-muted-foreground">{syncing ? "সিঙ্ক হচ্ছে…" : "✓ ইতিহাস সব ডিভাইসে সিঙ্ক চালু"}</span>
+            <div className="glass mt-4 flex items-center gap-3.5 rounded-3xl p-4 ring-1 ring-border/60 shadow-sm">
+              <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-tr from-primary to-indigo-600 font-display text-lg font-bold text-primary-foreground shadow-md shadow-primary/25">
+                {(user.email ?? "?")[0]?.toUpperCase()}
               </span>
-              <button onClick={() => signOut()} className="shrink-0 rounded-full bg-glass px-3 py-1.5 text-[11px] font-medium ring-1 ring-border">সাইন-আউট</button>
+              <div className="min-w-0 flex-1">
+                <span className="block truncate font-display text-[14.5px] font-bold text-foreground">{user.email}</span>
+                <span className="mt-0.5 flex items-center gap-1.5 text-[11.5px] font-medium text-muted-foreground">
+                  <span className="inline-block size-1.5 rounded-full bg-emerald-500" />
+                  {syncing ? "সিঙ্ক হচ্ছে…" : "ক্লাউড সিঙ্ক চালু"}
+                </span>
+              </div>
+              <button
+                onClick={() => signOut()}
+                className="shrink-0 flex items-center gap-1.5 rounded-full bg-rose-500/10 hover:bg-rose-500/20 px-3.5 py-1.5 text-[11.5px] font-semibold text-rose-600 ring-1 ring-rose-500/20 transition-all active:scale-95"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" /></svg>
+                <span>সাইন-আউট</span>
+              </button>
             </div>
           ) : (
-            <div className="glass mt-4 rounded-3xl p-4">
-              <p className="font-display text-[15px] font-semibold">সাইন-ইন করুন</p>
-              <p className="mt-0.5 text-[12.5px] text-muted-foreground">ইতিহাস ও রিজিউম পজিশন সব ডিভাইসে সিঙ্ক থাকবে।</p>
-              <div className="mt-3 flex gap-2">
-                <Link to="/auth" className="flex-1 rounded-2xl bg-primary px-4 py-2.5 text-center font-display text-[13px] font-semibold text-primary-foreground shadow-primary">লগইন</Link>
-                <Link to="/auth" className="flex-1 rounded-2xl bg-background px-4 py-2.5 text-center font-display text-[13px] font-semibold ring-1 ring-border">সাইনআপ</Link>
+            <div className="glass mt-4 rounded-3xl p-5 ring-1 ring-border/60 shadow-sm">
+              <div className="flex items-center gap-3.5 mb-3.5">
+                <div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" /></svg>
+                </div>
+                <div>
+                  <p className="font-display text-[15px] font-bold text-foreground">সাইন-ইন করুন</p>
+                  <p className="text-[12px] text-muted-foreground">ইতিহাস ও প্লেলিস্ট সব ডিভাইসে সিঙ্ক থাকবে</p>
+                </div>
+              </div>
+              <div className="flex gap-2.5">
+                <Link to="/auth" className="flex-1 rounded-2xl bg-primary py-2.5 text-center font-display text-[13px] font-bold text-primary-foreground shadow-sm shadow-primary/25 hover:opacity-90 active:scale-95 transition-all">লগইন</Link>
+                <Link to="/auth" className="flex-1 rounded-2xl bg-muted/60 py-2.5 text-center font-display text-[13px] font-semibold text-foreground ring-1 ring-border hover:bg-muted active:scale-95 transition-all">নতুন অ্যাকাউন্ট</Link>
               </div>
             </div>
           )}
