@@ -27,10 +27,13 @@ function loadYouTubeApi(): Promise<any> {
   return apiPromise;
 }
 
+const SILENT_AUDIO_URI = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+
 export function usePlayer(queue: Track[], containerId: string, onEnded?: () => boolean) {
   const onEndedRef = useRef(onEnded);
   onEndedRef.current = onEnded;
   const playerRef = useRef<any>(null);
+  const silentAudioRef = useRef<HTMLAudioElement | null>(null);
   const [ready, setReady] = useState(false);
   const [index, setIndex] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -214,6 +217,26 @@ export function usePlayer(queue: Track[], containerId: string, onEnded?: () => b
     };
   }, [containerId, next, readTracks]);
 
+  // Keep mobile OS audio session alive in background
+  useEffect(() => {
+    if (typeof Audio === "undefined") return;
+    if (!silentAudioRef.current) {
+      try {
+        const a = new Audio(SILENT_AUDIO_URI);
+        a.loop = true;
+        silentAudioRef.current = a;
+      } catch {
+        /* audio unsupported */
+      }
+    }
+    const a = silentAudioRef.current;
+    if (playing) {
+      a?.play().catch(() => {});
+    } else {
+      a?.pause();
+    }
+  }, [playing]);
+
   // Lock-screen / notification controls
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
@@ -227,8 +250,14 @@ export function usePlayer(queue: Track[], containerId: string, onEnded?: () => b
       });
     }
     ms.playbackState = playing ? "playing" : "paused";
-    ms.setActionHandler("play", () => playerRef.current?.playVideo());
-    ms.setActionHandler("pause", () => playerRef.current?.pauseVideo());
+    ms.setActionHandler("play", () => {
+      silentAudioRef.current?.play().catch(() => {});
+      playerRef.current?.playVideo();
+    });
+    ms.setActionHandler("pause", () => {
+      silentAudioRef.current?.pause();
+      playerRef.current?.pauseVideo();
+    });
     ms.setActionHandler("nexttrack", next);
     ms.setActionHandler("previoustrack", prev);
     try {
