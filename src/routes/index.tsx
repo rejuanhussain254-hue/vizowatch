@@ -370,6 +370,8 @@ function Index() {
     return () => document.removeEventListener("fullscreenchange", onFs);
   }, []);
   const [results, setResults] = useState<SearchResult[]>([]);
+  const resultsRef = useRef(results);
+  resultsRef.current = results;
   const [lastQuery, setLastQuery] = useState("");
   const [category, setCategory] = useState<string | null>("");
   const [channel, setChannel] = useState<string | null>(null);
@@ -623,6 +625,7 @@ function Index() {
 
   useEffect(() => { setPipDismissed(false); setPipMin(false); }, [current?.id, open]);
   const feedSeen = useRef<Set<string>>(new Set());
+  const previousFeedChannels = useRef<Set<string>>(new Set());
   const [feedLoadingMore, setFeedLoadingMore] = useState(false);
   const feedDone = feedPage.current >= feedOrder.current.length && feedOrder.current.length > 0;
   const sentinel = useRef<HTMLDivElement>(null);
@@ -630,6 +633,12 @@ function Index() {
   const loadFeedPage = useCallback(
     async (reset: boolean) => {
       if (reset) {
+        // Collect channels from current top results to cool them down during this refresh
+        const cooling = new Set(
+          resultsRef.current.slice(0, 10).map((r) => (r.author?.trim() || "").toLowerCase()).filter(Boolean),
+        );
+        previousFeedChannels.current = cooling;
+
         // YouTube-style Candidate Generation: Multi-shelf candidate mix
         const queries = buildYouTubeCandidateQueries(tasteObjRef.current, history, CATEGORIES);
         feedOrder.current = queries;
@@ -642,14 +651,15 @@ function Index() {
         if (feedLoadingMore || feedPage.current >= feedOrder.current.length) return;
         setFeedLoadingMore(true);
       }
-      const take = reset ? 3 : 2;
+      const take = reset ? 4 : 2;
       const qs = feedOrder.current.slice(feedPage.current, feedPage.current + take);
       feedPage.current += take;
       const batches = await Promise.all(qs.map((q) => fetchWithRetry(q, reset)));
       const fresh: SearchResult[] = [];
       const channelFeedCount: Record<string, number> = {};
 
-      // Interleave round-robin across batches, strictly capping each channel to max 2 videos per load
+      // On reset, enforce strict max 1 video per channel so every card is from a unique creator
+      const channelLimit = reset ? 1 : 2;
       const max = Math.max(0, ...batches.map((b) => b?.length ?? 0));
       for (let i = 0; i < max; i++) {
         for (const b of batches) {
@@ -657,8 +667,7 @@ function Index() {
           if (r && !feedSeen.current.has(r.id)) {
             const author = (r.author?.trim() || "unknown").toLowerCase();
             const count = channelFeedCount[author] ?? 0;
-            // Strict YouTube creator cap: max 2 videos per channel in the feed batch
-            if (count < 2) {
+            if (count < channelLimit) {
               channelFeedCount[author] = count + 1;
               feedSeen.current.add(r.id);
               fresh.push(r);
@@ -680,6 +689,7 @@ function Index() {
             genre,
             channelOccurrencesInFeed: occurrences,
             seenVideoIds: seenIds,
+            coolingChannels: previousFeedChannels.current,
           });
           channelCounts[author] = occurrences + 1;
           return { r, i, s: score };
@@ -687,7 +697,7 @@ function Index() {
         .sort((a, b) => (b.s === a.s ? a.i - b.i : b.s - a.s))
         .map((x) => x.r);
 
-      const diversified = diversifyVideoFeed(ranked, 2);
+      const diversified = diversifyVideoFeed(ranked, reset ? 1 : 2);
 
       if (reset) {
         if (batches.every((b) => b === null)) {

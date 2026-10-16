@@ -31,10 +31,10 @@ export function emptyTaste(): Taste {
   };
 }
 
-function prune(map: Record<string, number> = {}, factor: number) {
+function prune(map: Record<string, number> = {}, factor: number, maxCap = 2.5) {
   const out: Record<string, number> = {};
   for (const [k, v] of Object.entries(map)) {
-    const s = v * factor;
+    const s = Math.min(v * factor, maxCap);
     if (s >= MIN_SCORE) out[k] = Math.round(s * 1000) / 1000;
   }
   const keys = Object.keys(out)
@@ -142,12 +142,12 @@ export function recordVideoStart(
   // 2. Update recent channels for fatigue detection
   if (video.author) {
     next.recentChannels = [...next.recentChannels.filter((c) => c !== video.author), video.author].slice(-15);
-    // Baseline intent signal
-    next.channels[video.author] = (next.channels[video.author] ?? 0) + 0.8;
+    // Balanced intent signal (capped, doesn't hijack)
+    next.channels[video.author] = (next.channels[video.author] ?? 0) + 0.3;
   }
 
   if (video.genre) {
-    next.genres[video.genre] = (next.genres[video.genre] ?? 0) + 0.8;
+    next.genres[video.genre] = (next.genres[video.genre] ?? 0) + 0.6;
   }
 
   next.at = Date.now();
@@ -201,21 +201,21 @@ export function recordVideoEngagement(
       next.genres[genre] = Math.max(0, next.genres[genre] - 0.8);
     }
   }
-  // Case B: High Retention (>= 70% or > 4 minutes watched) -> Strong YouTube Satisfaction Signal
+  // Case B: High Retention (>= 70% or > 4 minutes watched) -> Moderate YouTube Satisfaction Signal
   else if (ratio >= 0.7 || watchedSeconds >= 240) {
     if (author) {
-      next.channels[author] = (next.channels[author] ?? 0) + 3.0;
+      next.channels[author] = (next.channels[author] ?? 0) + 0.8;
       // Reduce past penalties if user enjoyed this one
       if (next.penalties[author]) next.penalties[author] = Math.max(0, next.penalties[author] - 1.0);
     }
     if (genre) {
-      next.genres[genre] = (next.genres[genre] ?? 0) + 2.2;
+      next.genres[genre] = (next.genres[genre] ?? 0) + 1.2;
     }
   }
   // Case C: Moderate Watch (30% - 70%) -> Positive reinforcement
   else if (ratio >= 0.3 || watchedSeconds >= 60) {
-    if (author) next.channels[author] = (next.channels[author] ?? 0) + 1.2;
-    if (genre) next.genres[genre] = (next.genres[genre] ?? 0) + 0.8;
+    if (author) next.channels[author] = (next.channels[author] ?? 0) + 0.4;
+    if (genre) next.genres[genre] = (next.genres[genre] ?? 0) + 0.5;
   }
 
   next.channels = prune(next.channels, 1);
@@ -285,43 +285,37 @@ export function calculateAlgorithmScore(
     channelOccurrencesInFeed?: number;
     currentPlayingAuthor?: string;
     currentPlayingGenre?: string;
+    seenVideoIds?: Set<string>;
+    coolingChannels?: Set<string>;
   } = {},
 ): number {
   let score = 0;
   const lowTitle = video.title.toLowerCase();
   const author = video.author?.trim();
 
-  // 1. Channel Affinity (Balanced signal - capped so one channel doesn't dominate)
+  // 1. Channel Affinity (Gentle nudge - capped so one channel can NEVER monopolize the feed)
   if (author) {
     const chanScore = t.channels[author] ?? 0;
     if (chanScore > 0) {
-      score += Math.min(chanScore * 1.5, 4.0);
-    } else {
-      // Fuzzy author match
-      for (const [c, v] of Object.entries(t.channels)) {
-        if (author.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(author.toLowerCase())) {
-          score += Math.min(v * 1.2, 2.5);
-          break;
-        }
-      }
+      score += Math.min(chanScore * 0.35, 1.2);
     }
 
     // Historical average completion bonus
     const avgRatio = t.watchRatio[author];
     if (avgRatio !== undefined) {
-      score += (avgRatio - 0.4) * 3.0; // Boost if user tends to watch >= 50%
+      score += (avgRatio - 0.5) * 1.0;
     }
 
     // Penalty deduction for previously skipped channels
     const penalty = t.penalties[author] ?? 0;
     if (penalty > 0) {
-      score -= penalty * 3.0;
+      score -= penalty * 2.5;
     }
   }
 
   // 2. Genre Affinity
   if (options.genre && t.genres[options.genre]) {
-    score += t.genres[options.genre] * 2.5;
+    score += Math.min(t.genres[options.genre] * 1.2, 2.0);
   }
 
   // 3. Search Term Matching
@@ -373,11 +367,17 @@ export function calculateAlgorithmScore(
     score -= 3.5; // Watched videos move down, fresh videos move up
   }
 
-  // 10. Exploration Factor (Epsilon-greedy discovery)
-  // Add a minor deterministic pseudo-random jitter based on title hash so results don't stagnate
+  // 10. Session Creator Cooling: If this creator was prominent in the previous feed screen,
+  // apply a cooling penalty so that completely DIFFERENT channels and creators take the top slots!
+  if (options.coolingChannels && author && options.coolingChannels.has(author.toLowerCase())) {
+    score -= 4.5;
+  }
+
+  // 11. Exploration Factor (Epsilon-greedy discovery)
+  // Add pseudo-random jitter based on title hash so results don't stagnate
   let hash = 0;
   for (let i = 0; i < video.title.length; i++) hash = (hash * 31 + video.title.charCodeAt(i)) & 0xfffff;
-  const explorationJitter = (hash % 100) / 100 * 0.6;
+  const explorationJitter = (hash % 100) / 100 * 0.8;
   score += explorationJitter;
 
   return Math.round(score * 100) / 100;
@@ -448,24 +448,53 @@ export function diversifyVideoFeed<T extends { author?: string }>(videos: T[], m
   return result;
 }
 
-const DYNAMIC_TRENDING_SEEDS = [
-  "trending videos bangladesh",
-  "bangla new viral song",
-  "বাংলা নতুন নাটক trending",
-  "bangladesh viral news today",
-  "bangla comedy funny drama",
-  "bangla islamic waz new",
-  "bangladesh sports cricket highlights",
-  "bangla new gadgets tech review",
-  "bangla cooking food recipe",
-  "bangla popular podcast",
-  "bangladesh travel vlog viral",
-  "bangla acoustic unplugged songs",
+// Distinct topical discovery buckets — ensures candidate queries never collide into the same TV/News channel
+const DIVERSE_DISCOVERY_BUCKETS = [
+  // Bucket 1: Music & Songs (Band, Acoustic, Coke Studio, Folk)
+  [
+    "bangla new viral acoustic song",
+    "coke studio bangla hits",
+    "bangla band music popular",
+    "bangla folk unplugged songs",
+    "bangla aesthetic lofi songs",
+  ],
+  // Bucket 2: Drama, Natok & Telefilms
+  [
+    "বাংলা নতুন নাটক trending",
+    "bangla short film new",
+    "bangla comedy natok viral",
+    "bangla telefilm new release",
+  ],
+  // Bucket 3: Tech, Science & Gadgets
+  [
+    "bangla tech review smartphone",
+    "bangla gadget unboxing review",
+    "bangla tech tips tricks",
+  ],
+  // Bucket 4: Travel, Food & Vlogs
+  [
+    "bangladesh travel vlog viral",
+    "bangla street food village cooking",
+    "bangladesh lifestyle vlog new",
+  ],
+  // Bucket 5: Podcasts, Comedy & Entertainment
+  [
+    "bangla popular podcast interview",
+    "bangla standup comedy funny video",
+    "bangla talk show life story",
+    "bangladesh cricket match highlights",
+  ],
+  // Bucket 6: Islamic & Knowledge
+  [
+    "bangla islamic waz new",
+    "bangla documentary history science",
+  ],
 ];
 
 /**
  * YouTube Candidate Generation:
- * Dynamically rotates candidate seeds so that every page refresh produces FRESH, NEW videos
+ * Samples candidate queries from non-overlapping topical buckets and user interests
+ * so that no single channel or genre can monopolize the candidate pool
  */
 export function buildYouTubeCandidateQueries(
   t: Taste,
@@ -483,26 +512,27 @@ export function buildYouTubeCandidateQueries(
     }
   };
 
-  // 1. Dynamic Rotating Trending Seeds (Randomized on every refresh so user gets fresh mix)
-  const shuffledSeeds = [...DYNAMIC_TRENDING_SEEDS].sort(() => Math.random() - 0.5);
-  for (const s of shuffledSeeds.slice(0, 3)) {
-    add(s);
+  // 1. Pick 1 seed from each diverse discovery bucket (shuffled)
+  const shuffledBuckets = [...DIVERSE_DISCOVERY_BUCKETS].sort(() => Math.random() - 0.5);
+  for (const bucket of shuffledBuckets) {
+    const pick = bucket[Math.floor(Math.random() * bucket.length)];
+    if (pick) add(pick);
   }
 
-  // 2. User's Top Genres with dynamic modifiers
+  // 2. User's Top Genres with dynamic exploration modifiers
   const topGenres = topTaste(t.genres, 3);
-  const genreModifiers = ["নতুন", "সেরা ভিডিও", "trending", "viral"];
+  const genreModifiers = ["নতুন", "সেরা গান", "trending", "viral", "unplugged"];
   for (const g of topGenres) {
     const mod = genreModifiers[Math.floor(Math.random() * genreModifiers.length)]!;
     add(`${g} ${mod}`);
   }
 
-  // 3. Exploration: Pick 4-5 diverse categories from base pool
+  // 3. Exploration from category pool (avoiding redundant trending terms)
   const categoryPool = baseCategories
     .filter((c) => c.q && !c.q.includes("trending"))
     .map((c) => c.q);
   const shuffledCats = [...categoryPool].sort(() => Math.random() - 0.5);
-  for (const exp of shuffledCats.slice(0, 5)) {
+  for (const exp of shuffledCats.slice(0, 4)) {
     add(exp);
   }
 
@@ -510,12 +540,6 @@ export function buildYouTubeCandidateQueries(
   const topTerms = topTaste(t.terms, 2);
   for (const term of topTerms) {
     add(term);
-  }
-
-  // 5. Creator queries (placed later so single channels don't hijack initial feed load)
-  const topChannels = topTaste(t.channels, 2);
-  for (const c of topChannels) {
-    add(c);
   }
 
   return queries;
