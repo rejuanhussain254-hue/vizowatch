@@ -1880,42 +1880,42 @@ function Index() {
           <div ref={slotRef} className="relative aspect-video overflow-hidden rounded-2xl bg-black/90 ring-1 ring-border shadow-2xl" />
         </div>
 
-        {/* modern glass controls under the video */}
-        <div className="mx-4 mt-3 glass-card rounded-3xl p-3.5 ring-1 ring-border/80 shadow-md">
+        {/* compact modern glass controls under the video */}
+        <div className="mx-4 mt-2 glass-card rounded-2xl px-3 py-2 ring-1 ring-border/80 shadow-sm">
           <SeekBar time={time} duration={duration} loaded={player.loaded} onSeek={player.seek} />
-          <div className="mt-3 flex items-center justify-between px-1">
+          <div className="mt-1.5 flex items-center justify-between px-0.5">
             <button
               onClick={() => player.setRepeat(!player.repeat)}
               aria-label="রিপিট"
               title="রিপিট লুপ"
-              className={`grid size-9 place-items-center rounded-xl transition-all ${player.repeat ? "bg-primary text-primary-foreground shadow-sm shadow-primary/25" : "text-muted-foreground hover:bg-muted"}`}
+              className={`grid size-8 place-items-center rounded-xl transition-all ${player.repeat ? "bg-primary text-primary-foreground shadow-sm shadow-primary/25" : "text-muted-foreground hover:bg-muted"}`}
             >
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
             </button>
 
-            <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-1.5 sm:gap-2.5">
               <button
                 onClick={() => player.seek(Math.max(0, time - 10))}
                 aria-label="১০ সেকেন্ড পেছনে"
                 title="১০ সেকেন্ড পেছনে"
-                className="grid size-9 place-items-center rounded-xl text-foreground/80 hover:bg-muted font-display text-[12px] font-bold transition-all active:scale-90"
+                className="grid size-8 place-items-center rounded-xl text-foreground/80 hover:bg-muted font-display text-[11px] font-bold transition-all active:scale-90"
               >
                 -10s
               </button>
 
-              <button onClick={player.prev} aria-label="আগের ভিডিও" className="grid size-9 place-items-center rounded-full text-foreground/90 hover:bg-muted transition-all active:scale-90">
+              <button onClick={player.prev} aria-label="আগের ভিডিও" className="grid size-8 place-items-center rounded-full text-foreground/90 hover:bg-muted transition-all active:scale-90">
                 <SkipIcon back />
               </button>
 
               <button
                 onClick={player.toggle}
                 aria-label={playing ? "পজ" : "প্লে"}
-                className="grid size-12 place-items-center rounded-2xl bg-gradient-to-tr from-primary to-indigo-600 text-primary-foreground shadow-lg shadow-primary/35 transition-all hover:scale-105 active:scale-95"
+                className="grid size-10 place-items-center rounded-2xl bg-gradient-to-tr from-primary to-indigo-600 text-primary-foreground shadow-md shadow-primary/30 transition-all hover:scale-105 active:scale-95"
               >
-                <PlayIcon playing={playing} className="size-5" />
+                <PlayIcon playing={playing} className="size-4" />
               </button>
 
-              <button onClick={player.next} aria-label="পরের ভিডিও" className="grid size-9 place-items-center rounded-full text-foreground/90 hover:bg-muted transition-all active:scale-90">
+              <button onClick={player.next} aria-label="পরের ভিডিও" className="grid size-8 place-items-center rounded-full text-foreground/90 hover:bg-muted transition-all active:scale-90">
                 <SkipIcon />
               </button>
 
@@ -1923,94 +1923,94 @@ function Index() {
                 onClick={() => player.seek(Math.min(duration, time + 10))}
                 aria-label="১০ সেকেন্ড সামনে"
                 title="১০ সেকেন্ড সামনে"
-                className="grid size-9 place-items-center rounded-xl text-foreground/80 hover:bg-muted font-display text-[12px] font-bold transition-all active:scale-90"
+                className="grid size-8 place-items-center rounded-xl text-foreground/80 hover:bg-muted font-display text-[11px] font-bold transition-all active:scale-90"
               >
                 +10s
               </button>
             </div>
 
-            <button onClick={() => void openDocPip()} aria-label="ভাসমান পপ-আপে চালান" title="ভাসমান পপ-আপ" className="grid size-9 place-items-center rounded-xl text-muted-foreground hover:bg-muted transition-all active:scale-90">
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="4" width="19" height="16" rx="2.5" /><rect x="12" y="12" width="8" height="6" rx="1.4" fill="currentColor" /></svg>
+            <button onClick={() => void openDocPip()} aria-label="ভাসমান পপ-আপে চালান" title="ভাসমান পপ-আপ" className="grid size-8 place-items-center rounded-xl text-muted-foreground hover:bg-muted transition-all active:scale-90">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="4" width="19" height="16" rx="2.5" /><rect x="12" y="12" width="8" height="6" rx="1.4" fill="currentColor" /></svg>
             </button>
           </div>
         </div>
 
 
         <div className="min-h-0 flex-1 overflow-y-auto pb-8">
-          <div className="px-5 pt-4">
-            <p className="line-clamp-2 font-display text-lg font-bold leading-snug">{current?.title ?? "কোনো ভিডিও বাছাই হয়নি"}</p>
-            {current && (meta?.views || meta?.published || meta?.publishedAgo) && (
-              <p className="mt-1 text-[12px] font-medium text-muted-foreground">
-                {[meta?.views, meta?.published ? `আপলোড: ${meta.published}` : "", meta?.publishedAgo].filter(Boolean).join(" · ")}
-              </p>
-            )}
-            {current?.author ? (
-              <button onClick={() => openChannel(current.author, meta?.channelId)} className="mt-2.5 inline-flex max-w-full items-center gap-2 rounded-2xl glass-card px-3 py-1.5 ring-1 ring-border/80 transition active:scale-95 hover:bg-white">
-                <Avatar src={meta?.channelThumb} name={current.author} size="size-7" text="text-[11px]" />
-                <span className="truncate font-display text-[13px] font-bold">{current.author}</span>
-                {meta?.subs && <span className="shrink-0 text-[11px] text-muted-foreground">({meta.subs})</span>}
-                <span className="shrink-0 text-[11.5px] font-semibold text-primary">চ্যানেল দেখুন →</span>
-              </button>
-            ) : (
-              <p className="mt-0.5 truncate text-sm text-muted-foreground">কুই থেকে একটি ভিডিও বেছে নিন</p>
-            )}
-
-            <div className="mt-3 flex items-center justify-center gap-1.5 rounded-xl bg-primary/10 py-1.5 px-3 text-[11.5px] font-semibold text-primary">
-              <span className="size-2 rounded-full bg-primary animate-pulse" />
-              <span>স্ক্রিন অফ করলেও চলবে · ব্যাকগ্রাউন্ড অডিও এক্টিভ</span>
+          <div className="px-4 pt-3">
+            <h1 className="line-clamp-2 font-display text-[15px] font-semibold leading-snug">{current?.title ?? "কোনো ভিডিও বাছাই হয়নি"}</h1>
+            
+            <div className="mt-1 flex flex-wrap items-center justify-between gap-1 text-[11.5px] text-muted-foreground">
+              {current && (meta?.views || meta?.published || meta?.publishedAgo) ? (
+                <span>{[meta?.views, meta?.published ? `আপলোড: ${meta.published}` : "", meta?.publishedAgo].filter(Boolean).join(" · ")}</span>
+              ) : <span />}
+              <span className="inline-flex items-center gap-1 font-semibold text-primary/90 text-[10.5px]">
+                <span className="size-1.5 rounded-full bg-primary animate-pulse" />
+                ব্যাকগ্রাউন্ড অডিও এক্টিভ
+              </span>
             </div>
 
-            {current && player.captionTracks.length > 0 && (
-              <div className="mt-3 flex items-center gap-2 rounded-2xl glass-card px-3 py-2 ring-1 ring-border/80">
-                <button
-                  onClick={() => player.setCaptions(!player.captionsOn)}
-                  aria-pressed={player.captionsOn}
-                  aria-label="সাবটাইটেল"
-                  className={`grid h-8 min-w-10 place-items-center rounded-xl px-2 font-display text-[12px] font-bold transition ${player.captionsOn ? "bg-primary text-primary-foreground shadow-primary" : "bg-background text-muted-foreground ring-1 ring-border"}`}
-                >
-                  CC
+            {current?.author && (
+              <div className="mt-2.5 flex items-center justify-between">
+                <button onClick={() => openChannel(current.author, meta?.channelId)} className="inline-flex items-center gap-2 text-left group">
+                  <Avatar src={meta?.channelThumb} name={current.author} size="size-7" text="text-[11px]" />
+                  <div className="flex flex-col">
+                    <span className="truncate font-display text-[13px] font-semibold group-hover:text-primary transition-colors">{current.author}</span>
+                    {meta?.subs && <span className="text-[10.5px] text-muted-foreground">{meta.subs}</span>}
+                  </div>
                 </button>
-                <span className="flex-1 text-[12px] font-medium">{player.captionsOn ? "সাবটাইটেল চালু" : "সাবটাইটেল বন্ধ"}</span>
+                <button onClick={() => openChannel(current.author, meta?.channelId)} className="rounded-full bg-lilac/30 hover:bg-lilac/60 px-3 py-1 font-display text-[11.5px] font-semibold text-primary transition active:scale-95">
+                  চ্যানেল দেখুন →
+                </button>
+              </div>
+            )}
+
+            {current && (
+              <div className="mt-2.5 flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <button
+                  onClick={() => addToQueue(current)}
+                  className="shrink-0 flex items-center gap-1.5 rounded-full glass-card px-3 py-1.5 text-[11.5px] font-semibold ring-1 ring-border/80 hover:bg-white transition-all active:scale-95"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                  <span>প্লেলিস্ট</span>
+                </button>
+                <button
+                  onClick={() => navigator.share?.({ url: `https://youtu.be/${current.id}`, title: current.title }).catch(() => {})}
+                  className="shrink-0 flex items-center gap-1.5 rounded-full glass-card px-3 py-1.5 text-[11.5px] font-semibold ring-1 ring-border/80 hover:bg-white transition-all active:scale-95"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                  <span>শেয়ার</span>
+                </button>
+                <a
+                  href={`https://www.youtube.com/watch?v=${current.id}`}
+                  target="_blank"
+                  rel="noopener"
+                  className="shrink-0 flex items-center gap-1.5 rounded-full glass-card px-3 py-1.5 text-center text-[11.5px] font-semibold ring-1 ring-border/80 hover:bg-white transition-all active:scale-95"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  <span>ইউটিউব</span>
+                </a>
+                {player.captionTracks.length > 0 && (
+                  <button
+                    onClick={() => player.setCaptions(!player.captionsOn)}
+                    className={`shrink-0 flex items-center gap-1 rounded-full px-2.5 py-1.5 text-[11px] font-bold ring-1 transition-all active:scale-95 ${player.captionsOn ? "bg-primary text-primary-foreground ring-primary" : "glass-card text-muted-foreground ring-border/80"}`}
+                  >
+                    CC
+                    {player.captionsOn && <span className="text-[10px] font-normal">চালু</span>}
+                  </button>
+                )}
                 {player.captionsOn && player.captionTracks.length > 1 && (
                   <select
                     value={player.captionLang ?? ""}
                     onChange={(e) => player.setCaptions(true, e.target.value)}
                     aria-label="সাবটাইটেল ভাষা"
-                    className="max-w-[140px] rounded-xl bg-background px-2 py-1 text-base ring-1 ring-border outline-none"
+                    className="shrink-0 rounded-full bg-background px-2 py-1 text-[11px] ring-1 ring-border outline-none font-semibold"
                   >
                     {player.captionTracks.map((t) => (
                       <option key={t.code} value={t.code}>{t.name}</option>
                     ))}
                   </select>
                 )}
-              </div>
-            )}
-
-            {current && (
-              <div className="mt-3.5 flex gap-2">
-                <button
-                  onClick={() => addToQueue(current)}
-                  className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl glass-card py-2.5 text-[12px] font-bold ring-1 ring-border/80 hover:bg-white transition-all active:scale-95"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-                  প্লেলিস্ট
-                </button>
-                <button
-                  onClick={() => navigator.share?.({ url: `https://youtu.be/${current.id}`, title: current.title }).catch(() => {})}
-                  className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl glass-card py-2.5 text-[12px] font-bold ring-1 ring-border/80 hover:bg-white transition-all active:scale-95"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-                  শেয়ার
-                </button>
-                <a
-                  href={`https://www.youtube.com/watch?v=${current.id}`}
-                  target="_blank"
-                  rel="noopener"
-                  className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl glass-card py-2.5 text-center text-[12px] font-bold ring-1 ring-border/80 hover:bg-white transition-all active:scale-95"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                  ইউটিউবে
-                </a>
               </div>
             )}
 
