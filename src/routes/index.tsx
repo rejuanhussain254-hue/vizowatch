@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type PointerE
 import { usePlayer } from "@/hooks/usePlayer";
 import { useAuth } from "@/hooks/useAuth";
 import { clearCloudHistory, mergeHistoryOnSignIn, updateCloudPosition, upsertCloudHistory } from "@/lib/history-sync";
-import { cached, TTL } from "@/lib/cache";
+import { cached, cacheGet, cacheSet, TTL } from "@/lib/cache";
 import {
   channelData,
   playlistData,
@@ -432,6 +432,8 @@ function Index() {
   const [homeShorts, setHomeShorts] = useState<SearchResult[]>([]);
   const [homePlaylists, setHomePlaylists] = useState<PlaylistItem[]>([]);
   const [publicPlaylistsList, setPublicPlaylistsList] = useState<PlaylistItem[]>([]);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [playlistsExpanded, setPlaylistsExpanded] = useState(false);
   const [searches, setSearches] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [sugOpen, setSugOpen] = useState(false);
@@ -762,18 +764,78 @@ function Index() {
   );
 
 
-  const loadHomeExtras = useCallback(async () => {
-    try {
-      const [shortsRes, plRes] = await Promise.all([
-        cached("home:shorts:v2", TTL.feed, () => runTrendingShorts({ data: { q: "bangla viral shorts trending" } }), (r) => r.ok && r.shorts.length > 0),
-        cached("home:playlists:v2", TTL.feed, () => runPublicPlaylists({ data: { q: "bangla popular playlist songs natok" } }), (r) => r.ok && r.playlists.length > 0),
-      ]);
-      if (shortsRes?.ok && shortsRes.shorts?.length) setHomeShorts(shortsRes.shorts);
-      if (plRes?.ok && plRes.playlists?.length) setHomePlaylists(plRes.playlists);
-    } catch {
-      /* ignore */
-    }
-  }, [runTrendingShorts, runPublicPlaylists]);
+  const SHORTS_ROTATION = [
+    "bangla viral shorts trending",
+    "bangla funny comedy shorts reels",
+    "viral reels shorts bangladesh",
+    "bangla natok emotional clip shorts",
+    "trending viral music shorts bangla",
+    "popular funny shorts 2026",
+    "islamic viral shorts bangla",
+  ];
+
+  const PLAYLIST_ROTATION = [
+    "bangla popular playlist songs natok",
+    "bangla hit songs all time playlist",
+    "bangladesh best drama series playlist",
+    "top bengali music album playlist",
+    "bangla romantic songs hits playlist",
+    "islamic gazal nasheed playlist bangla",
+    "bangla acoustic unplugged playlist",
+  ];
+
+  const shortsIndexRef = useRef(Math.floor(Math.random() * 7));
+  const plIndexRef = useRef(Math.floor(Math.random() * 7));
+
+  const loadHomeExtras = useCallback(
+    async (force = false) => {
+      try {
+        if (force) {
+          shortsIndexRef.current = (shortsIndexRef.current + 1) % SHORTS_ROTATION.length;
+          plIndexRef.current = (plIndexRef.current + 1) % PLAYLIST_ROTATION.length;
+        }
+        const shortsQuery = SHORTS_ROTATION[shortsIndexRef.current];
+        const plQuery = PLAYLIST_ROTATION[plIndexRef.current];
+
+        const fetchShorts = async () => {
+          if (!force) {
+            const hit = cacheGet<{ ok: boolean; shorts: SearchResult[] }>(`home:shorts:${shortsQuery}`);
+            if (hit?.ok && hit.shorts?.length) return hit;
+          }
+          const res = await runTrendingShorts({ data: { q: shortsQuery } });
+          if (res.ok && res.shorts.length > 0) {
+            cacheSet(`home:shorts:${shortsQuery}`, res, TTL.search);
+          }
+          return res;
+        };
+
+        const fetchPlaylists = async () => {
+          if (!force) {
+            const hit = cacheGet<{ ok: boolean; playlists: PlaylistItem[] }>(`home:playlists:${plQuery}`);
+            if (hit?.ok && hit.playlists?.length) return hit;
+          }
+          const res = await runPublicPlaylists({ data: { q: plQuery } });
+          if (res.ok && res.playlists.length > 0) {
+            cacheSet(`home:playlists:${plQuery}`, res, TTL.search);
+          }
+          return res;
+        };
+
+        const [shortsRes, plRes] = await Promise.all([fetchShorts(), fetchPlaylists()]);
+        if (shortsRes?.ok && shortsRes.shorts?.length) {
+          const shuffled = [...shortsRes.shorts].sort(() => Math.random() - 0.5);
+          setHomeShorts(shuffled);
+        }
+        if (plRes?.ok && plRes.playlists?.length) {
+          const shuffledPl = [...plRes.playlists].sort(() => Math.random() - 0.5);
+          setHomePlaylists(shuffledPl);
+        }
+      } catch {
+        /* ignore */
+      }
+    },
+    [runTrendingShorts, runPublicPlaylists],
+  );
 
   const doSearch = useCallback(
     async (q: string) => {
@@ -784,7 +846,7 @@ function Index() {
       setPublicPlaylistsList([]);
       if (!term) {
         await loadFeedPage(true);
-        void loadHomeExtras();
+        void loadHomeExtras(true);
         return;
       }
       feedOrder.current = [];
@@ -792,7 +854,8 @@ function Index() {
 
       if (term === "shorts") {
         try {
-          const res = await cached("cat:shorts:v1", TTL.feed, () => runTrendingShorts({ data: { q: "bangla viral shorts trending" } }), (r) => r.ok);
+          const qStr = SHORTS_ROTATION[Math.floor(Math.random() * SHORTS_ROTATION.length)];
+          const res = await runTrendingShorts({ data: { q: qStr } });
           if (res.ok && res.shorts.length > 0) {
             setResults(res.shorts);
             setSearchState("ok");
@@ -809,7 +872,8 @@ function Index() {
 
       if (term === "playlists") {
         try {
-          const res = await cached("cat:playlists:v1", TTL.feed, () => runPublicPlaylists({ data: { q: "bangla popular playlist songs natok" } }), (r) => r.ok);
+          const qStr = PLAYLIST_ROTATION[Math.floor(Math.random() * PLAYLIST_ROTATION.length)];
+          const res = await runPublicPlaylists({ data: { q: qStr } });
           if (res.ok && res.playlists.length > 0) {
             setPublicPlaylistsList(res.playlists);
             setResults([]);
@@ -1459,7 +1523,7 @@ function Index() {
     if (isSearch) {
       await doSearch(lastQuery);
     } else {
-      await Promise.all([loadFeedPage(true), loadHomeExtras()]);
+      await Promise.all([loadFeedPage(true), loadHomeExtras(true)]);
     }
   }, [isSearch, lastQuery, doSearch, loadFeedPage, loadHomeExtras]);
 
@@ -2131,99 +2195,120 @@ function Index() {
           </div>
         )}
 
-        {/* Home Feed Shorts / Stories Carousel */}
-        {!chanView && isHome && searchState === "ok" && homeShorts.length > 0 && (
-          <div className="mt-5 mb-3">
-            <div className="flex items-center justify-between px-1 mb-2.5">
-              <div className="flex items-center gap-2">
-                <span className="grid size-6 place-items-center rounded-lg bg-red-600 text-white shadow-sm shadow-red-500/30">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M17.77 10.32l-1.2-.5-1.1-.47.6-1.46c.74-1.8.06-3.9-1.63-4.9-1.92-1.12-4.38-.55-5.6 1.3l-4.2 6.8c-.85 1.37-.8 3.1.13 4.4 1 1.4 2.7 2.1 4.4 1.8l1.2.5 1.1.46-.6 1.47c-.74 1.8-.06 3.9 1.63 4.9 1.92 1.12 4.38.55 5.6-1.3l4.2-6.8c.85-1.37.8-3.1-.13-4.4-1-1.4-2.7-2.1-4.4-1.8z" />
-                  </svg>
-                </span>
-                <div>
-                  <h3 className="font-display text-[14.5px] font-bold text-foreground">শর্টস ও স্টোরি</h3>
-                  <p className="text-[11px] text-muted-foreground">ইউটিউব ট্রেন্ডিং শর্টস</p>
-                </div>
-              </div>
-              <button onClick={() => { setCategory("shorts"); doSearch("shorts"); }} className="text-[11.5px] font-bold text-primary hover:underline">
-                সব দেখুন →
-              </button>
-            </div>
-            <div className="-mx-5 flex gap-2.5 overflow-x-auto px-5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {homeShorts.slice(0, 10).map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => playTrack(s)}
-                  className="group relative w-[124px] shrink-0 overflow-hidden rounded-2xl glass-card ring-1 ring-border/80 hover:ring-primary/40 text-left transition-all active:scale-95"
-                >
-                  <div className="relative aspect-[9/16] w-full overflow-hidden bg-black/80">
-                    <img src={s.thumbnail} alt="" className="size-full object-cover transition duration-300 group-hover:scale-105" loading="lazy" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
-                    <div className="absolute top-2 left-2">
-                      <span className="grid size-5 place-items-center rounded-full bg-red-600/90 text-white text-[10px]">▶</span>
-                    </div>
-                    <div className="absolute inset-x-2 bottom-2">
-                      <p className="line-clamp-2 font-display text-[12px] font-bold text-white leading-snug drop-shadow">{s.title}</p>
-                      {s.views && <p className="text-[10px] text-white/80 mt-0.5">{s.views}</p>}
+        {/* Regular Videos List with YouTube-style embedded Shorts & Playlists */}
+        {!chanView && category !== "playlists" && category !== "shorts" && searchState === "ok" && results.length > 0 && (
+          <div className="mt-3 space-y-3">
+            {/* Top videos */}
+            <ul className="space-y-3">
+              {results.slice(0, isHome ? 2 : undefined).map((r) => (
+                <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} />
+              ))}
+            </ul>
+
+            {/* Embedded Shorts / Stories Carousel */}
+            {isHome && homeShorts.length > 0 && (
+              <div className="py-2 my-1">
+                <div className="flex items-center justify-between px-1 mb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="grid size-6 place-items-center rounded-lg bg-red-600 text-white shadow-sm shadow-red-500/30">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M17.77 10.32l-1.2-.5-1.1-.47.6-1.46c.74-1.8.06-3.9-1.63-4.9-1.92-1.12-4.38-.55-5.6 1.3l-4.2 6.8c-.85 1.37-.8 3.1.13 4.4 1 1.4 2.7 2.1 4.4 1.8l1.2.5 1.1.46-.6 1.47c-.74 1.8-.06 3.9 1.63 4.9 1.92 1.12 4.38.55 5.6-1.3l4.2-6.8c.85-1.37.8-3.1-.13-4.4-1-1.4-2.7-2.1-4.4-1.8z" />
+                      </svg>
+                    </span>
+                    <div>
+                      <h3 className="font-display text-[14.5px] font-bold text-foreground">শর্টস ও স্টোরি</h3>
+                      <p className="text-[11px] text-muted-foreground">ইউটিউব ট্রেন্ডিং শর্টস</p>
                     </div>
                   </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Home Feed Public Playlists Shelf */}
-        {!chanView && isHome && searchState === "ok" && homePlaylists.length > 0 && (
-          <div className="mt-4 mb-3">
-            <div className="flex items-center justify-between px-1 mb-2.5">
-              <div className="flex items-center gap-2">
-                <span className="grid size-6 place-items-center rounded-lg bg-indigo-600 text-white shadow-sm shadow-indigo-500/30">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z" />
-                  </svg>
-                </span>
-                <div>
-                  <h3 className="font-display text-[14.5px] font-bold text-foreground">জনপ্রিয় পাবলিক প্লেলিস্ট</h3>
-                  <p className="text-[11px] text-muted-foreground">ইউটিউব অ্যালবাম ও সংকলন</p>
+                  <button onClick={() => { setCategory("shorts"); doSearch("shorts"); }} className="text-[11.5px] font-bold text-primary hover:underline">
+                    সব দেখুন →
+                  </button>
+                </div>
+                <div className="-mx-5 flex gap-2.5 overflow-x-auto px-5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  {homeShorts.slice(0, 10).map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => playTrack(s)}
+                      className="group relative w-[124px] shrink-0 overflow-hidden rounded-2xl glass-card ring-1 ring-border/80 hover:ring-primary/40 text-left transition-all active:scale-95"
+                    >
+                      <div className="relative aspect-[9/16] w-full overflow-hidden bg-black/80">
+                        <img src={s.thumbnail} alt="" className="size-full object-cover transition duration-300 group-hover:scale-105" loading="lazy" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
+                        <div className="absolute top-2 left-2">
+                          <span className="grid size-5 place-items-center rounded-full bg-red-600/90 text-white text-[10px]">▶</span>
+                        </div>
+                        <div className="absolute inset-x-2 bottom-2">
+                          <p className="line-clamp-2 font-display text-[12px] font-bold text-white leading-snug drop-shadow">{s.title}</p>
+                          {s.views && <p className="text-[10px] text-white/80 mt-0.5">{s.views}</p>}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
                 </div>
               </div>
-              <button onClick={() => { setCategory("playlists"); doSearch("playlists"); }} className="text-[11.5px] font-bold text-primary hover:underline">
-                সব দেখুন →
-              </button>
-            </div>
-            <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {homePlaylists.slice(0, 8).map((pl) => (
-                <button
-                  key={pl.id}
-                  onClick={() => openPlaylist(pl.id, pl.title)}
-                  className="group relative w-[190px] shrink-0 overflow-hidden rounded-2xl glass-card p-2 ring-1 ring-border/80 hover:ring-primary/40 text-left transition-all active:scale-95"
-                >
-                  <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black/60">
-                    <img src={pl.thumbnail} alt="" className="size-full object-cover transition duration-300 group-hover:scale-105" loading="lazy" />
-                    <div className="absolute inset-y-0 right-0 w-11 bg-black/75 backdrop-blur-[2px] flex flex-col items-center justify-center text-white gap-0.5">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+            )}
+
+            {/* Middle videos */}
+            {isHome && results.length > 2 && (
+              <ul className="space-y-3">
+                {results.slice(2, 5).map((r) => (
+                  <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} />
+                ))}
+              </ul>
+            )}
+
+            {/* Embedded Playlists Shelf */}
+            {isHome && homePlaylists.length > 0 && (
+              <div className="py-2 my-1">
+                <div className="flex items-center justify-between px-1 mb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="grid size-6 place-items-center rounded-lg bg-indigo-600 text-white shadow-sm shadow-indigo-500/30">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z" />
                       </svg>
-                      <span className="text-[10px] font-bold">{pl.count}</span>
+                    </span>
+                    <div>
+                      <h3 className="font-display text-[14.5px] font-bold text-foreground">জনপ্রিয় পাবলিক প্লেলিস্ট</h3>
+                      <p className="text-[11px] text-muted-foreground">ইউটিউব অ্যালবাম ও সংকলন</p>
                     </div>
                   </div>
-                  <p className="mt-1.5 line-clamp-1 font-display text-[12.5px] font-bold text-foreground group-hover:text-primary transition-colors">{pl.title}</p>
-                  {pl.author && <p className="truncate text-[11px] text-muted-foreground">{pl.author}</p>}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+                  <button onClick={() => { setCategory("playlists"); doSearch("playlists"); }} className="text-[11.5px] font-bold text-primary hover:underline">
+                    সব দেখুন →
+                  </button>
+                </div>
+                <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  {homePlaylists.slice(0, 8).map((pl) => (
+                    <button
+                      key={pl.id}
+                      onClick={() => openPlaylist(pl.id, pl.title)}
+                      className="group relative w-[190px] shrink-0 overflow-hidden rounded-2xl glass-card p-2 ring-1 ring-border/80 hover:ring-primary/40 text-left transition-all active:scale-95"
+                    >
+                      <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black/60">
+                        <img src={pl.thumbnail} alt="" className="size-full object-cover transition duration-300 group-hover:scale-105" loading="lazy" />
+                        <div className="absolute inset-y-0 right-0 w-11 bg-black/75 backdrop-blur-[2px] flex flex-col items-center justify-center text-white gap-0.5">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z" />
+                          </svg>
+                          <span className="text-[10px] font-bold">{pl.count}</span>
+                        </div>
+                      </div>
+                      <p className="mt-1.5 line-clamp-1 font-display text-[12.5px] font-bold text-foreground group-hover:text-primary transition-colors">{pl.title}</p>
+                      {pl.author && <p className="truncate text-[11px] text-muted-foreground">{pl.author}</p>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
-        {/* Regular Videos List (if not in public playlists category) */}
-        {!chanView && category !== "playlists" && category !== "shorts" && searchState === "ok" && results.length > 0 && (
-          <ul className="mt-3 space-y-3">
-            {results.map((r) => (
-              <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} />
-            ))}
-          </ul>
+            {/* Remaining videos */}
+            {isHome && results.length > 5 && (
+              <ul className="space-y-3">
+                {results.slice(5).map((r) => (
+                  <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} />
+                ))}
+              </ul>
+            )}
+          </div>
         )}
 
         {!chanView && searchState === "ok" && (
@@ -2332,308 +2417,436 @@ function Index() {
             </div>
           )}
 
-          <div className="mt-5 flex items-center justify-between">
-            <div className="flex gap-1 rounded-2xl bg-glass p-1 ring-1 ring-border">
-              {(["history", "playlists"] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => { setTab(t); setActivePlaylistId(null); }}
-                  className={`rounded-xl px-3.5 py-1.5 font-display text-[13px] font-semibold transition ${tab === t ? "bg-primary text-primary-foreground shadow-primary" : "text-muted-foreground"}`}
-                >
-                  {t === "playlists" ? `প্লেলিস্ট · ${userPlaylists.length}` : `ইতিহাস · ${history.length}`}
-                </button>
-              ))}
-            </div>
-            {tab === "history" && history.length > 0 && (
-              <button onClick={() => { clearHistory(); setHistory([]); if (userId) clearCloudHistory(userId); }} className="text-[12px] text-muted-foreground">সব মুছুন</button>
-            )}
-            {tab === "playlists" && activePlaylistId && (
-              <button onClick={() => setActivePlaylistId(null)} className="text-[12px] font-semibold text-primary">← সব প্লেলিস্ট</button>
-            )}
-          </div>
-
-          {tab === "playlists" && (
-            <>
-              {activePlaylistId ? (
-                (() => {
-                  const currentPl = userPlaylists.find((p) => p.id === activePlaylistId);
-                  if (!currentPl) {
-                    return (
-                      <p className="glass mt-3 rounded-3xl p-5 text-center text-[13px] text-muted-foreground">
-                        প্লেলিস্ট পাওয়া যায়নি।
-                      </p>
-                    );
-                  }
-                  const isEditing = editingPlId === currentPl.id;
-                  return (
-                    <div className="mt-3 space-y-3">
-                      {/* Playlist header */}
-                      <div className="flex items-center justify-between">
-                        <button
-                          onClick={() => { setActivePlaylistId(null); setEditingPlId(null); }}
-                          className="flex items-center gap-1.5 text-[12px] font-bold text-primary hover:underline"
-                        >
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M19 12H5M12 19l-7-7 7-7" />
-                          </svg>
-                          <span>সব প্লেলিস্ট</span>
-                        </button>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => {
-                              if (isEditing) {
-                                setEditingPlId(null);
-                              } else {
-                                setEditingPlId(currentPl.id);
-                                setEditPlTitle(currentPl.title);
-                              }
-                            }}
-                            aria-label="নাম পরিবর্তন"
-                            title="নাম পরিবর্তন"
-                            className="grid size-8 place-items-center rounded-xl bg-glass ring-1 ring-border text-muted-foreground hover:text-foreground text-[11px]"
-                          >
-                            ✎
-                          </button>
-                          <button
-                            onClick={() => handleDeletePlaylist(currentPl.id, currentPl.title)}
-                            aria-label="প্লেলিস্ট মুছুন"
-                            title="প্লেলিস্ট মুছুন"
-                            className="grid size-8 place-items-center rounded-xl bg-glass ring-1 ring-border text-rose-500 hover:bg-rose-500/10 text-[11px]"
-                          >
-                            🗑
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Title & Edit */}
-                      {isEditing ? (
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={editPlTitle}
-                            onChange={(e) => setEditPlTitle(e.target.value)}
-                            className="flex-1 rounded-xl bg-muted/70 px-3 py-1.5 text-[13px] outline-none ring-1 ring-primary"
-                            autoFocus
-                            onKeyDown={(e) => { if (e.key === "Enter") handleRenamePlaylist(currentPl.id); }}
-                          />
-                          <button
-                            onClick={() => handleRenamePlaylist(currentPl.id)}
-                            className="rounded-xl bg-primary px-3 py-1.5 text-[12px] font-bold text-primary-foreground shadow-sm shadow-primary/25"
-                          >
-                            সেভ
-                          </button>
-                        </div>
-                      ) : (
-                        <div>
-                          <h3 className="font-display text-base font-bold text-foreground">{currentPl.title}</h3>
-                          <p className="text-[11.5px] text-muted-foreground">{currentPl.videos.length}টি ভিডিও</p>
-                        </div>
-                      )}
-
-                      {/* Play All Button */}
-                      {currentPl.videos.length > 0 && (
-                        <button
-                          onClick={() => playUserPlaylist(currentPl, 0)}
-                          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-tr from-primary to-indigo-600 py-2.5 font-display text-[13px] font-bold text-primary-foreground shadow-md shadow-primary/25 active:scale-95 transition-transform"
-                        >
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-                            <polygon points="5 3 19 12 5 21 5 3" />
-                          </svg>
-                          <span>সবগুলো চালান ({currentPl.videos.length})</span>
-                        </button>
-                      )}
-
-                      {/* Video List */}
-                      {currentPl.videos.length === 0 ? (
-                        <p className="glass mt-3 rounded-3xl p-5 text-center text-[13px] text-muted-foreground">
-                          এই প্লেলিস্টে কোনো ভিডিও নেই। হোম বা সার্চের যেকোনো ভিডিওর <b className="text-foreground">+</b> চাপলে এখানে যোগ হবে।
-                        </p>
-                      ) : (
-                        <ul className="mt-3 space-y-2.5">
-                          {currentPl.videos.map((t, i) => {
-                            const isCurrentActive = current?.id === t.id && playing;
-                            return (
-                              <li key={`${t.id}-${i}`} className="flex items-center gap-2 rounded-2xl glass-card p-2 ring-1 ring-border/80 hover:ring-primary/30 transition-all">
-                                <span className="w-5 shrink-0 text-center font-display text-[11px] font-semibold text-muted-foreground">{i + 1}</span>
-                                <button
-                                  onClick={() => playUserPlaylist(currentPl, i)}
-                                  className="flex min-w-0 flex-1 items-center gap-2.5 text-left group"
-                                >
-                                  <div className="relative size-12 shrink-0 overflow-hidden rounded-xl bg-muted ring-1 ring-border">
-                                    <img src={t.thumbnail} alt="" className="size-full object-cover transition group-hover:scale-105" loading="lazy" />
-                                    {isCurrentActive && (
-                                      <div className="absolute inset-0 grid place-items-center bg-black/40">
-                                        <Eq className="bg-white" />
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <p className="line-clamp-1 font-display text-[13px] font-bold text-foreground group-hover:text-primary transition-colors">{t.title}</p>
-                                    <p className="line-clamp-1 text-[11px] text-muted-foreground">{t.author}</p>
-                                  </div>
-                                </button>
-                                <button
-                                  onClick={() => handleRemoveVideoFromPlaylist(currentPl.id, t.id)}
-                                  aria-label="প্লেলিস্ট থেকে সরান"
-                                  title="প্লেলিস্ট থেকে সরান"
-                                  className="grid size-8 shrink-0 place-items-center rounded-xl text-muted-foreground hover:bg-rose-500/10 hover:text-rose-500 transition-colors"
-                                >
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                                  </svg>
-                                </button>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      )}
-                    </div>
-                  );
-                })()
-              ) : (
-                <div className="mt-3 space-y-3">
-                  {/* Top bar with New Playlist button */}
+          {/* Active Playlist Details View */}
+          {activePlaylistId ? (
+            (() => {
+              const currentPl = userPlaylists.find((p) => p.id === activePlaylistId);
+              if (!currentPl) {
+                return (
+                  <p className="glass mt-4 rounded-3xl p-5 text-center text-[13px] text-muted-foreground">
+                    প্লেলিস্ট পাওয়া যায়নি।
+                  </p>
+                );
+              }
+              const isEditing = editingPlId === currentPl.id;
+              return (
+                <div className="mt-4 space-y-3">
+                  {/* Playlist header */}
                   <div className="flex items-center justify-between">
-                    <p className="font-display text-[13.5px] font-bold text-foreground">আপনার প্লেলিস্টসমূহ</p>
                     <button
-                      onClick={() => setShowProfileNewPl((v) => !v)}
-                      className="flex items-center gap-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 px-3 py-1.5 font-display text-[12px] font-bold text-primary transition active:scale-95"
+                      onClick={() => { setActivePlaylistId(null); setEditingPlId(null); }}
+                      className="flex items-center gap-1.5 text-[12px] font-bold text-primary hover:underline"
                     >
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                        <path d="M12 5v14M5 12h14" />
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M19 12H5M12 19l-7-7 7-7" />
                       </svg>
-                      <span>নতুন প্লেলিস্ট</span>
+                      <span>← ফিরে যান</span>
                     </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => {
+                          if (isEditing) {
+                            setEditingPlId(null);
+                          } else {
+                            setEditingPlId(currentPl.id);
+                            setEditPlTitle(currentPl.title);
+                          }
+                        }}
+                        aria-label="নাম পরিবর্তন"
+                        title="নাম পরিবর্তন"
+                        className="grid size-8 place-items-center rounded-xl bg-glass ring-1 ring-border text-muted-foreground hover:text-foreground text-[11px]"
+                      >
+                        ✎
+                      </button>
+                      <button
+                        onClick={() => handleDeletePlaylist(currentPl.id, currentPl.title)}
+                        aria-label="প্লেলিস্ট মুছুন"
+                        title="প্লেলিস্ট মুছুন"
+                        className="grid size-8 place-items-center rounded-xl bg-glass ring-1 ring-border text-rose-500 hover:bg-rose-500/10 text-[11px]"
+                      >
+                        🗑
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Create Playlist Input */}
-                  {showProfileNewPl && (
-                    <div className="glass-card rounded-2xl p-3 ring-1 ring-primary/40 space-y-2 animate-in fade-in duration-200">
+                  {/* Title & Edit */}
+                  {isEditing ? (
+                    <div className="flex gap-2">
                       <input
                         type="text"
+                        value={editPlTitle}
+                        onChange={(e) => setEditPlTitle(e.target.value)}
+                        className="flex-1 rounded-xl bg-muted/70 px-3 py-1.5 text-[13px] outline-none ring-1 ring-primary"
                         autoFocus
-                        value={profileNewPlTitle}
-                        onChange={(e) => setProfileNewPlTitle(e.target.value)}
-                        placeholder="প্লেলিস্টের নাম লিখুন (যেমন: প্রিয় গান)..."
-                        className="w-full rounded-xl bg-background/80 px-3 py-2 text-[13px] outline-none ring-1 ring-border focus:ring-2 focus:ring-primary"
-                        onKeyDown={(e) => { if (e.key === "Enter") handleCreateFromProfile(); }}
+                        onKeyDown={(e) => { if (e.key === "Enter") handleRenamePlaylist(currentPl.id); }}
                       />
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => { setShowProfileNewPl(false); setProfileNewPlTitle(""); }}
-                          className="flex-1 rounded-xl bg-muted py-1.5 text-[12px] font-semibold text-muted-foreground"
-                        >
-                          বাতিল
-                        </button>
-                        <button
-                          onClick={handleCreateFromProfile}
-                          disabled={!profileNewPlTitle.trim()}
-                          className="flex-1 rounded-xl bg-primary py-1.5 text-[12px] font-bold text-primary-foreground shadow-sm shadow-primary/25 disabled:opacity-50"
-                        >
-                          তৈরি করুন
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => handleRenamePlaylist(currentPl.id)}
+                        className="rounded-xl bg-primary px-3 py-1.5 text-[12px] font-bold text-primary-foreground shadow-sm shadow-primary/25"
+                      >
+                        সেভ
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <h3 className="font-display text-base font-bold text-foreground">{currentPl.title}</h3>
+                      <p className="text-[11.5px] text-muted-foreground">{currentPl.videos.length}টি ভিডিও</p>
                     </div>
                   )}
 
-                  {/* Playlists list */}
-                  {userPlaylists.length === 0 ? (
+                  {/* Play All Button */}
+                  {currentPl.videos.length > 0 && (
+                    <button
+                      onClick={() => playUserPlaylist(currentPl, 0)}
+                      className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-tr from-primary to-indigo-600 py-2.5 font-display text-[13px] font-bold text-primary-foreground shadow-md shadow-primary/25 active:scale-95 transition-transform"
+                    >
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="5 3 19 12 5 21 5 3" />
+                      </svg>
+                      <span>সবগুলো চালান ({currentPl.videos.length})</span>
+                    </button>
+                  )}
+
+                  {/* Video List */}
+                  {currentPl.videos.length === 0 ? (
                     <p className="glass mt-3 rounded-3xl p-5 text-center text-[13px] text-muted-foreground">
-                      কোনো প্লেলিস্ট নেই। উপরে <b className="text-foreground">+ নতুন প্লেলিস্ট</b> চাপুন অথবা যেকোনো ভিডিওর নিচের <b className="text-foreground">+</b> বাটনে চাপুন।
+                      এই প্লেলিস্টে কোনো ভিডিও নেই। হোম বা সার্চের যেকোনো ভিডিওর <b className="text-foreground">+</b> চাপলে এখানে যোগ হবে।
                     </p>
                   ) : (
-                    <ul className="space-y-2.5">
-                      {userPlaylists.map((pl) => {
-                        const firstThumb = pl.videos[0]?.thumbnail;
+                    <ul className="mt-3 space-y-2.5">
+                      {currentPl.videos.map((t, i) => {
+                        const isCurrentActive = current?.id === t.id && playing;
                         return (
-                          <li
-                            key={pl.id}
-                            className="group glass-card flex items-center justify-between gap-3 rounded-2xl p-2.5 ring-1 ring-border/80 hover:ring-primary/40 hover:bg-white/80 transition-all cursor-pointer"
-                            onClick={() => setActivePlaylistId(pl.id)}
-                          >
-                            <div className="flex min-w-0 flex-1 items-center gap-3">
-                              {/* Thumbnail preview with count overlay */}
-                              <div className="relative h-14 w-24 shrink-0 overflow-hidden rounded-xl bg-muted/60 ring-1 ring-border/60">
-                                {firstThumb ? (
-                                  <img src={firstThumb} alt="" className="size-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
-                                ) : (
-                                  <div className="grid size-full place-items-center bg-primary/10 text-primary">
-                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                      <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
-                                    </svg>
+                          <li key={`${t.id}-${i}`} className="flex items-center gap-2 rounded-2xl glass-card p-2 ring-1 ring-border/80 hover:ring-primary/30 transition-all">
+                            <span className="w-5 shrink-0 text-center font-display text-[11px] font-semibold text-muted-foreground">{i + 1}</span>
+                            <button
+                              onClick={() => playUserPlaylist(currentPl, i)}
+                              className="flex min-w-0 flex-1 items-center gap-2.5 text-left group"
+                            >
+                              <div className="relative size-12 shrink-0 overflow-hidden rounded-xl bg-muted ring-1 ring-border">
+                                <img src={t.thumbnail} alt="" className="size-full object-cover transition group-hover:scale-105" loading="lazy" />
+                                {isCurrentActive && (
+                                  <div className="absolute inset-0 grid place-items-center bg-black/40">
+                                    <Eq className="bg-white" />
                                   </div>
                                 )}
-                                <div className="absolute inset-y-0 right-0 w-8 bg-black/60 backdrop-blur-[2px] flex flex-col items-center justify-center text-white gap-0.5">
-                                  <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z" />
-                                  </svg>
-                                  <span className="text-[10px] font-bold">{pl.videos.length}</span>
-                                </div>
                               </div>
-
                               <div className="min-w-0 flex-1">
-                                <h4 className="font-display text-[14px] font-bold text-foreground truncate group-hover:text-primary transition-colors">{pl.title}</h4>
-                                <p className="text-[11.5px] text-muted-foreground mt-0.5">{pl.videos.length}টি ভিডিও · {timeAgo(pl.updatedAt)}</p>
+                                <p className="line-clamp-1 font-display text-[13px] font-bold text-foreground group-hover:text-primary transition-colors">{t.title}</p>
+                                <p className="line-clamp-1 text-[11px] text-muted-foreground">{t.author}</p>
                               </div>
-                            </div>
-
-                            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                              {pl.videos.length > 0 && (
-                                <button
-                                  onClick={() => playUserPlaylist(pl, 0)}
-                                  aria-label="সব চালান"
-                                  title="সব চালান"
-                                  className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground shadow-sm shadow-primary/25 hover:scale-105 active:scale-95 transition-transform"
-                                >
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                                    <polygon points="5 3 19 12 5 21 5 3" />
-                                  </svg>
-                                </button>
-                              )}
-                              <button
-                                onClick={() => handleDeletePlaylist(pl.id, pl.title)}
-                                aria-label="প্লেলিস্ট মুছুন"
-                                title="প্লেলিস্ট মুছুন"
-                                className="grid size-9 place-items-center rounded-xl text-muted-foreground hover:bg-rose-500/10 hover:text-rose-500 transition-colors"
-                              >
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                                </svg>
-                              </button>
-                            </div>
+                            </button>
+                            <button
+                              onClick={() => handleRemoveVideoFromPlaylist(currentPl.id, t.id)}
+                              aria-label="প্লেলিস্ট থেকে সরান"
+                              title="প্লেলিস্ট থেকে সরান"
+                              className="grid size-8 shrink-0 place-items-center rounded-xl text-muted-foreground hover:bg-rose-500/10 hover:text-rose-500 transition-colors"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                              </svg>
+                            </button>
                           </li>
                         );
                       })}
                     </ul>
                   )}
                 </div>
+              );
+            })()
+          ) : (
+            <div className="mt-5 space-y-6">
+              {/* 1. History Section (YouTube-style carousel / list) */}
+              <section>
+                <div className="flex items-center justify-between mb-2 px-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+                      <circle cx="12" cy="12" r="10" />
+                      <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                    <h3 className="font-display text-[14.5px] font-bold text-foreground">
+                      ইতিহাস {history.length > 0 && <span className="text-[12px] font-semibold text-muted-foreground">({history.length})</span>}
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {history.length > 0 && (
+                      <button
+                        onClick={() => setHistoryExpanded((v) => !v)}
+                        className="text-[12px] font-bold text-primary hover:underline"
+                      >
+                        {historyExpanded ? "← সংক্ষেপ" : "সব দেখুন"}
+                      </button>
+                    )}
+                    {historyExpanded && history.length > 0 && (
+                      <button
+                        onClick={() => { clearHistory(); setHistory([]); if (userId) clearCloudHistory(userId); }}
+                        className="text-[11.5px] text-rose-500 hover:underline"
+                      >
+                        সব মুছুন
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {hydrated && history.length === 0 ? (
+                  <p className="glass rounded-2xl p-4 text-center text-[12.5px] text-muted-foreground">এখনো কিছু দেখা হয়নি। যা চালাবেন তা এখানে জমা থাকবে।</p>
+                ) : historyExpanded ? (
+                  <ul className="mt-2 space-y-2.5">
+                    {history.map((h) => (
+                      <VideoRow
+                        key={h.id}
+                        r={h}
+                        compact
+                        active={current?.id === h.id}
+                        playing={playing}
+                        progress={progressOf(h.id)}
+                        onPlay={() => { setProfileOpen(false); playTrack(h, h.position); }}
+                        onQueue={() => addToQueue(h)}
+                        sub={`${timeAgo(h.at)}${h.position > 10 ? ` · ${formatTime(h.position)} থেকে` : ""}`}
+                      />
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="-mx-5 flex gap-2.5 overflow-x-auto px-5 pb-2 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    {history.slice(0, 15).map((h) => (
+                      <button
+                        key={h.id}
+                        onClick={() => { setProfileOpen(false); playTrack(h, h.position); }}
+                        className="group relative w-[148px] shrink-0 text-left transition-all active:scale-95"
+                      >
+                        <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-muted ring-1 ring-border/80 group-hover:ring-primary/40">
+                          <img src={h.thumbnail} alt="" className="size-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
+                          {h.duration ? (
+                            <span className="absolute inset-x-1.5 bottom-1.5 h-1 overflow-hidden rounded-full bg-white/30 backdrop-blur-sm">
+                              <span
+                                className="block h-full rounded-full bg-primary"
+                                style={{ width: `${Math.min(100, (h.position / h.duration) * 100)}%` }}
+                              />
+                            </span>
+                          ) : null}
+                          {h.position > 10 && (
+                            <span className="absolute top-1.5 right-1.5 rounded-md bg-black/75 px-1 py-0.5 text-[9.5px] font-medium text-white backdrop-blur-[2px]">
+                              {formatTime(h.position)}
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1.5 line-clamp-2 font-display text-[12px] font-bold text-foreground leading-snug group-hover:text-primary transition-colors">{h.title}</p>
+                        <p className="mt-0.5 truncate text-[10.5px] text-muted-foreground">{h.author}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {/* 2. Playlists Section (YouTube-style carousel / list) */}
+              <section>
+                <div className="flex items-center justify-between mb-2 px-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="text-primary">
+                      <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z" />
+                    </svg>
+                    <h3 className="font-display text-[14.5px] font-bold text-foreground">
+                      আপনার প্লেলিস্ট {userPlaylists.length > 0 && <span className="text-[12px] font-semibold text-muted-foreground">({userPlaylists.length})</span>}
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowProfileNewPl((v) => !v)}
+                      className="flex items-center gap-1 rounded-xl bg-primary/10 hover:bg-primary/20 px-2.5 py-1 text-[11.5px] font-bold text-primary transition active:scale-95"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path d="M12 5v14M5 12h14" />
+                      </svg>
+                      <span>নতুন</span>
+                    </button>
+                    {userPlaylists.length > 0 && (
+                      <button
+                        onClick={() => setPlaylistsExpanded((v) => !v)}
+                        className="text-[12px] font-bold text-primary hover:underline"
+                      >
+                        {playlistsExpanded ? "← সংক্ষেপ" : "সব দেখুন"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Create Playlist Input */}
+                {showProfileNewPl && (
+                  <div className="glass-card mb-3 rounded-2xl p-3 ring-1 ring-primary/40 space-y-2 animate-in fade-in duration-200">
+                    <input
+                      type="text"
+                      autoFocus
+                      value={profileNewPlTitle}
+                      onChange={(e) => setProfileNewPlTitle(e.target.value)}
+                      placeholder="প্লেলিস্টের নাম লিখুন (যেমন: প্রিয় গান)..."
+                      className="w-full rounded-xl bg-background/80 px-3 py-2 text-[13px] outline-none ring-1 ring-border focus:ring-2 focus:ring-primary"
+                      onKeyDown={(e) => { if (e.key === "Enter") handleCreateFromProfile(); }}
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => { setShowProfileNewPl(false); setProfileNewPlTitle(""); }}
+                        className="flex-1 rounded-xl bg-muted py-1.5 text-[12px] font-semibold text-muted-foreground"
+                      >
+                        বাতিল
+                      </button>
+                      <button
+                        onClick={handleCreateFromProfile}
+                        disabled={!profileNewPlTitle.trim()}
+                        className="flex-1 rounded-xl bg-primary py-1.5 text-[12px] font-bold text-primary-foreground shadow-sm shadow-primary/25 disabled:opacity-50"
+                      >
+                        তৈরি করুন
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {userPlaylists.length === 0 ? (
+                  <p className="glass rounded-2xl p-4 text-center text-[12.5px] text-muted-foreground">কোনো প্লেলিস্ট নেই। উপরে <b className="text-foreground">+ নতুন</b> চাপুন অথবা যেকোনো ভিডিওর নিচের <b className="text-foreground">+</b> বাটনে চাপুন।</p>
+                ) : playlistsExpanded ? (
+                  <ul className="space-y-2.5">
+                    {userPlaylists.map((pl) => {
+                      const firstThumb = pl.videos[0]?.thumbnail;
+                      return (
+                        <li
+                          key={pl.id}
+                          className="group glass-card flex items-center justify-between gap-3 rounded-2xl p-2.5 ring-1 ring-border/80 hover:ring-primary/40 hover:bg-white/80 transition-all cursor-pointer"
+                          onClick={() => setActivePlaylistId(pl.id)}
+                        >
+                          <div className="flex min-w-0 flex-1 items-center gap-3">
+                            <div className="relative h-14 w-24 shrink-0 overflow-hidden rounded-xl bg-muted/60 ring-1 ring-border/60">
+                              {firstThumb ? (
+                                <img src={firstThumb} alt="" className="size-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
+                              ) : (
+                                <div className="grid size-full place-items-center bg-primary/10 text-primary">
+                                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
+                                  </svg>
+                                </div>
+                              )}
+                              <div className="absolute inset-y-0 right-0 w-8 bg-black/60 backdrop-blur-[2px] flex flex-col items-center justify-center text-white gap-0.5">
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z" />
+                                </svg>
+                                <span className="text-[9.5px] font-bold">{pl.videos.length}</span>
+                              </div>
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <h4 className="font-display text-[13.5px] font-bold text-foreground truncate group-hover:text-primary transition-colors">{pl.title}</h4>
+                              <p className="text-[11px] text-muted-foreground mt-0.5">{pl.videos.length}টি ভিডিও · {timeAgo(pl.updatedAt)}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                            {pl.videos.length > 0 && (
+                              <button
+                                onClick={() => playUserPlaylist(pl, 0)}
+                                aria-label="সব চালান"
+                                title="সব চালান"
+                                className="grid size-8 place-items-center rounded-xl bg-primary text-primary-foreground shadow-sm shadow-primary/25 hover:scale-105 active:scale-95 transition-transform"
+                              >
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                                  <polygon points="5 3 19 12 5 21 5 3" />
+                                </svg>
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleDeletePlaylist(pl.id, pl.title)}
+                              aria-label="প্লেলিস্ট মুছুন"
+                              title="প্লেলিস্ট মুছুন"
+                              className="grid size-8 place-items-center rounded-xl text-muted-foreground hover:bg-rose-500/10 hover:text-rose-500 transition-colors"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                              </svg>
+                            </button>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-2 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    {userPlaylists.map((pl) => {
+                      const firstThumb = pl.videos[0]?.thumbnail;
+                      return (
+                        <div
+                          key={pl.id}
+                          onClick={() => setActivePlaylistId(pl.id)}
+                          className="group relative w-[160px] shrink-0 cursor-pointer text-left transition-all active:scale-95"
+                        >
+                          <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-muted ring-1 ring-border/80 group-hover:ring-primary/40">
+                            {firstThumb ? (
+                              <img src={firstThumb} alt="" className="size-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
+                            ) : (
+                              <div className="grid size-full place-items-center bg-primary/10 text-primary">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
+                                </svg>
+                              </div>
+                            )}
+                            <div className="absolute inset-y-0 right-0 w-9 bg-black/65 backdrop-blur-[2px] flex flex-col items-center justify-center text-white gap-0.5">
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z" />
+                              </svg>
+                              <span className="text-[10px] font-bold">{pl.videos.length}</span>
+                            </div>
+                          </div>
+                          <p className="mt-1.5 line-clamp-1 font-display text-[12.5px] font-bold text-foreground group-hover:text-primary transition-colors">{pl.title}</p>
+                          <p className="mt-0.5 text-[11px] text-muted-foreground">{pl.videos.length}টি ভিডিও</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+
+              {/* 3. Recommended Public Playlists Section */}
+              {homePlaylists.length > 0 && (
+                <section>
+                  <div className="flex items-center justify-between mb-2 px-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="text-indigo-600">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14.5c-2.49 0-4.5-2.01-4.5-4.5S9.51 7.5 12 7.5s4.5 2.01 4.5 4.5-2.01 4.5-4.5 4.5zm0-5.5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1z" />
+                      </svg>
+                      <h3 className="font-display text-[14.5px] font-bold text-foreground">জনপ্রিয় পাবলিক প্লেলিস্ট</h3>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setProfileOpen(false);
+                        setCategory("playlists");
+                        doSearch("playlists");
+                      }}
+                      className="text-[12px] font-bold text-primary hover:underline"
+                    >
+                      সব দেখুন →
+                    </button>
+                  </div>
+                  <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-2 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    {homePlaylists.slice(0, 8).map((pl) => (
+                      <button
+                        key={pl.id}
+                        onClick={() => {
+                          setProfileOpen(false);
+                          openPlaylist(pl.id, pl.title);
+                        }}
+                        className="group relative w-[160px] shrink-0 overflow-hidden rounded-2xl glass-card p-2 ring-1 ring-border/80 hover:ring-primary/40 text-left transition-all active:scale-95"
+                      >
+                        <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black/60">
+                          <img src={pl.thumbnail} alt="" className="size-full object-cover transition duration-300 group-hover:scale-105" loading="lazy" />
+                          <div className="absolute inset-y-0 right-0 w-9 bg-black/75 backdrop-blur-[2px] flex flex-col items-center justify-center text-white gap-0.5">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z" />
+                            </svg>
+                            <span className="text-[9.5px] font-bold">{pl.count}</span>
+                          </div>
+                        </div>
+                        <p className="mt-1.5 line-clamp-1 font-display text-[12px] font-bold text-foreground group-hover:text-primary transition-colors">{pl.title}</p>
+                        {pl.author && <p className="truncate text-[10.5px] text-muted-foreground">{pl.author}</p>}
+                      </button>
+                    ))}
+                  </div>
+                </section>
               )}
-            </>
-          )}
-
-          {tab === "history" && (
-            <>
-              {hydrated && history.length === 0 && (
-                <p className="glass mt-3 rounded-3xl p-5 text-center text-[13px] text-muted-foreground">এখনো কিছু দেখা হয়নি। যা চালাবেন তা এখানে জমা থাকবে।</p>
-              )}
-              <ul className="mt-3 space-y-3">
-                {history.map((h) => (
-                  <VideoRow
-                    key={h.id}
-                    r={h}
-                    compact
-
-                    active={current?.id === h.id}
-                    playing={playing}
-                    progress={progressOf(h.id)}
-                    onPlay={() => { setProfileOpen(false); playTrack(h, h.position); }}
-
-                    onQueue={() => addToQueue(h)}
-                    sub={`${timeAgo(h.at)}${h.position > 10 ? ` · ${formatTime(h.position)} থেকে` : ""}`}
-                  />
-                ))}
-              </ul>
-            </>
+            </div>
           )}
         </div>
       </div>

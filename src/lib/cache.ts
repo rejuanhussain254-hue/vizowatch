@@ -77,6 +77,18 @@ export function cacheSet<T>(key: string, value: T, ttl: number) {
   writeStore(key, entry);
 }
 
+export function cacheDel(key: string) {
+  mem.delete(key);
+  inflight.delete(key);
+  if (typeof sessionStorage !== "undefined") {
+    try {
+      sessionStorage.removeItem(STORE_PREFIX + key);
+    } catch {
+      /* noop */
+    }
+  }
+}
+
 /**
  * Return a cached value, or run `fn` once and cache it.
  * Identical concurrent calls share a single request.
