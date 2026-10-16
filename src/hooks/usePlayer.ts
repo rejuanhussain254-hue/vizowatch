@@ -88,6 +88,27 @@ export function usePlayer(queue: Track[], containerId: string, onEnded?: () => b
     else p.playVideo();
   }, [playAt]);
 
+  const pause = useCallback(() => {
+    const p = playerRef.current;
+    if (!p) return;
+    try {
+      p.pauseVideo?.();
+    } catch {}
+    setPlaying(false);
+  }, []);
+
+  const stop = useCallback(() => {
+    const p = playerRef.current;
+    try {
+      p?.stopVideo?.();
+      p?.pauseVideo?.();
+    } catch {}
+    setPlaying(false);
+    setIndex(null);
+    indexRef.current = null;
+    setTime(0);
+  }, []);
+
   const seek = useCallback((t: number) => {
     playerRef.current?.seekTo(t, true);
     setTime(t);
@@ -246,5 +267,5 @@ export function usePlayer(queue: Track[], containerId: string, onEnded?: () => b
 
 
 
-  return { ready, current, index, playing, time, duration, loaded, repeat, setRepeat, playAt, next, prev, toggle, seek, setIndex, captionTracks, captionsOn, captionLang, setCaptions };
+  return { ready, current, index, playing, time, duration, loaded, repeat, setRepeat, playAt, next, prev, toggle, pause, stop, seek, setIndex, captionTracks, captionsOn, captionLang, setCaptions };
 }

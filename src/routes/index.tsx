@@ -522,7 +522,12 @@ function Index() {
 
   const pipDragStart = (e: RPointerEvent) => {
     if (!pipPos) return;
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    if ((e.target as HTMLElement).closest("button")) return;
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
     dragRef.current = { dx: e.clientX - pipPos.left, dy: e.clientY - pipPos.top, moved: false };
     setPipDragging(true);
   };
@@ -538,6 +543,13 @@ function Index() {
     setPipDragging(false);
     return moved;
   };
+
+  const closePipVideo = useCallback(() => {
+    player.stop();
+    setPipDismissed(true);
+    setPipMin(false);
+    if (open) closeWatch();
+  }, [player, open]);
 
   // ---- floating window that stays on top of other apps (where the browser supports it) ----
   const playerBoxRef = useRef<HTMLDivElement>(null);
@@ -2388,17 +2400,95 @@ function Index() {
               onPointerUp={() => { if (!pipDragEnd() && current) openWatch(current.id); }}
               onPointerCancel={pipDragEnd}
             />
+
+            {/* Dedicated Top-Right Close Button */}
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                closePipVideo();
+              }}
+              aria-label="ভিডিও বন্ধ করুন"
+              title="ভিডিও বন্ধ করুন"
+              className="absolute top-1.5 right-1.5 z-30 grid size-7 place-items-center rounded-full bg-black/75 text-white shadow-md backdrop-blur hover:bg-black active:scale-90 transition-transform"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+
+            {/* Top-Left Expand to Watch Page Button */}
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (current) openWatch(current.id);
+              }}
+              aria-label="ভিডিও খুলুন"
+              title="ভিডিও খুলুন"
+              className="absolute top-1.5 left-1.5 z-30 grid size-7 place-items-center rounded-full bg-black/75 text-white shadow-md backdrop-blur hover:bg-black active:scale-90 transition-transform"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+              </svg>
+            </button>
+
             {/* Live Progress Bar on PiP */}
             {duration > 0 && (
               <div className="absolute inset-x-0 bottom-0 h-1 bg-white/25 z-10 pointer-events-none">
                 <div className="h-full bg-primary" style={{ width: `${Math.min(100, (time / duration) * 100)}%` }} />
               </div>
             )}
-            <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-foreground/90 via-foreground/60 to-transparent px-2 pb-2 pt-5 text-background">
-              <button onClick={player.toggle} aria-label={playing ? "পজ" : "প্লে"} className="grid size-8 place-items-center rounded-xl bg-white/20 backdrop-blur hover:bg-white/30 transition-all active:scale-90"><PlayIcon playing={playing} className="size-4" /></button>
-              <button onClick={player.next} aria-label="পরের" className="grid size-8 place-items-center rounded-xl bg-white/20 backdrop-blur hover:bg-white/30 transition-all active:scale-90"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z" /></svg></button>
-              <button onClick={() => setPipMin(true)} aria-label="মিনিমাইজ" className="grid size-8 place-items-center rounded-xl bg-white/20 backdrop-blur hover:bg-white/30 transition-all active:scale-90"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M5 12h14" /></svg></button>
-              <button onClick={() => { player.toggle(); setPipDismissed(true); }} aria-label="বন্ধ" className="grid size-8 place-items-center rounded-xl bg-white/20 backdrop-blur hover:bg-white/30 transition-all active:scale-90"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg></button>
+
+            {/* Bottom Controls Bar */}
+            <div className="absolute inset-x-0 bottom-0 z-20 flex items-center justify-between bg-gradient-to-t from-foreground/90 via-foreground/60 to-transparent px-2 pb-2 pt-5 text-background">
+              <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onClick={(e) => { e.stopPropagation(); player.toggle(); }}
+                aria-label={playing ? "পজ" : "প্লে"}
+                className="grid size-8 place-items-center rounded-xl bg-white/20 backdrop-blur hover:bg-white/30 transition-all active:scale-90"
+              >
+                <PlayIcon playing={playing} className="size-4" />
+              </button>
+              <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onClick={(e) => { e.stopPropagation(); player.next(); }}
+                aria-label="পরের"
+                className="grid size-8 place-items-center rounded-xl bg-white/20 backdrop-blur hover:bg-white/30 transition-all active:scale-90"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z" /></svg>
+              </button>
+              <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onClick={(e) => { e.stopPropagation(); setPipMin(true); }}
+                aria-label="মিনিমাইজ"
+                className="grid size-8 place-items-center rounded-xl bg-white/20 backdrop-blur hover:bg-white/30 transition-all active:scale-90"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M5 12h14" /></svg>
+              </button>
+              <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  closePipVideo();
+                }}
+                aria-label="বন্ধ"
+                className="grid size-8 place-items-center rounded-xl bg-white/20 backdrop-blur hover:bg-white/30 transition-all active:scale-90"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+              </button>
             </div>
           </>
         )}
@@ -2410,9 +2500,39 @@ function Index() {
             onPointerUp={pipDragEnd}
             onPointerCancel={pipDragEnd}
           >
-            <button onClick={player.toggle} aria-label={playing ? "পজ" : "প্লে"} className="grid size-8 place-items-center rounded-lg bg-background/20"><PlayIcon playing={playing} className="size-4" /></button>
-            <button onClick={() => setPipMin(false)} aria-label="বড় করুন" className="grid size-8 place-items-center rounded-lg bg-background/20"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg></button>
-            <button onClick={() => { player.toggle(); setPipDismissed(true); }} aria-label="বন্ধ" className="grid size-8 place-items-center rounded-lg bg-background/20"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg></button>
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); player.toggle(); }}
+              aria-label={playing ? "পজ" : "প্লে"}
+              className="grid size-8 place-items-center rounded-lg bg-background/20 active:scale-90"
+            >
+              <PlayIcon playing={playing} className="size-4" />
+            </button>
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); setPipMin(false); }}
+              aria-label="বড় করুন"
+              className="grid size-8 place-items-center rounded-lg bg-background/20 active:scale-90"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg>
+            </button>
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                closePipVideo();
+              }}
+              aria-label="বন্ধ"
+              className="grid size-8 place-items-center rounded-lg bg-background/20 active:scale-90"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+            </button>
           </div>
         )}
         {(playerMode === "big" || playerMode === "watch") && (
