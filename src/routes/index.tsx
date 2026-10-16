@@ -451,6 +451,9 @@ function Index() {
   const [searchChannel, setSearchChannel] = useState<ChannelCard | undefined>(undefined);
   const [searchContinuationToken, setSearchContinuationToken] = useState<string | undefined>(undefined);
   const [searchLoadingMore, setSearchLoadingMore] = useState(false);
+  const searchExpansionsRef = useRef<string[]>([]);
+  const searchExpIndexRef = useRef(0);
+  const searchMoreBusyRef = useRef(false);
   const [related, setRelated] = useState<SearchResult[]>([]);
   const [relatedState, setRelatedState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [relatedTick, setRelatedTick] = useState(0);
@@ -966,6 +969,29 @@ function Index() {
         return;
       }
 
+      // Prepare query expansions for smooth infinite search results
+      searchExpIndexRef.current = 0;
+      const baseVariants = [
+        `${term} new`,
+        `${term} trending`,
+        `${term} popular`,
+        `${term} best`,
+        `${term} latest`,
+        `${term} episode`,
+        `${term} 2026`,
+        `${term} full video`,
+        `${term} playlist`,
+      ];
+      searchExpansionsRef.current = baseVariants;
+      void runSuggest({ data: { q: term } })
+        .then((sugs) => {
+          if (Array.isArray(sugs) && sugs.length > 0) {
+            const enriched = sugs.filter((s) => s.trim().toLowerCase() !== term.toLowerCase());
+            searchExpansionsRef.current = Array.from(new Set([...enriched, ...baseVariants]));
+          }
+        })
+        .catch(() => {});
+
       try {
         const res = await cached(`search:v3:${term}`, TTL.search, () => runSearch({ data: { q: term } }), (r) => r.ok);
         if (res.ok) {
@@ -982,28 +1008,80 @@ function Index() {
         setSearchState("error");
       }
     },
-    [loadFeedPage, loadHomeExtras, runSearch, runTrendingShorts, runPublicPlaylists],
+    [loadFeedPage, loadHomeExtras, runSearch, runSuggest, runTrendingShorts, runPublicPlaylists],
   );
 
   const loadMoreSearchResults = useCallback(async () => {
-    if (!searchContinuationToken || searchLoadingMore) return;
+    if (searchMoreBusyRef.current || searchLoadingMore) return;
+    if (!lastQuery.trim() || category === "shorts" || category === "playlists") return;
+
+    searchMoreBusyRef.current = true;
     setSearchLoadingMore(true);
+
     try {
-      const res = await runSearch({ data: { token: searchContinuationToken } });
-      if (res.ok && res.results.length > 0) {
-        const seenIds = new Set(resultsRef.current.map((r) => r.id));
-        const fresh = res.results.filter((r) => !seenIds.has(r.id));
-        setResults((prev) => [...prev, ...fresh]);
-        setSearchContinuationToken(res.continuationToken);
-      } else {
-        setSearchContinuationToken(undefined);
+      // 1. First priority: Use YouTube continuation token if present
+      if (searchContinuationToken) {
+        const res = await runSearch({ data: { token: searchContinuationToken } });
+        if (res.ok && res.results.length > 0) {
+          const seenIds = new Set(resultsRef.current.map((r) => r.id));
+          const fresh = res.results.filter((r) => !seenIds.has(r.id));
+          if (fresh.length > 0) {
+            setResults((prev) => [...prev, ...fresh]);
+          }
+          setSearchContinuationToken(res.continuationToken);
+          return;
+        } else {
+          // Token expired or returned no video items; proceed to related query expansion
+          setSearchContinuationToken(undefined);
+        }
+      }
+
+      // 2. Query expansion fallback: load search-related videos endlessly
+      const expansions = searchExpansionsRef.current;
+      let freshVideosFound = false;
+
+      while (searchExpIndexRef.current < expansions.length && !freshVideosFound) {
+        const nextQ = expansions[searchExpIndexRef.current++];
+        if (!nextQ) continue;
+        const res = await runSearch({ data: { q: nextQ } });
+        if (res.ok && res.results.length > 0) {
+          const seenIds = new Set(resultsRef.current.map((r) => r.id));
+          const fresh = res.results.filter((r) => !seenIds.has(r.id));
+          if (fresh.length > 0) {
+            setResults((prev) => [...prev, ...fresh]);
+            freshVideosFound = true;
+            if (res.continuationToken) {
+              setSearchContinuationToken(res.continuationToken);
+            }
+            break;
+          }
+        }
+      }
+
+      // If all predefined expansions are consumed, generate dynamic numbered query
+      if (!freshVideosFound) {
+        const pageNum = searchExpIndexRef.current + 1;
+        const dynQ = `${lastQuery} ${pageNum}`;
+        const res = await runSearch({ data: { q: dynQ } });
+        if (res.ok && res.results.length > 0) {
+          const seenIds = new Set(resultsRef.current.map((r) => r.id));
+          const fresh = res.results.filter((r) => !seenIds.has(r.id));
+          if (fresh.length > 0) {
+            setResults((prev) => [...prev, ...fresh]);
+            if (res.continuationToken) {
+              setSearchContinuationToken(res.continuationToken);
+            }
+          }
+        }
+        searchExpIndexRef.current++;
       }
     } catch {
-      setSearchContinuationToken(undefined);
+      // keep state ready for next scroll
     } finally {
+      searchMoreBusyRef.current = false;
       setSearchLoadingMore(false);
     }
-  }, [searchContinuationToken, searchLoadingMore, runSearch]);
+  }, [searchContinuationToken, searchLoadingMore, lastQuery, category, runSearch]);
 
   // run a search term from the box / a suggestion / a saved search — and remember it
   const runTerm = useCallback(
@@ -1095,7 +1173,7 @@ function Index() {
     }
   }, [category, runTrendingShorts, SHORTS_ROTATION]);
 
-  // infinite scroll for the home feed and shorts page
+  // infinite scroll for the home feed, shorts page, and search results
   const isHome = lastQuery.trim().length === 0;
   useEffect(() => {
     const el = sentinel.current;
@@ -1106,7 +1184,7 @@ function Index() {
         loadFeedPage(false);
       } else if (category === "shorts") {
         void loadMoreShortsPage();
-      } else if (searchContinuationToken) {
+      } else if (category !== "playlists") {
         void loadMoreSearchResults();
       }
     }, { rootMargin: "600px" });
@@ -2715,14 +2793,12 @@ function Index() {
               )
             ) : (
               searchLoadingMore ? (
-                <span className="inline-flex items-center gap-2">
+                <span className="inline-flex items-center gap-2 text-primary font-semibold">
                   <span className="size-3.5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                  আরও ফলাফল লোড হচ্ছে…
+                  আরও সম্পর্কিত ভিডিও লোড হচ্ছে…
                 </span>
-              ) : searchContinuationToken ? (
-                "স্ক্রোল করে আরও দেখুন…"
               ) : (
-                "সব ফলাফল দেখানো হয়েছে"
+                "স্ক্রোল করে আরও সম্পর্কিত ভিডিও দেখুন…"
               )
             )}
           </div>

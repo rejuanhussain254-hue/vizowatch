@@ -34,6 +34,35 @@ function bylineChannelId(vr: any): string | undefined {
   return typeof id === "string" && id.startsWith("UC") ? id : undefined;
 }
 
+function findAll(node: any, key: string, out: any[] = [], limit = 400): any[] {
+  if (!node || typeof node !== "object" || out.length >= limit) return out;
+  if (Array.isArray(node)) {
+    for (const n of node) findAll(n, key, out, limit);
+    return out;
+  }
+  for (const k of Object.keys(node)) {
+    if (k === key) out.push(node[k]);
+    else findAll(node[k], key, out, limit);
+  }
+  return out;
+}
+
+function metadataStrings(vm: any): string[] {
+  const rows = vm?.metadata?.contentMetadataViewModel?.metadataRows ?? vm?.metadataRows ?? [];
+  const out: string[] = [];
+  for (const row of rows) for (const part of row?.metadataParts ?? []) {
+    const t = text(part?.text);
+    if (t) out.push(t);
+  }
+  return out;
+}
+
+function badgeTexts(vm: any): string[] {
+  return findAll(vm, "thumbnailBadgeViewModel")
+    .map((b: any) => text(b?.text))
+    .filter(Boolean);
+}
+
 function walk(node: any, out: SearchResult[], seen: Set<string>) {
   if (!node || typeof node !== "object") return;
   if (Array.isArray(node)) {
@@ -59,6 +88,65 @@ function walk(node: any, out: SearchResult[], seen: Set<string>) {
     });
     return;
   }
+
+  const sl = node.shortsLockupViewModel;
+  if (sl) {
+    const id =
+      sl?.onTap?.innertubeCommand?.reelWatchEndpoint?.videoId ||
+      sl?.entityId?.replace(/^shorts-shelf-item-/, "") ||
+      (typeof sl?.entityId === "string" ? sl.entityId : "");
+    if (id && !seen.has(id)) {
+      seen.add(id);
+      const title =
+        sl?.overlayMetadata?.primaryText?.content ||
+        text(sl?.accessibilityText)?.split(",")?.[0] ||
+        "Shorts";
+      const views = sl?.overlayMetadata?.secondaryText?.content || "";
+      const thumb =
+        sl?.thumbnailViewModel?.thumbnailViewModel?.image?.sources?.[0]?.url ||
+        firstUrl(sl?.thumbnailViewModel) ||
+        `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
+      const author =
+        text(sl?.accessibilityText)?.split("|")?.[1]?.trim() ||
+        text(sl?.accessibilityText)?.split(",")?.[1]?.trim() ||
+        "Shorts";
+      out.push({
+        id,
+        title: title.trim() || "Shorts",
+        author,
+        thumbnail: thumb,
+        duration: "শর্টস",
+        views,
+      });
+      return;
+    }
+  }
+
+  const lv = node.lockupViewModel;
+  if (lv) {
+    const id = lv?.contentId;
+    const type = String(lv?.contentType ?? "");
+    if (typeof id === "string" && id && !seen.has(id) && !type.includes("PLAYLIST")) {
+      seen.add(id);
+      const title = text(lv?.metadata?.lockupMetadataViewModel?.title);
+      if (title) {
+        const meta = metadataStrings(lv?.metadata?.lockupMetadataViewModel);
+        const badges = badgeTexts(lv);
+        const thumb = firstUrl(findAll(lv?.contentImage, "thumbnailViewModel")[0]?.image);
+        out.push({
+          id,
+          title,
+          author: meta[0] || "",
+          thumbnail: thumb || `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+          duration: badges.find((b) => /^\d+(:\d+)+$/.test(b)) ?? (type.includes("SHORT") ? "শর্টস" : ""),
+          views: meta.find((m) => /view/i.test(m)) ?? "",
+          published: meta.find((m) => /ago|streamed|premier/i.test(m)) ?? undefined,
+        });
+        return;
+      }
+    }
+  }
+
   for (const k of Object.keys(node)) walk(node[k], out, seen);
 }
 
@@ -137,6 +225,9 @@ function findContinuationToken(node: any): string | undefined {
   if (node.continuationItemRenderer?.continuationEndpoint?.continuationCommand?.token) {
     return String(node.continuationItemRenderer.continuationEndpoint.continuationCommand.token);
   }
+  if (node.continuationCommand?.token) {
+    return String(node.continuationCommand.token);
+  }
   if (Array.isArray(node)) {
     for (const item of node) {
       const tok = findContinuationToken(item);
@@ -152,32 +243,46 @@ function findContinuationToken(node: any): string | undefined {
   return undefined;
 }
 
-async function fetchContinuation(token: string): Promise<{ results: SearchResult[]; continuationToken?: string }> {
-  const res = await fetch("https://www.youtube.com/youtubei/v1/search", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "user-agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-    },
-    body: JSON.stringify({
-      context: {
-        client: {
-          clientName: "WEB",
-          clientVersion: "2.20240410.01.00",
-          hl: "en",
-          gl: "BD",
+async function fetchContinuation(initialToken: string): Promise<{ results: SearchResult[]; continuationToken?: string }> {
+  let currentToken: string | undefined = initialToken;
+  let jumps = 0;
+  while (currentToken && jumps < 2) {
+    jumps++;
+    try {
+      const res = await fetch("https://www.youtube.com/youtubei/v1/search", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "user-agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
         },
-      },
-      continuation: token,
-    }),
-  });
-  if (!res.ok) return { results: [] };
-  const json = await res.json();
-  const out: SearchResult[] = [];
-  walk(json, out, new Set());
-  const nextToken = findContinuationToken(json);
-  return { results: out.filter((r) => r.title), continuationToken: nextToken };
+        body: JSON.stringify({
+          context: {
+            client: {
+              clientName: "WEB",
+              clientVersion: "2.20240410.01.00",
+              hl: "en",
+              gl: "BD",
+            },
+          },
+          continuation: currentToken,
+        }),
+      });
+      if (!res.ok) break;
+      const json = await res.json();
+      const out: SearchResult[] = [];
+      walk(json, out, new Set());
+      const nextToken = findContinuationToken(json);
+      const valid = out.filter((r) => r.title);
+      if (valid.length > 0 || !nextToken) {
+        return { results: valid, continuationToken: nextToken };
+      }
+      currentToken = nextToken;
+    } catch {
+      break;
+    }
+  }
+  return { results: [] };
 }
 
 async function fetchResults(url: string): Promise<SearchResult[]> {
@@ -282,35 +387,6 @@ const TAB_PATH: Record<string, string> = {
   podcasts: "podcasts",
   posts: "community",
 };
-
-function findAll(node: any, key: string, out: any[] = [], limit = 400): any[] {
-  if (!node || typeof node !== "object" || out.length >= limit) return out;
-  if (Array.isArray(node)) {
-    for (const n of node) findAll(n, key, out, limit);
-    return out;
-  }
-  for (const k of Object.keys(node)) {
-    if (k === key) out.push(node[k]);
-    else findAll(node[k], key, out, limit);
-  }
-  return out;
-}
-
-function metadataStrings(vm: any): string[] {
-  const rows = vm?.metadata?.contentMetadataViewModel?.metadataRows ?? vm?.metadataRows ?? [];
-  const out: string[] = [];
-  for (const row of rows) for (const part of row?.metadataParts ?? []) {
-    const t = text(part?.text);
-    if (t) out.push(t);
-  }
-  return out;
-}
-
-function badgeTexts(vm: any): string[] {
-  return findAll(vm, "thumbnailBadgeViewModel")
-    .map((b: any) => text(b?.text))
-    .filter(Boolean);
-}
 
 function parseLockups(data: any, videos: SearchResult[], playlists: PlaylistItem[], authorName: string, channelId: string) {
   const seen = new Set<string>();
