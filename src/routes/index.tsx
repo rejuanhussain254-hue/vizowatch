@@ -235,72 +235,100 @@ function Skeleton() {
   );
 }
 
-type Row = Track & { duration?: string | number | undefined; views?: string | undefined; channelThumb?: string | undefined; published?: string | undefined; channelId?: string | undefined };
 function Avatar({ src, name, size = "size-9", text = "text-[13px]" }: { src?: string | undefined; name?: string | undefined; size?: string; text?: string }) {
   const initial = (name ?? "?").trim()[0]?.toUpperCase() ?? "?";
-  if (src) return <img src={src} alt="" className={`${size} shrink-0 rounded-full bg-lilac/50 object-cover ring-1 ring-border`} loading="lazy" referrerPolicy="no-referrer" />;
-  return <span className={`grid ${size} shrink-0 place-items-center rounded-full bg-primary font-display ${text} font-bold text-primary-foreground`}>{initial}</span>;
+  if (src) return <img src={src} alt="" className={`${size} shrink-0 rounded-full bg-lilac/30 object-cover ring-2 ring-background/80 shadow-sm`} loading="lazy" referrerPolicy="no-referrer" />;
+  return <span className={`grid ${size} shrink-0 place-items-center rounded-full bg-gradient-to-tr from-primary to-indigo-600 font-display ${text} font-bold text-primary-foreground shadow-sm`}>{initial}</span>;
 }
+
 function VideoRow({ r, active, playing, onPlay, onQueue, onChannel, sub, progress, compact }: { r: Row; active: boolean; playing: boolean; onPlay: () => void; onQueue?: () => void; onChannel?: () => void; sub?: string; progress?: number; compact?: boolean }) {
   const meta = sub ?? [r.author, r.views, r.published].filter(Boolean).join(" · ");
 
   if (compact) {
     return (
-      <li className={`flex items-center gap-2 rounded-3xl p-2.5 ring-1 ${active ? "bg-primary-soft/80 ring-primary/25" : "glass ring-border"}`}>
+      <li className={`group relative flex items-center gap-2.5 rounded-2xl p-2 ring-1 transition-all duration-200 ${active ? "glass-card ring-2 ring-primary/80 bg-primary/10 shadow-sm" : "glass-card ring-border/70 hover:ring-primary/30 hover:bg-white/90"}`}>
         <button onClick={onPlay} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-          <span className="relative shrink-0">
-            <img src={r.thumbnail} alt="" className="h-[76px] w-[135px] rounded-2xl object-cover ring-1 ring-border" loading="lazy" />
-            {typeof r.duration === "string" && r.duration && <span className="absolute right-1.5 bottom-1.5 rounded-md bg-foreground/80 px-1.5 py-0.5 text-[11px] font-medium text-background">{r.duration}</span>}
+          <span className="relative shrink-0 overflow-hidden rounded-xl">
+            <img src={r.thumbnail} alt="" className="h-[72px] w-[128px] object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
+            {typeof r.duration === "string" && r.duration && (
+              <span className="absolute right-1.5 bottom-1.5 rounded-md bg-black/80 px-1.5 py-0.5 text-[10.5px] font-semibold text-white backdrop-blur-sm">
+                {r.duration}
+              </span>
+            )}
             {progress != null && progress > 0.01 && (
-              <span className="absolute inset-x-2 bottom-1 h-1 overflow-hidden rounded-full bg-foreground/30">
+              <span className="absolute inset-x-1 bottom-1 h-1 overflow-hidden rounded-full bg-white/30">
                 <span className="block h-full rounded-full bg-primary" style={{ width: `${Math.min(100, progress * 100)}%` }} />
               </span>
             )}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="line-clamp-2 font-display text-[14px] font-semibold leading-snug">{r.title}</span>
-            <span className="block truncate text-[12.5px] text-muted-foreground">{meta}</span>
+            <span className="line-clamp-2 font-display text-[13.5px] font-bold leading-snug text-foreground group-hover:text-primary transition-colors">{r.title}</span>
+            <span className="mt-0.5 block truncate text-[11.5px] text-muted-foreground">{meta}</span>
           </span>
         </button>
-        {active && playing ? <span className="px-2"><Eq /></span> : null}
+        {active && playing ? (
+          <span className="px-2 shrink-0"><Eq /></span>
+        ) : onQueue ? (
+          <button onClick={onQueue} aria-label="প্লেলিস্টে যোগ" title="প্লেলিস্টে যোগ" className="grid size-8 shrink-0 place-items-center rounded-xl text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+          </button>
+        ) : null}
       </li>
     );
   }
 
   return (
-    <li className={`overflow-hidden rounded-3xl ${active ? "bg-primary-soft/70 ring-1 ring-primary/25" : ""}`}>
-      <button onClick={onPlay} className="block w-full text-left">
-        <span className="relative block">
-          <img src={r.thumbnail} alt="" className="aspect-video w-full rounded-2xl object-cover ring-1 ring-border" loading="lazy" />
-          {typeof r.duration === "string" && r.duration && <span className="absolute right-2 bottom-2 rounded-md bg-foreground/80 px-1.5 py-0.5 text-[11px] font-medium text-background">{r.duration}</span>}
+    <li className={`group glass-card relative flex flex-col overflow-hidden rounded-3xl p-2.5 ring-1 transition-all duration-300 hover:shadow-xl hover:shadow-primary/8 ${active ? "ring-2 ring-primary/80 bg-primary/5 shadow-md shadow-primary/15" : "ring-border/80 hover:ring-primary/40 hover:-translate-y-0.5"}`}>
+      <button onClick={onPlay} className="relative block w-full text-left">
+        <span className="relative block aspect-video w-full overflow-hidden rounded-2xl bg-muted/40 ring-1 ring-border/50">
+          <img src={r.thumbnail} alt="" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" loading="lazy" />
+          {/* Hover play overlay */}
+          <span className="absolute inset-0 grid place-items-center bg-black/25 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+            <span className="grid size-12 place-items-center rounded-full bg-gradient-to-tr from-primary to-indigo-600 text-white shadow-lg shadow-black/40 transition-transform duration-300 group-hover:scale-105">
+              <PlayIcon playing={active && playing} />
+            </span>
+          </span>
+          {typeof r.duration === "string" && r.duration && (
+            <span className="absolute right-2 bottom-2 rounded-lg bg-black/85 backdrop-blur-md px-2 py-0.5 text-[11px] font-semibold text-white tracking-wide shadow-sm">
+              {r.duration}
+            </span>
+          )}
           {progress != null && progress > 0.01 && (
-            <span className="absolute inset-x-2 bottom-1 h-1 overflow-hidden rounded-full bg-foreground/30">
+            <span className="absolute inset-x-2 bottom-1.5 h-1 overflow-hidden rounded-full bg-white/30 backdrop-blur-sm">
               <span className="block h-full rounded-full bg-primary" style={{ width: `${Math.min(100, progress * 100)}%` }} />
             </span>
           )}
         </span>
       </button>
-      <div className="flex gap-3 px-1 pt-2.5 pb-1">
+
+      <div className="flex items-start gap-3 px-1 pt-3 pb-1">
         {onChannel ? (
-          <button onClick={onChannel} aria-label={`${r.author} চ্যানেল দেখুন`} className="shrink-0 transition active:scale-95"><Avatar src={r.channelThumb} name={r.author} /></button>
+          <button onClick={onChannel} aria-label={`${r.author} চ্যানেল দেখুন`} className="shrink-0 transition active:scale-95 hover:opacity-85">
+            <Avatar src={r.channelThumb} name={r.author} size="size-9" />
+          </button>
         ) : (
-          <Avatar src={r.channelThumb} name={r.author} />
+          <Avatar src={r.channelThumb} name={r.author} size="size-9" />
         )}
         <span className="min-w-0 flex-1">
           <button onClick={onPlay} className="block w-full text-left">
-            <span className="line-clamp-2 font-display text-[15px] font-semibold leading-snug">{r.title}</span>
+            <span className="line-clamp-2 font-display text-[14.5px] font-bold leading-snug text-foreground group-hover:text-primary transition-colors">{r.title}</span>
           </button>
           {onChannel ? (
-            <button onClick={onChannel} className="mt-0.5 block max-w-full truncate text-left text-[12.5px] text-muted-foreground underline-offset-2 hover:underline">{meta}</button>
+            <button onClick={onChannel} className="mt-1 block max-w-full truncate text-left text-[12px] font-medium text-muted-foreground hover:text-foreground hover:underline transition-colors">{meta}</button>
           ) : (
-            <span className="mt-0.5 block truncate text-[12.5px] text-muted-foreground">{meta}</span>
+            <span className="mt-1 block truncate text-[12px] font-medium text-muted-foreground">{meta}</span>
           )}
         </span>
         {active && playing ? (
-          <span className="pt-1"><Eq /></span>
+          <span className="pt-1.5 shrink-0"><Eq /></span>
         ) : onQueue ? (
-          <button onClick={onQueue} aria-label="প্লেলিস্টে যোগ" title="প্লেলিস্টে যোগ" className="grid size-9 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-background">
-            <span className="relative block size-3"><span className="absolute inset-x-0 top-1/2 h-[2px] -translate-y-1/2 rounded-full bg-current" /><span className="absolute inset-y-0 left-1/2 w-[2px] -translate-x-1/2 rounded-full bg-current" /></span>
+          <button
+            onClick={onQueue}
+            aria-label="প্লেলিস্টে যোগ"
+            title="প্লেলিস্টে যোগ"
+            className="grid size-8 shrink-0 place-items-center rounded-xl bg-muted/60 text-muted-foreground hover:bg-primary hover:text-primary-foreground transition-all active:scale-90"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
           </button>
         ) : null}
       </div>
@@ -1210,34 +1238,44 @@ function Index() {
 
       <main className="relative mx-auto flex min-h-screen w-full min-w-0 max-w-[420px] flex-col px-5 pb-[max(2.5rem,env(safe-area-inset-bottom))]">
         <header className="relative z-30 flex flex-wrap items-center gap-3 pt-[max(1.5rem,env(safe-area-inset-top))] max-[400px]:justify-between">
-          <div className="flex shrink-0 items-center gap-2">
-            <div className="grid size-9 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-primary">
-              <Eq className="bg-primary-foreground" />
+          <div className="flex shrink-0 items-center gap-2.5">
+            <div className="relative grid size-10 place-items-center rounded-2xl bg-gradient-to-br from-primary via-indigo-600 to-rose-500 text-primary-foreground shadow-md shadow-primary/25 transition-transform active:scale-95">
+              <Eq className="bg-white" />
             </div>
-            <span className="font-display text-lg font-bold tracking-tight">Echo</span>
+            <div className="flex flex-col">
+              <span className="font-display text-xl font-black tracking-tight text-foreground">
+                Vizo<span className="text-primary font-black">Watch</span>
+              </span>
+              <span className="text-[10px] -mt-1 font-semibold text-muted-foreground tracking-wider uppercase">
+                Background Player
+              </span>
+            </div>
           </div>
           <form onSubmit={submit} className="relative flex min-w-0 flex-1 items-center gap-2 max-[400px]:order-3 max-[400px]:basis-full">
-            <div className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl bg-background px-3 py-2 ring-1 ring-border focus-within:ring-2 focus-within:ring-ring">
+            <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl glass-card px-3.5 py-2 ring-1 ring-border/80 focus-within:ring-2 focus-within:ring-primary focus-within:shadow-md focus-within:shadow-primary/10 transition-all">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-muted-foreground" aria-hidden>
+                <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
+              </svg>
               <input
                 value={input}
                 onChange={(e) => { setInput(e.target.value); setSugOpen(true); }}
                 onFocus={() => setSugOpen(true)}
                 onBlur={() => setTimeout(() => setSugOpen(false), 150)}
-                placeholder=""
+                placeholder="গান, নাটক, ওয়াজ বা লিংক খুঁজুন..."
                 aria-label="ইউটিউবে খুঁজুন"
-                className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
+                className="min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-muted-foreground/80"
                 inputMode="search"
                 autoComplete="off"
               />
               {input && (
-                <button type="button" onClick={() => { setInput(""); setSuggestions([]); setCategory(""); doSearch(""); }} aria-label="মুছুন" className="text-[12px] text-muted-foreground">✕</button>
+                <button type="button" onClick={() => { setInput(""); setSuggestions([]); setCategory(""); doSearch(""); }} aria-label="মুছুন" className="grid size-5 place-items-center rounded-full bg-muted/80 text-[11px] text-muted-foreground hover:bg-muted transition-colors">✕</button>
               )}
             </div>
             <button
               type="submit"
               disabled={busy || searchState === "loading"}
               aria-label="খুঁজুন"
-              className="grid size-9 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-primary transition active:scale-[0.98] disabled:opacity-60"
+              className="grid size-10 shrink-0 place-items-center rounded-2xl bg-gradient-to-tr from-primary to-indigo-600 text-primary-foreground shadow-md shadow-primary/30 transition-all hover:opacity-95 active:scale-95 disabled:opacity-60"
             >
               {busy ? (
                 <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
@@ -1249,14 +1287,14 @@ function Index() {
             </button>
 
             {sugOpen && (suggestions.length > 0 || (input.trim().length < 2 && searches.length > 0)) && (
-              <div className="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-2xl bg-background/98 shadow-primary ring-1 ring-border backdrop-blur-xl">
+              <div className="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-2xl bg-background/98 shadow-xl shadow-primary/10 ring-1 ring-border/80 backdrop-blur-xl">
                 {input.trim().length < 2 && searches.length > 0 && (
-                  <div className="flex items-center justify-between px-3 pt-2 text-[11px] text-muted-foreground">
+                  <div className="flex items-center justify-between px-3.5 pt-2.5 pb-1 text-[11px] font-semibold text-muted-foreground">
                     <span>সাম্প্রতিক সার্চ</span>
-                    <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setSearches(clearSearches())} className="font-semibold text-primary">সব মুছুন</button>
+                    <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setSearches(clearSearches())} className="font-semibold text-primary hover:underline">সব মুছুন</button>
                   </div>
                 )}
-                <ul className="max-h-[320px] overflow-y-auto py-1">
+                <ul className="max-h-[320px] overflow-y-auto py-1.5">
                   {(input.trim().length < 2 ? searches : suggestions).map((s) => {
                     const recent = input.trim().length < 2;
                     return (
@@ -1265,7 +1303,7 @@ function Index() {
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={() => runTerm(s)}
-                          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-2 py-2 text-left text-[13.5px] hover:bg-glass"
+                          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13.5px] font-medium hover:bg-primary/10 hover:text-primary transition-colors"
                         >
                           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="shrink-0 text-muted-foreground" aria-hidden>
                             {recent ? <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></> : <><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" /></>}
@@ -1273,7 +1311,7 @@ function Index() {
                           <span className="min-w-0 flex-1 truncate">{s}</span>
                         </button>
                         {recent && (
-                          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setSearches(removeSearch(s))} aria-label="মুছুন" className="shrink-0 px-2 text-[12px] text-muted-foreground">✕</button>
+                          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setSearches(removeSearch(s))} aria-label="মুছুন" className="shrink-0 px-2 text-[12px] text-muted-foreground hover:text-foreground">✕</button>
                         )}
                       </li>
                     );
@@ -1287,30 +1325,34 @@ function Index() {
           <button
             onClick={() => setProfileOpen(true)}
             aria-label="প্রোফাইল"
-            className={`relative grid size-9 shrink-0 place-items-center rounded-full ring-1 transition active:scale-95 ${user ? "bg-primary text-primary-foreground ring-primary shadow-primary font-display text-sm font-bold" : "bg-glass ring-border"}`}
+            className={`relative grid size-10 shrink-0 place-items-center rounded-2xl ring-1 transition-all active:scale-95 ${user ? "bg-gradient-to-tr from-primary to-indigo-600 text-primary-foreground ring-primary shadow-md shadow-primary/25 font-display text-sm font-bold" : "glass-card ring-border/80 hover:bg-white"}`}
           >
             {user ? (
               (user.email ?? "?")[0]?.toUpperCase()
             ) : (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
                 <circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" />
               </svg>
             )}
             {hydrated && queue.length > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 grid min-w-[18px] place-items-center rounded-full bg-rose px-1 text-[10px] font-bold text-foreground ring-2 ring-background">{queue.length}</span>
+              <span className="absolute -right-1 -top-1 grid min-w-[20px] place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-extrabold text-white ring-2 ring-background shadow">{queue.length}</span>
             )}
           </button>
         </header>
         {error && <p className="mt-2 text-center text-[12px] text-muted-foreground">{error}</p>}
 
-        <nav aria-label="ক্যাটাগরি" className="-mx-5 mt-5 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <nav aria-label="ক্যাটাগরি" className="-mx-5 mt-4 flex items-center gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {CATEGORIES.map((c) => {
             const on = category === c.q;
             return (
               <button
                 key={c.label}
                 onClick={() => { setCategory(c.q); setChannel(null); setInput(""); if (c.q) bump("terms", c.q, 0.5); doSearch(c.q); }}
-                className={`shrink-0 rounded-full px-3.5 py-1.5 font-display text-[13px] font-semibold ring-1 transition active:scale-95 ${on ? "bg-primary text-primary-foreground ring-primary shadow-primary" : "bg-glass text-foreground ring-border"}`}
+                className={`shrink-0 rounded-full px-4 py-1.5 font-display text-[13px] font-bold transition-all duration-200 active:scale-95 ${
+                  on
+                    ? "bg-gradient-to-r from-primary to-indigo-600 text-primary-foreground shadow-md shadow-primary/25 ring-1 ring-primary/40"
+                    : "glass-card text-foreground/85 hover:text-foreground hover:bg-white ring-1 ring-border/70"
+                }`}
               >
                 {c.label}
               </button>
@@ -1319,17 +1361,34 @@ function Index() {
         </nav>
 
         {resume && !open && (
-          <button
-            onClick={() => playTrack(resume, resume.position)}
-            className="mt-4 flex w-full items-center gap-3 rounded-3xl bg-primary p-3 text-left text-primary-foreground shadow-primary transition active:scale-[0.99]"
-          >
-            <img src={resume.thumbnail} alt="" className="h-16 w-[108px] rounded-2xl object-cover" />
-            <span className="min-w-0 flex-1">
-              <span className="block text-[11px] opacity-80">যেখানে ছেড়েছিলেন · {formatTime(resume.position)} থেকে চালু করুন</span>
-              <span className="block truncate font-display text-[14px] font-semibold">{resume.title}</span>
-            </span>
-            <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-primary-foreground text-primary"><PlayIcon playing={false} /></span>
-          </button>
+          <div className="glass-card mt-4 overflow-hidden rounded-3xl p-3 ring-1 ring-primary/30 shadow-md shadow-primary/5 transition-all hover:shadow-lg hover:shadow-primary/10">
+            <div className="flex items-center gap-3.5">
+              <div className="relative shrink-0 overflow-hidden rounded-2xl ring-1 ring-border/50">
+                <img src={resume.thumbnail} alt="" className="h-16 w-28 object-cover" />
+                <span className="absolute inset-0 bg-black/20" />
+                {resume.duration ? (
+                  <span className="absolute inset-x-1.5 bottom-1.5 h-1 overflow-hidden rounded-full bg-white/30 backdrop-blur-sm">
+                    <span className="block h-full rounded-full bg-primary" style={{ width: `${Math.min(100, (resume.position / resume.duration) * 100)}%` }} />
+                  </span>
+                ) : null}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 text-[11px] font-bold text-primary">
+                  <span className="size-1.5 rounded-full bg-primary animate-pulse" />
+                  <span>যেখানে ছেড়েছিলেন · {formatTime(resume.position)}</span>
+                </div>
+                <p className="mt-0.5 line-clamp-1 font-display text-[14px] font-bold text-foreground">{resume.title}</p>
+                <p className="line-clamp-1 text-[11.5px] font-medium text-muted-foreground">{resume.author}</p>
+              </div>
+              <button
+                onClick={() => playTrack(resume, resume.position)}
+                aria-label="চালান"
+                className="grid size-10 shrink-0 place-items-center rounded-2xl bg-gradient-to-tr from-primary to-indigo-600 text-primary-foreground shadow-md shadow-primary/30 transition-all hover:opacity-95 active:scale-90"
+              >
+                <PlayIcon playing={false} />
+              </button>
+            </div>
+          </div>
         )}
 
 
@@ -1611,22 +1670,63 @@ function Index() {
           </button>
         </div>
 
-        {/* slot the floating player docks into while the watch page is open */}
+        {/* slot the floating player docks into while the watch page is open with ambient backlight */}
         <div className="relative mx-4 mt-3">
-          <div ref={slotRef} className="aspect-video overflow-hidden rounded-2xl bg-lilac/40 ring-1 ring-border" />
+          <div className="ambient-glow absolute -inset-2 bg-gradient-to-r from-primary/35 via-indigo-500/25 to-rose-500/35 rounded-3xl" />
+          <div ref={slotRef} className="relative aspect-video overflow-hidden rounded-2xl bg-black/90 ring-1 ring-border shadow-2xl" />
         </div>
 
-        {/* controls under the video so nothing covers it */}
-        <div className="mx-4 mt-1">
+        {/* modern glass controls under the video */}
+        <div className="mx-4 mt-3 glass-card rounded-3xl p-3.5 ring-1 ring-border/80 shadow-md">
           <SeekBar time={time} duration={duration} loaded={player.loaded} onSeek={player.seek} />
-          <div className="mt-1 flex items-center justify-center gap-4">
-            <button onClick={player.prev} aria-label="আগের ভিডিও" className="grid size-8 place-items-center rounded-full bg-glass ring-1 ring-border active:scale-95"><SkipIcon back /></button>
-            <button onClick={player.toggle} aria-label={playing ? "পজ" : "প্লে"} className="grid size-10 place-items-center rounded-full bg-primary text-primary-foreground shadow-primary active:scale-95">
-              <PlayIcon playing={playing} />
+          <div className="mt-3 flex items-center justify-between px-1">
+            <button
+              onClick={() => player.setRepeat(!player.repeat)}
+              aria-label="রিপিট"
+              title="রিপিট লুপ"
+              className={`grid size-9 place-items-center rounded-xl transition-all ${player.repeat ? "bg-primary text-primary-foreground shadow-sm shadow-primary/25" : "text-muted-foreground hover:bg-muted"}`}
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
             </button>
-            <button onClick={player.next} aria-label="পরের ভিডিও" className="grid size-8 place-items-center rounded-full bg-glass ring-1 ring-border active:scale-95"><SkipIcon /></button>
-            <button onClick={() => void openDocPip()} aria-label="ভাসমান পপ-আপে চালান" className="grid size-8 place-items-center rounded-full bg-glass ring-1 ring-border active:scale-95">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="4" width="19" height="16" rx="2.5" /><rect x="12" y="12" width="8" height="6" rx="1.4" fill="currentColor" /></svg>
+
+            <div className="flex items-center gap-2 sm:gap-3">
+              <button
+                onClick={() => player.seek(Math.max(0, time - 10))}
+                aria-label="১০ সেকেন্ড পেছনে"
+                title="১০ সেকেন্ড পেছনে"
+                className="grid size-9 place-items-center rounded-xl text-foreground/80 hover:bg-muted font-display text-[12px] font-bold transition-all active:scale-90"
+              >
+                -10s
+              </button>
+
+              <button onClick={player.prev} aria-label="আগের ভিডিও" className="grid size-9 place-items-center rounded-full text-foreground/90 hover:bg-muted transition-all active:scale-90">
+                <SkipIcon back />
+              </button>
+
+              <button
+                onClick={player.toggle}
+                aria-label={playing ? "পজ" : "প্লে"}
+                className="grid size-12 place-items-center rounded-2xl bg-gradient-to-tr from-primary to-indigo-600 text-primary-foreground shadow-lg shadow-primary/35 transition-all hover:scale-105 active:scale-95"
+              >
+                <PlayIcon playing={playing} className="size-5" />
+              </button>
+
+              <button onClick={player.next} aria-label="পরের ভিডিও" className="grid size-9 place-items-center rounded-full text-foreground/90 hover:bg-muted transition-all active:scale-90">
+                <SkipIcon />
+              </button>
+
+              <button
+                onClick={() => player.seek(Math.min(duration, time + 10))}
+                aria-label="১০ সেকেন্ড সামনে"
+                title="১০ সেকেন্ড সামনে"
+                className="grid size-9 place-items-center rounded-xl text-foreground/80 hover:bg-muted font-display text-[12px] font-bold transition-all active:scale-90"
+              >
+                +10s
+              </button>
+            </div>
+
+            <button onClick={() => void openDocPip()} aria-label="ভাসমান পপ-আপে চালান" title="ভাসমান পপ-আপ" className="grid size-9 place-items-center rounded-xl text-muted-foreground hover:bg-muted transition-all active:scale-90">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="4" width="19" height="16" rx="2.5" /><rect x="12" y="12" width="8" height="6" rx="1.4" fill="currentColor" /></svg>
             </button>
           </div>
         </div>
@@ -1636,25 +1736,28 @@ function Index() {
           <div className="px-5 pt-4">
             <p className="line-clamp-2 font-display text-lg font-bold leading-snug">{current?.title ?? "কোনো ভিডিও বাছাই হয়নি"}</p>
             {current && (meta?.views || meta?.published || meta?.publishedAgo) && (
-              <p className="mt-1 text-[12.5px] text-muted-foreground">
+              <p className="mt-1 text-[12px] font-medium text-muted-foreground">
                 {[meta?.views, meta?.published ? `আপলোড: ${meta.published}` : "", meta?.publishedAgo].filter(Boolean).join(" · ")}
               </p>
             )}
             {current?.author ? (
-              <button onClick={() => openChannel(current.author, meta?.channelId)} className="mt-2 inline-flex max-w-full items-center gap-2 rounded-full bg-glass px-2.5 py-1.5 ring-1 ring-border transition active:scale-95">
+              <button onClick={() => openChannel(current.author, meta?.channelId)} className="mt-2.5 inline-flex max-w-full items-center gap-2 rounded-2xl glass-card px-3 py-1.5 ring-1 ring-border/80 transition active:scale-95 hover:bg-white">
                 <Avatar src={meta?.channelThumb} name={current.author} size="size-7" text="text-[11px]" />
-                <span className="truncate font-display text-[13px] font-semibold">{current.author}</span>
-                {meta?.subs && <span className="shrink-0 text-[11px] text-muted-foreground">{meta.subs}</span>}
-                <span className="shrink-0 text-[11.5px] text-muted-foreground">চ্যানেল দেখুন</span>
+                <span className="truncate font-display text-[13px] font-bold">{current.author}</span>
+                {meta?.subs && <span className="shrink-0 text-[11px] text-muted-foreground">({meta.subs})</span>}
+                <span className="shrink-0 text-[11.5px] font-semibold text-primary">চ্যানেল দেখুন →</span>
               </button>
             ) : (
               <p className="mt-0.5 truncate text-sm text-muted-foreground">কুই থেকে একটি ভিডিও বেছে নিন</p>
             )}
 
-            <p className="mt-3 text-center text-[11px] text-muted-foreground">স্ক্রিন অফ করলেও চলতে থাকবে · লক-স্ক্রিন থেকে কন্ট্রোল করুন</p>
+            <div className="mt-3 flex items-center justify-center gap-1.5 rounded-xl bg-primary/10 py-1.5 px-3 text-[11.5px] font-semibold text-primary">
+              <span className="size-2 rounded-full bg-primary animate-pulse" />
+              <span>স্ক্রিন অফ করলেও চলবে · ব্যাকগ্রাউন্ড অডিও এক্টিভ</span>
+            </div>
 
             {current && player.captionTracks.length > 0 && (
-              <div className="mt-3 flex items-center gap-2 rounded-2xl bg-glass px-3 py-2 ring-1 ring-border">
+              <div className="mt-3 flex items-center gap-2 rounded-2xl glass-card px-3 py-2 ring-1 ring-border/80">
                 <button
                   onClick={() => player.setCaptions(!player.captionsOn)}
                   aria-pressed={player.captionsOn}
@@ -1663,7 +1766,7 @@ function Index() {
                 >
                   CC
                 </button>
-                <span className="flex-1 text-[12px]">{player.captionsOn ? "সাবটাইটেল চালু" : "সাবটাইটেল বন্ধ"}</span>
+                <span className="flex-1 text-[12px] font-medium">{player.captionsOn ? "সাবটাইটেল চালু" : "সাবটাইটেল বন্ধ"}</span>
                 {player.captionsOn && player.captionTracks.length > 1 && (
                   <select
                     value={player.captionLang ?? ""}
@@ -1680,15 +1783,29 @@ function Index() {
             )}
 
             {current && (
-              <div className="mt-3 flex gap-2">
+              <div className="mt-3.5 flex gap-2">
+                <button
+                  onClick={() => addToQueue(current)}
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl glass-card py-2.5 text-[12px] font-bold ring-1 ring-border/80 hover:bg-white transition-all active:scale-95"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                  প্লেলিস্ট
+                </button>
                 <button
                   onClick={() => navigator.share?.({ url: `https://youtu.be/${current.id}`, title: current.title }).catch(() => {})}
-                  className="flex-1 rounded-2xl bg-glass py-2 text-[12px] font-semibold ring-1 ring-border"
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl glass-card py-2.5 text-[12px] font-bold ring-1 ring-border/80 hover:bg-white transition-all active:scale-95"
                 >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
                   শেয়ার
                 </button>
-                <a href={`https://www.youtube.com/watch?v=${current.id}`} target="_blank" rel="noopener" className="flex-1 rounded-2xl bg-glass py-2 text-center text-[12px] font-semibold ring-1 ring-border">
-                  ইউটিউবে দেখুন
+                <a
+                  href={`https://www.youtube.com/watch?v=${current.id}`}
+                  target="_blank"
+                  rel="noopener"
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl glass-card py-2.5 text-center text-[12px] font-bold ring-1 ring-border/80 hover:bg-white transition-all active:scale-95"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                  ইউটিউবে
                 </a>
               </div>
             )}
@@ -1812,11 +1929,17 @@ function Index() {
               onPointerUp={() => { if (!pipDragEnd() && current) openWatch(current.id); }}
               onPointerCancel={pipDragEnd}
             />
-            <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-foreground/80 to-transparent px-1.5 pb-1.5 pt-4 text-background">
-              <button onClick={player.toggle} aria-label={playing ? "পজ" : "প্লে"} className="grid size-8 place-items-center rounded-lg bg-background/20"><PlayIcon playing={playing} className="size-4" /></button>
-              <button onClick={player.next} aria-label="পরের" className="grid size-8 place-items-center rounded-lg bg-background/20"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z" /></svg></button>
-              <button onClick={() => setPipMin(true)} aria-label="মিনিমাইজ" className="grid size-8 place-items-center rounded-lg bg-background/20"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M5 12h14" /></svg></button>
-              <button onClick={() => { player.toggle(); setPipDismissed(true); }} aria-label="বন্ধ" className="grid size-8 place-items-center rounded-lg bg-background/20"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg></button>
+            {/* Live Progress Bar on PiP */}
+            {duration > 0 && (
+              <div className="absolute inset-x-0 bottom-0 h-1 bg-white/25 z-10 pointer-events-none">
+                <div className="h-full bg-primary" style={{ width: `${Math.min(100, (time / duration) * 100)}%` }} />
+              </div>
+            )}
+            <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-foreground/90 via-foreground/60 to-transparent px-2 pb-2 pt-5 text-background">
+              <button onClick={player.toggle} aria-label={playing ? "পজ" : "প্লে"} className="grid size-8 place-items-center rounded-xl bg-white/20 backdrop-blur hover:bg-white/30 transition-all active:scale-90"><PlayIcon playing={playing} className="size-4" /></button>
+              <button onClick={player.next} aria-label="পরের" className="grid size-8 place-items-center rounded-xl bg-white/20 backdrop-blur hover:bg-white/30 transition-all active:scale-90"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z" /></svg></button>
+              <button onClick={() => setPipMin(true)} aria-label="মিনিমাইজ" className="grid size-8 place-items-center rounded-xl bg-white/20 backdrop-blur hover:bg-white/30 transition-all active:scale-90"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M5 12h14" /></svg></button>
+              <button onClick={() => { player.toggle(); setPipDismissed(true); }} aria-label="বন্ধ" className="grid size-8 place-items-center rounded-xl bg-white/20 backdrop-blur hover:bg-white/30 transition-all active:scale-90"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg></button>
             </div>
           </>
         )}

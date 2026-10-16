@@ -112,7 +112,36 @@
   box-shadow: inset 0 0 0 1px var(--color-border);
 }
 
+@utility glass-card {
+  background: linear-gradient(135deg, oklch(1 0 0 / 82%) 0%, oklch(1 0 0 / 65%) 100%);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 8px 32px 0 oklch(0.45 0.22 285 / 6%), inset 0 0 0 1px oklch(1 0 0 / 40%);
+}
+
 @utility eq-bar {
   transform-origin: bottom;
   animation: var(--animate-eq);
+}
+
+@utility ambient-glow {
+  filter: blur(40px);
+  opacity: 0.55;
+  transform: translateZ(0);
+}
+
+/* Custom sleek scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: oklch(0.7 0.03 290 / 35%);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.45 0.22 285 / 50%);
 }
