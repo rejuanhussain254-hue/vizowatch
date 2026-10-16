@@ -1243,8 +1243,179 @@ function Index() {
   const catLabel = CATEGORIES.find((c) => c.q === category)?.label ?? null;
   const chanView = !!channel && chanState !== "idle";
 
+  // ---- YouTube-style Pull to Refresh ----
+  const [pullY, setPullY] = useState(0);
+  const [isPullRefreshing, setIsPullRefreshing] = useState(false);
+  const pullStartY = useRef(0);
+  const pullStartX = useRef(0);
+  const isPulling = useRef(false);
+  const pullYRef = useRef(0);
+
+  const handleRefresh = useCallback(async () => {
+    if (isSearch) {
+      await doSearch(lastQuery);
+    } else {
+      await loadFeedPage(true);
+    }
+  }, [isSearch, lastQuery, doSearch, loadFeedPage]);
+
+  useEffect(() => {
+    if (open || chanView) return;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (window.scrollY > 5) return;
+      if (e.touches.length !== 1) return;
+      const touch = e.touches[0]!;
+      pullStartY.current = touch.clientY;
+      pullStartX.current = touch.clientX;
+      isPulling.current = false;
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (isPullRefreshing) return;
+      if (e.touches.length !== 1) return;
+      const touch = e.touches[0]!;
+      const dy = touch.clientY - pullStartY.current;
+      const dx = touch.clientX - pullStartX.current;
+
+      if (window.scrollY <= 2 && dy > 4 && Math.abs(dy) > Math.abs(dx) * 1.1) {
+        isPulling.current = true;
+        const dist = Math.min(80, Math.pow(dy, 0.82) * 1.6);
+        pullYRef.current = dist;
+        setPullY(dist);
+        if (e.cancelable && dy > 12) {
+          e.preventDefault();
+        }
+      } else if (dy <= 0 && isPulling.current) {
+        isPulling.current = false;
+        pullYRef.current = 0;
+        setPullY(0);
+      }
+    };
+
+    const onTouchEnd = () => {
+      if (!isPulling.current) return;
+      isPulling.current = false;
+      const currentDist = pullYRef.current;
+      if (currentDist >= 55) {
+        setIsPullRefreshing(true);
+        pullYRef.current = 55;
+        setPullY(55);
+        if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+          try { navigator.vibrate(18); } catch {}
+        }
+        void handleRefresh().finally(() => {
+          setIsPullRefreshing(false);
+          pullYRef.current = 0;
+          setPullY(0);
+        });
+      } else {
+        pullYRef.current = 0;
+        setPullY(0);
+      }
+    };
+
+    let mouseActive = false;
+    let mouseStartY = 0;
+    const onMouseDown = (e: MouseEvent) => {
+      if (window.scrollY > 5 || e.clientY > 180 || e.button !== 0) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("input, button, a, textarea, select, [role='slider']")) return;
+      mouseActive = true;
+      mouseStartY = e.clientY;
+    };
+    const onMouseMove = (e: MouseEvent) => {
+      if (!mouseActive || isPullRefreshing) return;
+      const dy = e.clientY - mouseStartY;
+      if (window.scrollY <= 2 && dy > 4) {
+        const dist = Math.min(80, Math.pow(dy, 0.82) * 1.6);
+        pullYRef.current = dist;
+        setPullY(dist);
+      }
+    };
+    const onMouseUp = () => {
+      if (!mouseActive) return;
+      mouseActive = false;
+      if (pullYRef.current >= 55) {
+        setIsPullRefreshing(true);
+        pullYRef.current = 55;
+        setPullY(55);
+        void handleRefresh().finally(() => {
+          setIsPullRefreshing(false);
+          pullYRef.current = 0;
+          setPullY(0);
+        });
+      } else {
+        pullYRef.current = 0;
+        setPullY(0);
+      }
+    };
+
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: false });
+    window.addEventListener("touchend", onTouchEnd, { passive: true });
+    window.addEventListener("touchcancel", onTouchEnd, { passive: true });
+    window.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+
+    return () => {
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onTouchEnd);
+      window.removeEventListener("touchcancel", onTouchEnd);
+      window.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, [open, chanView, isPullRefreshing, handleRefresh]);
+
+  useEffect(() => {
+    if (isPullRefreshing && searchState !== "loading") {
+      setIsPullRefreshing(false);
+      pullYRef.current = 0;
+      setPullY(0);
+    }
+  }, [searchState, isPullRefreshing]);
+
   return (
     <div className="relative min-h-screen overflow-hidden font-body">
+      {/* YouTube-style Floating Pull to Refresh indicator */}
+      <div
+        className="pointer-events-none fixed top-3 left-1/2 -translate-x-1/2 z-50 transition-all duration-200 ease-out"
+        style={{
+          transform: `translate3d(-50%, ${pullY}px, 0)`,
+          opacity: pullY > 6 ? Math.min(1, pullY / 32) : 0,
+        }}
+        aria-hidden={pullY <= 6}
+      >
+        <div className="flex size-11 items-center justify-center rounded-full bg-white/95 dark:bg-card/95 shadow-xl shadow-black/15 ring-1 ring-border/80 backdrop-blur-md">
+          {isPullRefreshing || (searchState === "loading" && pullY > 0) ? (
+            <svg className="size-5 animate-spin text-primary" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+            </svg>
+          ) : (
+            <svg
+              className={`size-5 text-primary transition-transform duration-75 ${pullY >= 55 ? "scale-110 text-indigo-600" : ""}`}
+              style={{
+                transform: `rotate(${pullY * 5}deg) scale(${Math.min(1, 0.65 + (pullY / 60) * 0.35)})`,
+              }}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+              <path d="M3 3v5h5" />
+              <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+              <path d="M16 21h5v-5" />
+            </svg>
+          )}
+        </div>
+      </div>
       <div aria-hidden className="pointer-events-none fixed inset-0">
         <div className="animate-glow absolute -top-24 -left-16 size-72 rounded-full bg-sun/60 blur-3xl" />
         <div className="animate-glow absolute top-1/3 -right-20 size-80 rounded-full bg-mint/60 blur-3xl" style={{ animationDelay: "-6s" }} />
@@ -1497,24 +1668,7 @@ function Index() {
         {/* Search / trending */}
         {!chanView && (
         <div className="mt-8 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h2 className="font-display text-xl font-semibold">{channel ? `চ্যানেল · ${channel}` : catLabel ? (catLabel === "হোম" ? "আপনার জন্য" : catLabel) : isSearch ? `"${lastQuery}"` : "আপনার জন্য"}</h2>
-            {!channel && !isSearch && (!catLabel || catLabel === "হোম") && (
-              <button
-                type="button"
-                onClick={() => void loadFeedPage(true)}
-                disabled={searchState === "loading"}
-                title="নতুন ভিডিও রিফ্রেশ করুন"
-                aria-label="নতুন ভিডিও রিফ্রেশ করুন"
-                className="flex items-center gap-1.5 rounded-full bg-lilac/40 hover:bg-lilac/70 px-3 py-1 font-display text-[12px] font-semibold text-primary transition-all active:scale-95 disabled:opacity-50 ring-1 ring-primary/20"
-              >
-                <svg className={`size-3.5 ${searchState === "loading" ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                <span>নতুন ভিডিও</span>
-              </button>
-            )}
-          </div>
+          <h2 className="font-display text-xl font-semibold">{channel ? `চ্যানেল · ${channel}` : catLabel ? (catLabel === "হোম" ? "আপনার জন্য" : catLabel) : isSearch ? `"${lastQuery}"` : "আপনার জন্য"}</h2>
           {channel && (
             <button onClick={backHome} className="rounded-full bg-glass px-3 py-1 font-display text-[12px] font-semibold ring-1 ring-border">
               হোম
