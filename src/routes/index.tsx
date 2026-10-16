@@ -353,7 +353,7 @@ function Index() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"queue" | "history">("queue");
+  const [tab, setTab] = useState<"queue" | "history">("history");
   const [profileOpen, setProfileOpen] = useState(false);
   const [bigVideo, setBigVideo] = useState(false);
   const toggleBigVideo = () => {
@@ -1068,18 +1068,16 @@ function Index() {
   const playTrack = useCallback(
     (track: Track, startAt = 0) => {
       const q = loadQueue();
-      let idx = q.findIndex((t) => t.id === track.id);
-      if (idx === -1) {
-        q.push(track);
-        idx = q.length - 1;
-        setQueue(q);
-        saveQueue(q);
+      const idx = q.findIndex((t) => t.id === track.id);
+      if (idx !== -1) {
+        player.playAt(idx, startAt);
+      } else {
+        player.playDirect(track, startAt);
       }
-      setTimeout(() => player.playAt(idx, startAt), 60);
       openWatch(track.id);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [player.playAt],
+    [player.playAt, player.playDirect],
   );
 
   // "up next" = the next queued video, else the first related one
@@ -2055,7 +2053,7 @@ function Index() {
               ))}
             </div>
             {tab === "queue" && queue.length > 0 && (
-              <button onClick={() => { setQueue([]); player.setIndex(null); }} className="text-[12px] text-muted-foreground">সব মুছুন</button>
+              <button onClick={() => { setQueue([]); saveQueue([]); player.setIndex(null); }} className="text-[12px] text-muted-foreground">সব মুছুন</button>
             )}
             {tab === "history" && history.length > 0 && (
               <button onClick={() => { clearHistory(); setHistory([]); if (userId) clearCloudHistory(userId); }} className="text-[12px] text-muted-foreground">সব মুছুন</button>

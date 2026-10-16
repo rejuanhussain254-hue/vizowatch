@@ -48,8 +48,20 @@ export function usePlayer(queue: Track[], containerId: string, onEnded?: () => b
   queueRef.current = queue;
   repeatRef.current = repeat;
   indexRef.current = index;
+  const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
 
-  const current = index !== null ? queue[index] ?? null : null;
+  const current = currentTrack ?? (index !== null ? queue[index] ?? null : null);
+
+  const playDirect = useCallback((track: Track, startAt = 0) => {
+    setCurrentTrack(track);
+    const q = queueRef.current;
+    const idx = q.findIndex((t) => t.id === track.id);
+    setIndex(idx !== -1 ? idx : null);
+    indexRef.current = idx !== -1 ? idx : null;
+    playerRef.current?.loadVideoById({ videoId: track.id, startSeconds: startAt });
+    setCaptionTracks([]);
+    setPlaying(true);
+  }, []);
 
   const playAt = useCallback((i: number, startAt = 0) => {
     const q = queueRef.current;
@@ -57,6 +69,7 @@ export function usePlayer(queue: Track[], containerId: string, onEnded?: () => b
     const next = ((i % q.length) + q.length) % q.length;
     setIndex(next);
     indexRef.current = next;
+    setCurrentTrack(q[next] ?? null);
     playerRef.current?.loadVideoById({ videoId: q[next]!.id, startSeconds: startAt });
     setCaptionTracks([]);
     setPlaying(true);
@@ -104,6 +117,7 @@ export function usePlayer(queue: Track[], containerId: string, onEnded?: () => b
       p?.pauseVideo?.();
     } catch {}
     setPlaying(false);
+    setCurrentTrack(null);
     setIndex(null);
     indexRef.current = null;
     setTime(0);
@@ -267,5 +281,5 @@ export function usePlayer(queue: Track[], containerId: string, onEnded?: () => b
 
 
 
-  return { ready, current, index, playing, time, duration, loaded, repeat, setRepeat, playAt, next, prev, toggle, pause, stop, seek, setIndex, captionTracks, captionsOn, captionLang, setCaptions };
+  return { ready, current, index, playing, time, duration, loaded, repeat, setRepeat, playAt, playDirect, next, prev, toggle, pause, stop, seek, setIndex, captionTracks, captionsOn, captionLang, setCaptions };
 }
