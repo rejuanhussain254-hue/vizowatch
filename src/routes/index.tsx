@@ -35,7 +35,18 @@ import {
   type HistoryItem,
   type Track,
 } from "@/lib/youtube";
-import { bumpTaste, emptyTaste, loadTaste, tasteScore, topTaste, type Taste } from "@/lib/taste";
+import {
+  bumpTaste,
+  emptyTaste,
+  loadTaste,
+  topTaste,
+  recordVideoStart,
+  recordVideoEngagement,
+  calculateAlgorithmScore,
+  diversifyVideoFeed,
+  buildYouTubeCandidateQueries,
+  type Taste,
+} from "@/lib/taste";
 
 
 type Search = { url?: string; text?: string; title?: string; v?: string };
@@ -586,14 +597,9 @@ function Index() {
   const loadFeedPage = useCallback(
     async (reset: boolean) => {
       if (reset) {
-        const pool = CATEGORIES.filter((c) => c.q).map((c) => c.q);
-        for (let i = pool.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          const t = pool[i]!; pool[i] = pool[j]!; pool[j] = t;
-        }
-        // videos like the ones this person watches come first, then the mixed pool
-        const taste = tasteRef.current.filter(Boolean);
-        feedOrder.current = [...taste, ...pool.filter((q) => !taste.includes(q))];
+        // YouTube-style Candidate Generation: Multi-shelf candidate mix
+        const queries = buildYouTubeCandidateQueries(tasteObjRef.current, history, CATEGORIES);
+        feedOrder.current = queries;
 
         feedPage.current = 0;
         feedSeen.current = new Set();
@@ -619,25 +625,39 @@ function Index() {
           }
         }
       }
-      // rank the mix so videos closest to this person's taste show up first
+      // rank the mix using YouTube Multi-factor Scoring with Channel Frequency & Fatigue Penalty
       const t = tasteObjRef.current;
+      const channelCounts: Record<string, number> = {};
       const ranked = fresh
-        .map((r, i) => ({ r, i, s: tasteScore(t, r.title, r.author, genreOf(`${r.title} ${r.author ?? ""}`)) }))
+        .map((r, i) => {
+          const author = r.author?.trim() || "";
+          const occurrences = channelCounts[author] ?? 0;
+          const genre = genreOf(`${r.title} ${r.author ?? ""}`);
+          const score = calculateAlgorithmScore(t, r, {
+            genre,
+            channelOccurrencesInFeed: occurrences,
+          });
+          channelCounts[author] = occurrences + 1;
+          return { r, i, s: score };
+        })
         .sort((a, b) => (b.s === a.s ? a.i - b.i : b.s - a.s))
         .map((x) => x.r);
+
+      const diversified = diversifyVideoFeed(ranked);
+
       if (reset) {
         if (batches.every((b) => b === null)) {
           setSearchState("error");
         } else {
-          setResults(ranked);
+          setResults(diversified);
           setSearchState("ok");
         }
       } else {
-        setResults((prev) => [...prev, ...ranked]);
+        setResults((prev) => [...prev, ...diversified]);
         setFeedLoadingMore(false);
       }
     },
-    [fetchWithRetry, feedLoadingMore],
+    [fetchWithRetry, feedLoadingMore, history],
   );
 
 
@@ -771,10 +791,12 @@ function Index() {
   const liveRef = useRef<{ id: string; time: number; duration: number } | null>(null);
   liveRef.current = current ? { id: current.id, time, duration } : liveRef.current;
   const prevIdRef = useRef<string | null>(null);
+  const prevTrackRef = useRef<Track | null>(null);
   useEffect(() => {
     if (!current) return;
     // flush the outgoing video's progress before switching (swipe / next / zoom exit)
     const prev = prevIdRef.current;
+    const prevTrack = prevTrackRef.current;
     const live = liveRef.current;
     if (prev && prev !== current.id && live && live.id === prev && live.duration) {
       updateHistoryPosition(prev, live.time, live.duration);
@@ -782,17 +804,29 @@ function Index() {
         const item = loadHistory().find((h) => h.id === prev);
         if (item) updateCloudPosition(userId, prev, item.position, item.duration);
       }
+      // YouTube Retention Algorithm: Record engagement on outgoing track (skip penalty vs watch completion)
+      const prevGenre = genreOf(`${prevTrack?.title ?? ""} ${prevTrack?.author ?? ""}`);
+      setTaste((t) =>
+        recordVideoEngagement(t, {
+          videoId: prev,
+          author: prevTrack?.author,
+          genre: prevGenre,
+          watchedSeconds: live.time,
+          totalDuration: live.duration,
+        }),
+      );
     }
     prevIdRef.current = current.id;
+    prevTrackRef.current = current;
     lastSaved.current = 0;
     const next = pushHistory(current);
     setHistory(next);
     const item = next.find((h) => h.id === current.id);
     if (userId && item) upsertCloudHistory(userId, item);
-    // learn what this person watches, so the home feed leans that way
+
+    // YouTube Candidate Algorithm: Register video play start (repeat listen, channel recency)
     const g = genreOf(`${current.title} ${current.author ?? ""}`);
-    if (g) bump("genres", g, 1);
-    if (current.author) bump("channels", current.author, 1);
+    setTaste((t) => recordVideoStart(t, { id: current.id, author: current.author, genre: g }));
   }, [current?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // watched more than half → a much stronger signal than just opening it
@@ -802,9 +836,16 @@ function Index() {
     if (deepRef.current.has(current.id)) return;
     deepRef.current.add(current.id);
     const g = genreOf(`${current.title} ${current.author ?? ""}`);
-    if (g) bump("genres", g, 2);
-    if (current.author) bump("channels", current.author, 2);
-  }, [time, duration, current, bump]);
+    setTaste((t) =>
+      recordVideoEngagement(t, {
+        videoId: current.id,
+        author: current.author,
+        genre: g,
+        watchedSeconds: time,
+        totalDuration: duration,
+      }),
+    );
+  }, [time, duration, current]);
 
   const lastSaved = useRef(0);
   useEffect(() => {
@@ -944,8 +985,22 @@ function Index() {
     return true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nextUp?.id, playTrack, savedPosOf]);
-  // when a video finishes, auto-play the related "up next" one
-  endedRef.current = () => (queuedNext ? false : playUpNext());
+  // when a video finishes, record full completion retention & auto-play the related "up next" one
+  endedRef.current = () => {
+    if (current && duration) {
+      const g = genreOf(`${current.title} ${current.author ?? ""}`);
+      setTaste((t) =>
+        recordVideoEngagement(t, {
+          videoId: current.id,
+          author: current.author,
+          genre: g,
+          watchedSeconds: duration,
+          totalDuration: duration,
+        }),
+      );
+    }
+    return queuedNext ? false : playUpNext();
+  };
 
 
   // ?v= present (deep link / reload / back-forward) but not playing that video → start it
@@ -1033,7 +1088,23 @@ function Index() {
         list.push(r);
       }
       if (list.length > 0) {
-        setRelated(list);
+        const t = tasteObjRef.current;
+        const currentGenre = genreOf(`${current.title} ${current.author ?? ""}`);
+        const rankedRelated = list
+          .map((r, i) => ({
+            r,
+            i,
+            s: calculateAlgorithmScore(t, r, {
+              genre: genreOf(`${r.title} ${r.author ?? ""}`),
+              currentPlayingAuthor: current.author,
+              currentPlayingGenre: currentGenre,
+            }),
+          }))
+          .sort((a, b) => (b.s === a.s ? a.i - b.i : b.s - a.s))
+          .map((x) => x.r);
+
+        const diversifiedRelated = diversifyVideoFeed(rankedRelated);
+        setRelated(diversifiedRelated);
         setRelatedState("ok");
       } else setRelatedState("error");
     })();
@@ -1110,6 +1181,9 @@ function Index() {
   function addToQueue(t: Track) {
     if (queue.some((x) => x.id === t.id)) return flash("আগেই প্লেলিস্টে আছে");
     setQueue((q) => [...q, { id: t.id, title: t.title, author: t.author, thumbnail: t.thumbnail }]);
+    if (t.author) bump("channels", t.author, 1.5);
+    const g = genreOf(`${t.title} ${t.author ?? ""}`);
+    if (g) bump("genres", g, 1.2);
     flash("প্লেলিস্টে যোগ হয়েছে");
   }
 
