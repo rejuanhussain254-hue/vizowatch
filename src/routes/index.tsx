@@ -1441,7 +1441,7 @@ function Index() {
     else if (player.index === i) player.setIndex(null);
   }
 
-  const resume = history.find((h) => h.position > 10 && h.id !== current?.id);
+  const resume = history.find((h) => h.position > 10 && (!playing || h.id !== current?.id));
   const upNext = player.index !== null && queue.length > 1 ? queue.slice(player.index + 1, player.index + 6) : [];
   const isSearch = lastQuery.trim().length > 0;
   const catLabel = CATEGORIES.find((c) => c.q === category)?.label ?? null;
@@ -1910,38 +1910,6 @@ function Index() {
           })}
         </nav>
 
-        {resume && !open && (
-          <div className="glass-card mt-4 overflow-hidden rounded-3xl p-3 ring-1 ring-primary/30 shadow-md shadow-primary/5 transition-all hover:shadow-lg hover:shadow-primary/10">
-            <div className="flex items-center gap-3.5">
-              <div className="relative shrink-0 overflow-hidden rounded-2xl ring-1 ring-border/50">
-                <img src={resume.thumbnail} alt="" className="h-16 w-28 object-cover" />
-                <span className="absolute inset-0 bg-black/20" />
-                {resume.duration ? (
-                  <span className="absolute inset-x-1.5 bottom-1.5 h-1 overflow-hidden rounded-full bg-white/30 backdrop-blur-sm">
-                    <span className="block h-full rounded-full bg-primary" style={{ width: `${Math.min(100, (resume.position / resume.duration) * 100)}%` }} />
-                  </span>
-                ) : null}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5 text-[11px] font-bold text-primary">
-                  <span className="size-1.5 rounded-full bg-primary animate-pulse" />
-                  <span>যেখানে ছেড়েছিলেন · {formatTime(resume.position)}</span>
-                </div>
-                <p className="mt-0.5 line-clamp-1 font-display text-[14px] font-bold text-foreground">{resume.title}</p>
-                <p className="line-clamp-1 text-[11.5px] font-medium text-muted-foreground">{resume.author}</p>
-              </div>
-              <button
-                onClick={() => playTrack(resume, resume.position)}
-                aria-label="চালান"
-                className="grid size-10 shrink-0 place-items-center rounded-2xl bg-gradient-to-tr from-primary to-indigo-600 text-primary-foreground shadow-md shadow-primary/30 transition-all hover:opacity-95 active:scale-90"
-              >
-                <PlayIcon playing={false} />
-              </button>
-            </div>
-          </div>
-        )}
-
-
         {/* Channel page */}
         {chanView && (
           <section className="mt-6">
@@ -2317,6 +2285,49 @@ function Index() {
               <div className="mt-3 flex gap-2">
                 <Link to="/auth" className="flex-1 rounded-2xl bg-primary px-4 py-2.5 text-center font-display text-[13px] font-semibold text-primary-foreground shadow-primary">লগইন</Link>
                 <Link to="/auth" className="flex-1 rounded-2xl bg-background px-4 py-2.5 text-center font-display text-[13px] font-semibold ring-1 ring-border">সাইনআপ</Link>
+              </div>
+            </div>
+          )}
+
+          {/* Resume video card */}
+          {resume && (
+            <div
+              onClick={() => {
+                setProfileOpen(false);
+                playTrack(resume, resume.position);
+              }}
+              className="glass-card mt-4 overflow-hidden rounded-3xl p-3 ring-1 ring-primary/30 shadow-md shadow-primary/5 transition-all hover:shadow-lg hover:shadow-primary/10 cursor-pointer active:scale-[0.99] group"
+            >
+              <div className="flex items-center gap-3.5">
+                <div className="relative shrink-0 overflow-hidden rounded-2xl ring-1 ring-border/50">
+                  <img src={resume.thumbnail} alt="" className="h-16 w-28 object-cover group-hover:scale-105 transition-transform" />
+                  <span className="absolute inset-0 bg-black/20" />
+                  {resume.duration ? (
+                    <span className="absolute inset-x-1.5 bottom-1.5 h-1 overflow-hidden rounded-full bg-white/30 backdrop-blur-sm">
+                      <span className="block h-full rounded-full bg-primary" style={{ width: `${Math.min(100, (resume.position / resume.duration) * 100)}%` }} />
+                    </span>
+                  ) : null}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 text-[11px] font-bold text-primary">
+                    <span className="size-1.5 rounded-full bg-primary animate-pulse" />
+                    <span>যেখানে ছেড়েছিলেন · {formatTime(resume.position)}</span>
+                  </div>
+                  <p className="mt-0.5 line-clamp-1 font-display text-[14px] font-bold text-foreground group-hover:text-primary transition-colors">{resume.title}</p>
+                  <p className="line-clamp-1 text-[11.5px] font-medium text-muted-foreground">{resume.author}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setProfileOpen(false);
+                    playTrack(resume, resume.position);
+                  }}
+                  aria-label="চালান"
+                  className="grid size-10 shrink-0 place-items-center rounded-2xl bg-gradient-to-tr from-primary to-indigo-600 text-primary-foreground shadow-md shadow-primary/30 transition-all hover:opacity-95 active:scale-90"
+                >
+                  <PlayIcon playing={false} />
+                </button>
               </div>
             </div>
           )}
