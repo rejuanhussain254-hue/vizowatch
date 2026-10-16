@@ -637,22 +637,31 @@ function Index() {
         if (feedLoadingMore || feedPage.current >= feedOrder.current.length) return;
         setFeedLoadingMore(true);
       }
-      const take = reset ? 2 : 1;
+      const take = reset ? 3 : 2;
       const qs = feedOrder.current.slice(feedPage.current, feedPage.current + take);
       feedPage.current += take;
       const batches = await Promise.all(qs.map((q) => fetchWithRetry(q)));
       const fresh: SearchResult[] = [];
-      // interleave the batches so the feed looks mixed, like YouTube home
+      const channelFeedCount: Record<string, number> = {};
+
+      // Interleave round-robin across batches, strictly capping each channel to max 2 videos per load
       const max = Math.max(0, ...batches.map((b) => b?.length ?? 0));
       for (let i = 0; i < max; i++) {
         for (const b of batches) {
           const r = b?.[i];
           if (r && !feedSeen.current.has(r.id)) {
-            feedSeen.current.add(r.id);
-            fresh.push(r);
+            const author = (r.author?.trim() || "unknown").toLowerCase();
+            const count = channelFeedCount[author] ?? 0;
+            // Strict YouTube creator cap: max 2 videos per channel in the feed batch
+            if (count < 2) {
+              channelFeedCount[author] = count + 1;
+              feedSeen.current.add(r.id);
+              fresh.push(r);
+            }
           }
         }
       }
+
       // rank the mix using YouTube Multi-factor Scoring with Channel Frequency & Fatigue Penalty
       const t = tasteObjRef.current;
       const channelCounts: Record<string, number> = {};
@@ -671,7 +680,7 @@ function Index() {
         .sort((a, b) => (b.s === a.s ? a.i - b.i : b.s - a.s))
         .map((x) => x.r);
 
-      const diversified = diversifyVideoFeed(ranked);
+      const diversified = diversifyVideoFeed(ranked, 2);
 
       if (reset) {
         if (batches.every((b) => b === null)) {

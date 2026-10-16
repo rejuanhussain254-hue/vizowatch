@@ -291,16 +291,16 @@ export function calculateAlgorithmScore(
   const lowTitle = video.title.toLowerCase();
   const author = video.author?.trim();
 
-  // 1. Channel Affinity (Strongest signal)
+  // 1. Channel Affinity (Balanced signal - capped so one channel doesn't dominate)
   if (author) {
     const chanScore = t.channels[author] ?? 0;
     if (chanScore > 0) {
-      score += chanScore * 3.5;
+      score += Math.min(chanScore * 1.5, 4.0);
     } else {
       // Fuzzy author match
       for (const [c, v] of Object.entries(t.channels)) {
         if (author.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(author.toLowerCase())) {
-          score += v * 2.0;
+          score += Math.min(v * 1.2, 2.5);
           break;
         }
       }
@@ -309,13 +309,13 @@ export function calculateAlgorithmScore(
     // Historical average completion bonus
     const avgRatio = t.watchRatio[author];
     if (avgRatio !== undefined) {
-      score += (avgRatio - 0.4) * 4.0; // Boost if user tends to watch >= 50%
+      score += (avgRatio - 0.4) * 3.0; // Boost if user tends to watch >= 50%
     }
 
     // Penalty deduction for previously skipped channels
     const penalty = t.penalties[author] ?? 0;
     if (penalty > 0) {
-      score -= penalty * 2.8;
+      score -= penalty * 3.0;
     }
   }
 
@@ -385,41 +385,59 @@ export function tasteScore(t: Taste, text: string, author?: string, genre?: stri
 
 /**
  * YouTube-style Diversity & Interleaving:
- * Ensures the feed is not cluttered with multiple videos from the same channel sequentially
+ * Enforces a strict quota (max 2 videos per channel in the feed batch)
+ * and strictly prevents consecutive videos from the same creator
  */
-export function diversifyVideoFeed<T extends { author?: string }>(videos: T[], maxConsecutive = 1): T[] {
+export function diversifyVideoFeed<T extends { author?: string }>(videos: T[], maxPerChannel = 2): T[] {
   if (videos.length <= 2) return videos;
 
-  const result: T[] = [];
-  const remaining = [...videos];
+  // Step 1: Enforce channel quota (max 2 videos per creator in the batch)
   const channelCounts: Record<string, number> = {};
+  const capped: T[] = [];
+  const overflow: T[] = [];
 
-  while (remaining.length > 0) {
+  for (const v of videos) {
+    const author = (v.author?.trim() || "unknown").toLowerCase();
+    const count = channelCounts[author] ?? 0;
+    if (count < maxPerChannel) {
+      channelCounts[author] = count + 1;
+      capped.push(v);
+    } else {
+      overflow.push(v);
+    }
+  }
+
+  // Step 2: Strict interleaving so no two consecutive videos share the same author
+  const result: T[] = [];
+  const pool = [...capped];
+
+  while (pool.length > 0) {
     let pickIndex = -1;
-    const lastAuthor = result[result.length - 1]?.author;
+    const lastAuthor = result[result.length - 1]?.author?.trim().toLowerCase();
 
-    // Find the highest ranked video that doesn't violate consecutive author rule
-    for (let i = 0; i < remaining.length; i++) {
-      const candidate = remaining[i]!;
-      const author = candidate.author ?? "";
-
-      // Allow if author is different or channel hasn't exceeded consecutive threshold
-      if (!lastAuthor || !author || author !== lastAuthor) {
+    for (let i = 0; i < pool.length; i++) {
+      const candidateAuthor = pool[i]!.author?.trim().toLowerCase() ?? "";
+      if (!lastAuthor || !candidateAuthor || candidateAuthor !== lastAuthor) {
         pickIndex = i;
         break;
       }
     }
 
-    // Fallback if every remaining video is from the same author
-    if (pickIndex === -1) pickIndex = 0;
-
-    const [chosen] = remaining.splice(pickIndex, 1);
-    if (chosen) {
-      result.push(chosen);
-      if (chosen.author) {
-        channelCounts[chosen.author] = (channelCounts[chosen.author] ?? 0) + 1;
+    // If all remaining videos share the same author, attempt to interleave with overflow from a different creator
+    if (pickIndex === -1) {
+      const altIndex = overflow.findIndex((o) => {
+        const a = o.author?.trim().toLowerCase() ?? "";
+        return a && a !== lastAuthor;
+      });
+      if (altIndex !== -1) {
+        result.push(overflow.splice(altIndex, 1)[0]!);
+        continue;
       }
+      pickIndex = 0;
     }
+
+    const [chosen] = pool.splice(pickIndex, 1);
+    if (chosen) result.push(chosen);
   }
 
   return result;
@@ -428,10 +446,9 @@ export function diversifyVideoFeed<T extends { author?: string }>(videos: T[], m
 /**
  * YouTube Candidate Generation:
  * Builds balanced candidate queries:
- * - 40% Personalized Affinity (Top Channels + Genres)
- * - 20% High Retention / Favorites
- * - 20% Trending / Local Regional Mix
- * - 20% Discovery / Exploration Categories
+ * 1. Broad regional trending & viral mix FIRST (guarantees diverse creators on initial load)
+ * 2. User's top genres & exploration categories
+ * 3. User search terms & favorite artists (interleaved)
  */
 export function buildYouTubeCandidateQueries(
   t: Taste,
@@ -449,51 +466,35 @@ export function buildYouTubeCandidateQueries(
     }
   };
 
-  // 1. Personalized Channels (Top 3)
-  const topChannels = topTaste(t.channels, 3);
-  for (const c of topChannels) {
-    add(`${c} নতুন ভিডিও`);
-  }
+  // 1. Broad Regional & Trending Mix FIRST (Diverse, multi-channel videos)
+  add("trending videos bangladesh");
+  add("bangla viral song");
 
-  // 2. Personalized Genres (Top 2)
-  const topGenres = topTaste(t.genres, 2);
+  // 2. User's Top Genres (Broad topic mixes, e.g. "বাংলা নাটক", "ইসলামিক ওয়াজ", "গান")
+  const topGenres = topTaste(t.genres, 3);
   for (const g of topGenres) {
     add(`${g} trending`);
   }
 
-  // 3. User Search Terms (Top 2)
+  // 3. Exploration: Pick 4-5 diverse categories from base pool
+  const categoryPool = baseCategories
+    .filter((c) => c.q && !c.q.includes("trending"))
+    .map((c) => c.q);
+  const shuffled = [...categoryPool].sort(() => Math.random() - 0.5);
+  for (const exp of shuffled.slice(0, 5)) {
+    add(exp);
+  }
+
+  // 4. User Search Terms (if any)
   const topTerms = topTaste(t.terms, 2);
   for (const term of topTerms) {
     add(term);
   }
 
-  // 4. Watch Again / Favorites from History (Frequent & High Completion)
-  const frequentAuthors = new Map<string, number>();
-  for (const h of history.slice(0, 25)) {
-    if (h.author) frequentAuthors.set(h.author, (frequentAuthors.get(h.author) ?? 0) + 1);
-  }
-  const topHistAuthors = [...frequentAuthors.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 2)
-    .map(([a]) => a);
-
-  for (const a of topHistAuthors) {
-    add(`${a} গান`);
-  }
-
-  // 5. Trending Local Pool (Bangla / Bangladesh Trending)
-  add("trending videos bangladesh");
-  add("bangla viral song");
-
-  // 6. Exploration: Rotate from unexplored categories in baseCategories
-  const unusedCategories = baseCategories
-    .filter((c) => c.q && !topGenres.some((g) => c.label.includes(g)))
-    .map((c) => c.q);
-
-  // Shuffle and pick 3-4 exploration categories
-  const shuffled = [...unusedCategories].sort(() => Math.random() - 0.5);
-  for (const exp of shuffled.slice(0, 4)) {
-    add(exp);
+  // 5. Creator queries (placed later so single channels don't hijack initial feed load)
+  const topChannels = topTaste(t.channels, 2);
+  for (const c of topChannels) {
+    add(c);
   }
 
   return queries;
