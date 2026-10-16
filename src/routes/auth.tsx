@@ -39,7 +39,12 @@ function AuthPage() {
   async function google() {
     setBusy(true);
     setMsg(null);
-    const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin });
+    const result = await lovable.auth.signInWithOAuth("google", {
+      redirect_uri: window.location.origin,
+      extraParams: {
+        prompt: "select_account",
+      },
+    });
     if (result.error) {
       setMsg({ kind: "error", text: "গুগল সাইন-ইন হয়নি, আবার চেষ্টা করুন।" });
       setBusy(false);

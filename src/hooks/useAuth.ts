@@ -19,5 +19,11 @@ export function useAuth() {
   }, []);
 
   const user: User | null = session?.user ?? null;
-  return { session, user, loading, signOut: () => supabase.auth.signOut() };
+  const signOut = async () => {
+    try {
+      await supabase.auth.signOut({ scope: "global" });
+    } catch {}
+    setSession(null);
+  };
+  return { session, user, loading, signOut };
 }

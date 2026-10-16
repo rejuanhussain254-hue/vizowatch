@@ -1147,6 +1147,55 @@ function Index() {
   const openWatch = (id: string) => navigate({ to: "/", search: { v: id } });
   const closeWatch = () => navigate({ to: "/", search: {}, replace: true });
 
+  // YouTube-style pull-down on video to minimize into pop-up
+  const [watchPullY, setWatchPullY] = useState(0);
+  const watchPullYRef = useRef(0);
+  const watchTouchRef = useRef<{ startY: number; startX: number; active: boolean; time: number } | null>(null);
+
+  const onWatchTouchStart = useCallback((e: React.TouchEvent | React.PointerEvent) => {
+    const clientY = "touches" in e ? e.touches[0]?.clientY : e.clientY;
+    const clientX = "touches" in e ? e.touches[0]?.clientX : e.clientX;
+    if (clientY === undefined || clientX === undefined) return;
+    watchTouchRef.current = { startY: clientY, startX: clientX, active: true, time: Date.now() };
+    watchPullYRef.current = 0;
+  }, []);
+
+  const onWatchTouchMove = useCallback((e: React.TouchEvent | React.PointerEvent) => {
+    if (!watchTouchRef.current?.active) return;
+    const clientY = "touches" in e ? e.touches[0]?.clientY : e.clientY;
+    const clientX = "touches" in e ? e.touches[0]?.clientX : e.clientX;
+    if (clientY === undefined || clientX === undefined) return;
+    const dy = clientY - watchTouchRef.current.startY;
+    const dx = Math.abs(clientX - watchTouchRef.current.startX);
+    if (dy > 0 && dy > dx) {
+      watchPullYRef.current = dy;
+      setWatchPullY(dy);
+    }
+  }, []);
+
+  const onWatchTouchEnd = useCallback(() => {
+    if (!watchTouchRef.current) return;
+    const dy = watchPullYRef.current;
+    const dt = Date.now() - watchTouchRef.current.time;
+    watchTouchRef.current = null;
+    watchPullYRef.current = 0;
+    setWatchPullY(0);
+    if (dy >= 45 || (dy > 20 && dt < 300)) {
+      closeWatch();
+    }
+  }, []);
+
+  // Browser back button support for Profile Page
+  useEffect(() => {
+    if (!profileOpen) return;
+    window.history.pushState({ page: "profile" }, "");
+    const onPop = () => {
+      setProfileOpen(false);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [profileOpen]);
+
   // open a channel: show that channel's videos on the home list
   const chanIdRef = useRef<string | null>(null);
   const loadChannel = useCallback(
@@ -2313,20 +2362,46 @@ function Index() {
         </section>
       </main>
 
-      {/* Profile sheet — account, playlist, history */}
-      {profileOpen && <button aria-label="বন্ধ" onClick={() => setProfileOpen(false)} className="fixed inset-0 z-20 bg-foreground/20 backdrop-blur-[2px]" />}
+      {/* Profile Page — Dedicated Full-Screen "You" Page */}
       <div
-        className={`fixed inset-x-0 bottom-0 z-20 mx-auto flex max-w-[480px] flex-col rounded-t-[28px] bg-background/95 backdrop-blur-xl transition-transform duration-500 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)] ${profileOpen ? "translate-y-0" : "translate-y-full"}`}
-        style={{ height: "92dvh" }}
+        className={`fixed inset-0 z-40 mx-auto flex max-w-[480px] w-full flex-col bg-background transition-transform duration-300 ease-out ${
+          profileOpen ? "translate-x-0" : "translate-x-full pointer-events-none"
+        }`}
         aria-hidden={!profileOpen}
-        role="dialog"
-        aria-label="প্রোফাইল"
+        role="region"
+        aria-label="ইউজার প্রোফাইল"
       >
-        <div className="flex items-center justify-between px-5 pt-4">
-          <p className="font-display text-base font-bold">প্রোফাইল</p>
-          <button onClick={() => setProfileOpen(false)} aria-label="বন্ধ" className="grid size-9 place-items-center rounded-2xl bg-glass ring-1 ring-border text-[13px]">✕</button>
-        </div>
-        <div className="flex-1 overflow-y-auto px-5 pb-10">
+        {/* Full Page Navigation Header */}
+        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border/40 bg-background/95 px-4 py-2.5 backdrop-blur-xl pt-[max(0.75rem,env(safe-area-inset-top))]">
+          <button
+            onClick={() => setProfileOpen(false)}
+            aria-label="হোমে ফিরে যান"
+            className="flex items-center gap-1.5 rounded-full bg-glass px-3.5 py-1.5 font-display text-[13px] font-bold text-foreground ring-1 ring-border/80 hover:bg-primary/10 hover:text-primary transition-all active:scale-95"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+            <span>হোমে ফিরুন</span>
+          </button>
+          <h1 className="font-display text-[16px] font-bold text-foreground">আপনার প্রোফাইল</h1>
+          {user ? (
+            <button
+              onClick={() => signOut()}
+              aria-label="সাইন-আউট"
+              className="rounded-full bg-rose-500/10 px-3 py-1.5 font-display text-[11.5px] font-bold text-rose-600 hover:bg-rose-500/20 transition-colors"
+            >
+              সাইন-আউট
+            </button>
+          ) : (
+            <Link
+              to="/auth"
+              className="rounded-full bg-primary px-3.5 py-1.5 font-display text-[12px] font-bold text-primary-foreground shadow-sm shadow-primary/25 hover:opacity-90 transition-opacity"
+            >
+              লগইন
+            </Link>
+          )}
+        </header>
+        <div className="flex-1 overflow-y-auto px-4 pb-[max(3rem,env(safe-area-inset-bottom))]">
           {user ? (
             <div className="glass mt-4 flex items-center gap-3 rounded-3xl p-4">
               <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary font-display text-base font-bold text-primary-foreground shadow-primary">{(user.email ?? "?")[0]?.toUpperCase()}</span>
@@ -2580,7 +2655,7 @@ function Index() {
                     ))}
                   </ul>
                 ) : (
-                  <div className="-mx-5 flex gap-2.5 overflow-x-auto px-5 pb-2 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <div className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-2 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {history.slice(0, 15).map((h) => (
                       <button
                         key={h.id}
@@ -2737,7 +2812,7 @@ function Index() {
                     })}
                   </ul>
                 ) : (
-                  <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-2 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {userPlaylists.map((pl) => {
                       const firstThumb = pl.videos[0]?.thumbnail;
                       return (
@@ -2793,7 +2868,7 @@ function Index() {
                       সব দেখুন →
                     </button>
                   </div>
-                  <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-2 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {homePlaylists.slice(0, 8).map((pl) => (
                       <button
                         key={pl.id}
@@ -2826,32 +2901,37 @@ function Index() {
 
       {/* Watch page (?v=ID) — the player iframe lives here permanently so audio never stops */}
       <div
-        className={`fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-[480px] flex-col bg-background/95 backdrop-blur-xl transition-transform duration-500 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)] ${open ? "translate-y-0" : "translate-y-full"}`}
-        style={{ height: "100dvh" }}
+        className={`fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-[480px] flex-col bg-background/95 backdrop-blur-xl ${
+          watchPullY > 0 ? "" : "transition-transform duration-500 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)]"
+        }`}
+        style={{
+          height: "100dvh",
+          transform: open
+            ? watchPullY > 0
+              ? `translateY(${watchPullY}px)`
+              : "translateY(0)"
+            : "translateY(100%)",
+        }}
         aria-hidden={!open}
         data-watch-sheet
       >
-        <div className="flex items-center justify-between px-5 pt-[max(1.25rem,env(safe-area-inset-top))]">
-          <button onClick={closeWatch} aria-label="বন্ধ" className="grid size-10 place-items-center rounded-2xl bg-glass ring-1 ring-border">
-            <span className="block h-[2px] w-4 rounded-full bg-foreground" />
-          </button>
-          <p className="font-display text-sm font-semibold">এখন চলছে</p>
-          <button
-            onClick={() => player.setRepeat(!player.repeat)}
-            className={`rounded-2xl px-3 py-2 text-[12px] font-semibold ring-1 ring-border ${player.repeat ? "bg-primary text-primary-foreground" : "bg-glass"}`}
-          >
-            রিপিট
-          </button>
-        </div>
-
-        {/* slot the floating player docks into while the watch page is open with ambient backlight */}
-        <div className="relative mx-4 mt-3">
-          <div className="ambient-glow absolute -inset-2 bg-gradient-to-r from-primary/35 via-indigo-500/25 to-rose-500/35 rounded-3xl" />
-          <div ref={slotRef} className="relative aspect-video overflow-hidden rounded-2xl bg-black/90 ring-1 ring-border shadow-2xl" />
+        {/* Top video slot docked right at the top of the watch page with swipe-down detector */}
+        <div
+          className="relative w-full pt-[max(0.25rem,env(safe-area-inset-top))] select-none touch-none"
+          onTouchStart={onWatchTouchStart}
+          onTouchMove={onWatchTouchMove}
+          onTouchEnd={onWatchTouchEnd}
+        >
+          <div ref={slotRef} className="relative aspect-video w-full overflow-hidden bg-black/95 shadow-xl" />
         </div>
 
         {/* compact modern glass controls under the video */}
-        <div className="mx-4 mt-2 glass-card rounded-2xl px-3 py-2 ring-1 ring-border/80 shadow-sm">
+        <div
+          className="mx-3.5 mt-2 glass-card rounded-2xl px-3 py-2 ring-1 ring-border/80 shadow-sm"
+          onTouchStart={onWatchTouchStart}
+          onTouchMove={onWatchTouchMove}
+          onTouchEnd={onWatchTouchEnd}
+        >
           <SeekBar time={time} duration={duration} loaded={player.loaded} onSeek={player.seek} />
           <div className="mt-1.5 flex items-center justify-between px-0.5">
             <button
@@ -3050,7 +3130,7 @@ function Index() {
         className={
           docPip
             ? "size-full overflow-hidden bg-foreground"
-            : `fixed z-[45] overflow-hidden bg-foreground ${pipDragging ? "" : "transition-all duration-500 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)]"} ${
+            : `fixed z-[45] overflow-hidden bg-foreground ${pipDragging || watchPullY > 0 ? "" : "transition-all duration-500 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)]"} ${
                 playerMode === "big" ? "grid place-items-center rounded-none" : playerMode === "pip" ? "rounded-2xl shadow-primary ring-1 ring-border" : playerMode === "watch" ? "rounded-3xl ring-1 ring-border" : "pointer-events-none opacity-0"
               }`
         }
@@ -3060,12 +3140,11 @@ function Index() {
             : playerMode === "big"
               ? { inset: 0 }
               : playerMode === "watch" && slotRect
-                ? { top: slotRect.top, left: slotRect.left, width: slotRect.width, height: slotRect.height }
+                ? { top: slotRect.top + watchPullY, left: slotRect.left, width: slotRect.width, height: slotRect.height }
                 : playerMode === "pip"
                   ? { left: pipPos?.left ?? 12, top: pipPos?.top ?? 12, width: pipW, height: pipH }
                   : { right: 12, bottom: 16, width: 1, height: 1 }
         }
-
       >
         <div id={PLAYER_ID} className={playerMode === "big" ? "aspect-video w-full max-w-[min(100vw,calc(100dvh*16/9))]" : "size-full"} />
         {playerMode === "big" && (
@@ -3231,7 +3310,61 @@ function Index() {
             </button>
           </div>
         )}
-        {(playerMode === "big" || playerMode === "watch") && (
+        {playerMode === "watch" && (
+          <div
+            className="absolute inset-x-0 top-0 z-20 flex h-14 items-center justify-between bg-gradient-to-b from-black/75 via-black/35 to-transparent px-3 text-white touch-none"
+            onTouchStart={onWatchTouchStart}
+            onTouchMove={onWatchTouchMove}
+            onTouchEnd={onWatchTouchEnd}
+            onPointerDown={onWatchTouchStart}
+            onPointerMove={onWatchTouchMove}
+            onPointerUp={onWatchTouchEnd}
+          >
+            {/* YouTube-style minimize to pop-up chevron button */}
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                closeWatch();
+              }}
+              aria-label="পপআপে মিনিমাইজ করুন"
+              title="মিনিমাইজ"
+              className="grid size-9 place-items-center rounded-full bg-black/40 text-white shadow backdrop-blur-md hover:bg-black/60 active:scale-90 transition-transform"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </button>
+
+            {/* Drag down pill handle */}
+            <div className="flex flex-col items-center gap-1 cursor-grab active:cursor-grabbing px-4 py-2">
+              <span className="h-1.5 w-10 rounded-full bg-white/80 shadow-sm" />
+            </div>
+
+            {/* Fullscreen toggle button */}
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleBigVideo();
+              }}
+              aria-label={bigVideo ? "ছোট করুন" : "বড় করুন"}
+              title={bigVideo ? "ছোট করুন" : "ফুলস্ক্রিন"}
+              className="grid size-9 place-items-center rounded-full bg-black/40 text-white shadow backdrop-blur-md hover:bg-black/60 active:scale-90 transition-transform"
+            >
+              {bigVideo ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3v6H3M15 3v6h6M9 21v-6H3M15 21v-6h6" /></svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6" /></svg>
+              )}
+            </button>
+          </div>
+        )}
+        {playerMode === "big" && (
           <button
             onClick={toggleBigVideo}
             aria-label={bigVideo ? "ছোট করুন" : "বড় করুন"}
