@@ -837,6 +837,11 @@ function Index() {
     "bangla natok emotional clip shorts",
     "trending viral music shorts bangla",
     "popular funny shorts 2026",
+    "bangla funny prank shorts",
+    "viral entertainment shorts bd",
+    "bangla short film clips",
+    "bangla dance song shorts",
+    "viral trending shorts worldwide",
     "islamic viral shorts bangla",
   ];
 
@@ -1067,7 +1072,30 @@ function Index() {
   }, [hydrated]);
 
 
-  // infinite scroll for the home feed
+  const shortsPageLoadingRef = useRef(false);
+  const loadMoreShortsPage = useCallback(async () => {
+    if (shortsPageLoadingRef.current || category !== "shorts") return;
+    shortsPageLoadingRef.current = true;
+    setSearchLoadingMore(true);
+    try {
+      shortsIndexRef.current = (shortsIndexRef.current + 1) % SHORTS_ROTATION.length;
+      const qStr = SHORTS_ROTATION[shortsIndexRef.current];
+      const res = await runTrendingShorts({ data: { q: qStr } });
+      if (res.ok && res.shorts.length > 0) {
+        setResults((prev) => {
+          const seen = new Set(prev.map((s) => s.id));
+          const fresh = res.shorts.filter((s) => !seen.has(s.id));
+          return [...prev, ...fresh];
+        });
+      }
+    } catch {}
+    finally {
+      shortsPageLoadingRef.current = false;
+      setSearchLoadingMore(false);
+    }
+  }, [category, runTrendingShorts, SHORTS_ROTATION]);
+
+  // infinite scroll for the home feed and shorts page
   const isHome = lastQuery.trim().length === 0;
   useEffect(() => {
     const el = sentinel.current;
@@ -1076,13 +1104,15 @@ function Index() {
       if (!entries[0]?.isIntersecting) return;
       if (isHome) {
         loadFeedPage(false);
+      } else if (category === "shorts") {
+        void loadMoreShortsPage();
       } else if (searchContinuationToken) {
         void loadMoreSearchResults();
       }
     }, { rootMargin: "600px" });
     io.observe(el);
     return () => io.disconnect();
-  }, [isHome, searchState, searchContinuationToken, loadFeedPage, loadMoreSearchResults]);
+  }, [isHome, category, searchState, searchContinuationToken, loadFeedPage, loadMoreShortsPage, loadMoreSearchResults]);
 
   // ---- persistence ----
   useEffect(() => {
@@ -1250,26 +1280,67 @@ function Index() {
   }, [profileOpen]);
 
   // ---- YouTube Shorts Full-screen Experience ----
-  const loadMoreShorts = useCallback(async () => {
+  const fetchShortDetails = useCallback(
+    (shortItem: SearchResult) => {
+      if (!shortItem?.id) return;
+      runVideoMeta({ data: { id: shortItem.id } })
+        .then((m) => {
+          if (m && (m.author || m.channelThumb || m.channelId)) {
+            setShortsList((prev) =>
+              prev.map((s) =>
+                s.id === shortItem.id
+                  ? {
+                      ...s,
+                      author: m.author || s.author,
+                      channelThumb: m.channelThumb || s.channelThumb,
+                      channelId: m.channelId || s.channelId,
+                    }
+                  : s
+              )
+            );
+          }
+        })
+        .catch(() => {});
+    },
+    [runVideoMeta],
+  );
+
+  const shortsLoadingMoreRef = useRef(false);
+  const loadMoreShorts = useCallback(async (): Promise<SearchResult[] | null> => {
+    if (shortsLoadingMoreRef.current) return null;
+    shortsLoadingMoreRef.current = true;
     try {
-      const qStr = SHORTS_ROTATION[Math.floor(Math.random() * SHORTS_ROTATION.length)];
+      shortsIndexRef.current = (shortsIndexRef.current + 1) % SHORTS_ROTATION.length;
+      const qStr = SHORTS_ROTATION[shortsIndexRef.current];
       const res = await runTrendingShorts({ data: { q: qStr } });
       if (res.ok && res.shorts.length > 0) {
+        let updated: SearchResult[] = [];
         setShortsList((prev) => {
           const seen = new Set(prev.map((s) => s.id));
           const fresh = res.shorts.filter((s) => !seen.has(s.id));
-          return [...prev, ...fresh];
+          updated = [...prev, ...fresh];
+          return updated;
         });
+        return updated;
       }
     } catch {}
-  }, [runTrendingShorts]);
+    finally {
+      shortsLoadingMoreRef.current = false;
+    }
+    return null;
+  }, [runTrendingShorts, SHORTS_ROTATION]);
 
   const openShorts = useCallback(
     (list: SearchResult[], initialIdx = 0) => {
       if (!list || list.length === 0) return;
       const safeIdx = Math.max(0, Math.min(initialIdx, list.length - 1));
       const target = list[safeIdx]!;
-      setShortsList(list);
+      let fullList = list;
+      if (list.length < 10 && homeShorts.length > 0) {
+        const seen = new Set(list.map((s) => s.id));
+        fullList = [...list, ...homeShorts.filter((s) => !seen.has(s.id))];
+      }
+      setShortsList(fullList);
       setShortsIdx(safeIdx);
       setShortsOpen(true);
       setProfileOpen(false);
@@ -1280,8 +1351,12 @@ function Index() {
         author: target.author,
         thumbnail: target.thumbnail,
       });
+      fetchShortDetails(target);
+      if (fullList.length <= safeIdx + 4) {
+        void loadMoreShorts();
+      }
     },
-    [open, player],
+    [open, player, homeShorts, fetchShortDetails, loadMoreShorts],
   );
 
   const closeShorts = useCallback(() => {
@@ -1301,16 +1376,29 @@ function Index() {
           thumbnail: nextShort.thumbnail,
         });
         flash(`পরের শর্টস: ${nextShort.title.slice(0, 24)}…`);
-        if (nextIdx >= shortsList.length - 3) {
+        fetchShortDetails(nextShort);
+        if (nextIdx >= shortsList.length - 4) {
           void loadMoreShorts();
         }
         return nextIdx;
       }
-      flash("সব শর্টস দেখা শেষ, আরও লোড হচ্ছে…");
-      void loadMoreShorts();
+      flash("নতুন শর্টস লোড হচ্ছে…");
+      loadMoreShorts().then((updated) => {
+        if (updated && updated.length > nextIdx) {
+          const autoNext = updated[nextIdx]!;
+          setShortsIdx(nextIdx);
+          player.playDirect({
+            id: autoNext.id,
+            title: autoNext.title,
+            author: autoNext.author,
+            thumbnail: autoNext.thumbnail,
+          });
+          fetchShortDetails(autoNext);
+        }
+      });
       return prevIdx;
     });
-  }, [shortsList, player, flash, loadMoreShorts]);
+  }, [shortsList, player, flash, loadMoreShorts, fetchShortDetails]);
 
   const goToPrevShort = useCallback(() => {
     setShortsIdx((prevIdx) => {
@@ -1324,12 +1412,13 @@ function Index() {
           thumbnail: prevShort.thumbnail,
         });
         flash(`আগের শর্টস: ${prevShort.title.slice(0, 24)}…`);
+        fetchShortDetails(prevShort);
         return pIdx;
       }
       flash("আপনি প্রথম শর্টসে আছেন");
       return prevIdx;
     });
-  }, [shortsList, player, flash]);
+  }, [shortsList, player, flash, fetchShortDetails]);
 
   // Gestures for YouTube Shorts (Touch, Pointer, Wheel, Keys)
   const shortsSwipeRef = useRef<{ startY: number; startX: number; time: number } | null>(null);
@@ -1531,12 +1620,13 @@ function Index() {
   const handleAnyVideoPlay = useCallback(
     (r: Track | SearchResult | Row) => {
       if (r.duration === "শর্টস" || r.title.toLowerCase().includes("#shorts")) {
-        openShorts([r as SearchResult], 0);
+        const others = homeShorts.filter((s) => s.id !== r.id);
+        openShorts([r as SearchResult, ...others], 0);
       } else {
         playTrack(r, savedPosOf(r.id));
       }
     },
-    [openShorts, playTrack, savedPosOf],
+    [homeShorts, openShorts, playTrack, savedPosOf],
   );
 
   // "up next" = the next queued video, else the first related one
@@ -2614,6 +2704,15 @@ function Index() {
           <div ref={sentinel} className="py-4 text-center text-[12px] text-muted-foreground px-4">
             {isHome ? (
               feedLoadingMore ? "আরও ভিডিও আসছে…" : feedDone ? "আজকের মতো এটুকুই" : ""
+            ) : category === "shorts" ? (
+              searchLoadingMore ? (
+                <span className="inline-flex items-center gap-2 text-primary font-semibold">
+                  <span className="size-3.5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  আরও শর্টস লোড হচ্ছে…
+                </span>
+              ) : (
+                "স্ক্রোল করে আরও শর্টস দেখুন…"
+              )
             ) : (
               searchLoadingMore ? (
                 <span className="inline-flex items-center gap-2">
@@ -3525,20 +3624,20 @@ function Index() {
             <div className="flex items-end justify-between px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-8 bg-gradient-to-t from-black/95 via-black/60 to-transparent text-white">
               {/* Left Column: Author, Title, Views */}
               <div className="min-w-0 flex-1 pr-4 space-y-2 pointer-events-auto">
-                {current?.author && (
+                {(currentShortItem?.author || current?.author) && (
                   <div className="flex items-center gap-2.5">
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         closeShorts();
-                        openChannel(current.author, currentShortItem?.channelId);
+                        openChannel(currentShortItem?.author || current.author, currentShortItem?.channelId);
                       }}
                       className="flex items-center gap-2 group text-left"
                     >
-                      <Avatar src={currentShortItem?.thumbnail} name={current.author} size="size-9" text="text-[12px]" />
+                      <Avatar src={currentShortItem?.channelThumb || currentShortItem?.thumbnail} name={currentShortItem?.author || current.author} size="size-9" text="text-[12px]" />
                       <span className="font-display text-[14px] font-bold text-white group-hover:text-primary transition-colors drop-shadow">
-                        {current.author}
+                        {currentShortItem?.author || current.author}
                       </span>
                     </button>
                   </div>

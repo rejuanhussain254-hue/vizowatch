@@ -441,6 +441,7 @@ export const channelData = createServerFn({ method: "GET" })
 // ---------------- single video details (upload date, views, description) ----------------
 
 export type VideoMeta = {
+  author?: string | undefined;
   published?: string | undefined;
   publishedAgo?: string | undefined;
   views?: string | undefined;
@@ -485,6 +486,7 @@ export const videoMeta = createServerFn({ method: "GET" })
             if (typeof iso === "string") out.published = formatDate(iso);
             const vc = p?.videoDetails?.viewCount;
             if (vc) out.views = `${Number(vc).toLocaleString("bn-BD")} বার দেখা হয়েছে`;
+            if (p?.videoDetails?.author) out.author = p.videoDetails.author;
             if (p?.videoDetails?.channelId) out.channelId = p.videoDetails.channelId;
             const desc = p?.videoDetails?.shortDescription;
             if (typeof desc === "string") out.description = desc.slice(0, 1200);
@@ -502,6 +504,8 @@ export const videoMeta = createServerFn({ method: "GET" })
             if (!out.published) out.published = text(primary?.dateText) || out.published;
             if (!out.views) out.views = text(primary?.viewCount?.videoViewCountRenderer?.viewCount) || out.views;
             const owner = secondary?.owner?.videoOwnerRenderer;
+            const ownerTitle = text(owner?.title);
+            if (ownerTitle && !out.author) out.author = ownerTitle;
             out.channelThumb = firstUrl(owner?.thumbnail) || out.channelThumb;
             out.subs = text(owner?.subscriberCountText) || out.subs;
             out.channelId = owner?.navigationEndpoint?.browseEndpoint?.browseId ?? out.channelId;
@@ -640,6 +644,24 @@ export const publicPlaylists = createServerFn({ method: "GET" })
     }
   });
 
+function extractShortAuthor(rawTitle: string): string {
+  const atMatch = rawTitle.match(/@([\w.-]{3,30})/);
+  if (atMatch) return `@${atMatch[1]}`;
+  const genericTags = new Set([
+    "shorts", "short", "viral", "trending", "reels", "reel", "fyp", "foryou",
+    "foryoupage", "tiktok", "ytshorts", "bangla", "bangladesh", "comedy",
+    "funny", "status", "video", "videos", "music", "song", "entertainment"
+  ]);
+  const hashMatches = rawTitle.matchAll(/#([\w.-]{3,25})/g);
+  for (const m of hashMatches) {
+    const tag = m[1]!.toLowerCase();
+    if (!genericTags.has(tag) && !tag.endsWith("shorts") && !tag.endsWith("reels")) {
+      return `@${m[1]}`;
+    }
+  }
+  return "";
+}
+
 // ---------------- YouTube Shorts / Stories ----------------
 export const trendingShorts = createServerFn({ method: "GET" })
   .validator((d: { q?: string }) => {
@@ -671,13 +693,25 @@ export const trendingShorts = createServerFn({ method: "GET" })
           sl?.thumbnailViewModel?.thumbnailViewModel?.image?.sources?.[0]?.url ||
           firstUrl(sl?.thumbnailViewModel) ||
           `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
+
+        const params = sl?.onTap?.innertubeCommand?.reelWatchEndpoint?.params || "";
+        let channelId: string | undefined = undefined;
+        try {
+          const decoded = Buffer.from(params, "base64").toString("latin1");
+          const ucm = decoded.match(/UC[\w-]{22}/);
+          if (ucm) channelId = ucm[0];
+        } catch {}
+
+        const author = extractShortAuthor(title) || (channelId ? "ক্রিয়েটর" : "Shorts");
+
         shorts.push({
           id,
           title: title.trim() || "Shorts",
-          author: "YouTube Shorts",
+          author,
           thumbnail: thumb,
           duration: "শর্টস",
           views,
+          channelId,
         });
       }
 
