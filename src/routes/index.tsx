@@ -1434,23 +1434,48 @@ function Index() {
       </div>
 
       <main className="relative mx-auto flex min-h-screen w-full min-w-0 max-w-[420px] flex-col px-5 pb-[max(2.5rem,env(safe-area-inset-bottom))]">
-        <header className="relative z-30 flex flex-wrap items-center gap-3 pt-[max(1.5rem,env(safe-area-inset-top))] max-[400px]:justify-between">
-          <div className="flex shrink-0 items-center gap-2.5">
-            <div className="relative grid size-10 place-items-center rounded-2xl bg-gradient-to-br from-primary via-indigo-600 to-rose-500 text-primary-foreground shadow-md shadow-primary/25 transition-transform active:scale-95">
-              <Eq className="bg-white" />
+        <header className="relative z-30 flex flex-col gap-3 pt-[max(1.5rem,env(safe-area-inset-top))]">
+          {/* Top Bar: Brand Logo on Left, Action Buttons on Right */}
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-2.5">
+              <div className="relative grid size-10 place-items-center rounded-2xl bg-gradient-to-br from-primary via-indigo-600 to-rose-500 text-primary-foreground shadow-md shadow-primary/25 transition-transform active:scale-95">
+                <Eq className="bg-white" />
+              </div>
+              <div className="flex flex-col">
+                <span className="font-display text-xl font-black tracking-tight text-foreground">
+                  Vizo<span className="text-primary font-black">Watch</span>
+                </span>
+                <span className="text-[10px] -mt-1 font-semibold text-muted-foreground tracking-wider uppercase">
+                  Background Player
+                </span>
+              </div>
             </div>
-            <div className="flex flex-col">
-              <span className="font-display text-xl font-black tracking-tight text-foreground">
-                Vizo<span className="text-primary font-black">Watch</span>
-              </span>
-              <span className="text-[10px] -mt-1 font-semibold text-muted-foreground tracking-wider uppercase">
-                Background Player
-              </span>
+
+            <div className="flex items-center gap-2">
+              <InstallApp />
+              <button
+                onClick={() => setProfileOpen(true)}
+                aria-label="প্রোফাইল"
+                className={`relative grid size-10 shrink-0 place-items-center rounded-2xl ring-1 transition-all active:scale-95 ${user ? "bg-gradient-to-tr from-primary to-indigo-600 text-primary-foreground ring-primary shadow-md shadow-primary/25 font-display text-sm font-bold" : "glass-card ring-border/80 hover:bg-white"}`}
+              >
+                {user ? (
+                  (user.email ?? "?")[0]?.toUpperCase()
+                ) : (
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                    <circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" />
+                  </svg>
+                )}
+                {hydrated && queue.length > 0 && (
+                  <span className="absolute -right-1 -top-1 grid min-w-[20px] place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-extrabold text-white ring-2 ring-background shadow">{queue.length}</span>
+                )}
+              </button>
             </div>
           </div>
-          <form onSubmit={submit} className="relative flex min-w-0 flex-1 items-center gap-2 max-[400px]:order-3 max-[400px]:basis-full">
-            <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl glass-card px-3.5 py-2 ring-1 ring-border/80 focus-within:ring-2 focus-within:ring-primary focus-within:shadow-md focus-within:shadow-primary/10 transition-all">
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-muted-foreground" aria-hidden>
+
+          {/* Full-Width Modern Search Bar */}
+          <form onSubmit={submit} className="relative flex w-full items-center gap-2">
+            <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-2xl glass-card px-3.5 py-2.5 ring-1 ring-border/80 focus-within:ring-2 focus-within:ring-primary focus-within:shadow-md focus-within:shadow-primary/10 transition-all">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-muted-foreground" aria-hidden>
                 <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
               </svg>
               <input
@@ -1472,12 +1497,12 @@ function Index() {
               type="submit"
               disabled={busy || searchState === "loading"}
               aria-label="খুঁজুন"
-              className="grid size-10 shrink-0 place-items-center rounded-2xl bg-gradient-to-tr from-primary to-indigo-600 text-primary-foreground shadow-md shadow-primary/30 transition-all hover:opacity-95 active:scale-95 disabled:opacity-60"
+              className="grid size-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-tr from-primary to-indigo-600 text-primary-foreground shadow-md shadow-primary/30 transition-all hover:opacity-95 active:scale-95 disabled:opacity-60"
             >
               {busy ? (
                 <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
               ) : (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
                 </svg>
               )}
@@ -1517,24 +1542,6 @@ function Index() {
               </div>
             )}
           </form>
-
-          <InstallApp />
-          <button
-            onClick={() => setProfileOpen(true)}
-            aria-label="প্রোফাইল"
-            className={`relative grid size-10 shrink-0 place-items-center rounded-2xl ring-1 transition-all active:scale-95 ${user ? "bg-gradient-to-tr from-primary to-indigo-600 text-primary-foreground ring-primary shadow-md shadow-primary/25 font-display text-sm font-bold" : "glass-card ring-border/80 hover:bg-white"}`}
-          >
-            {user ? (
-              (user.email ?? "?")[0]?.toUpperCase()
-            ) : (
-              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-                <circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" />
-              </svg>
-            )}
-            {hydrated && queue.length > 0 && (
-              <span className="absolute -right-1 -top-1 grid min-w-[20px] place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-extrabold text-white ring-2 ring-background shadow">{queue.length}</span>
-            )}
-          </button>
         </header>
         {error && <p className="mt-2 text-center text-[12px] text-muted-foreground">{error}</p>}
 
