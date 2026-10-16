@@ -132,7 +132,7 @@ export function pushSearch(q: string): string[] {
 }
 
 export function removeSearch(q: string): string[] {
-  const next = loadSearches().filter((s) => s !== q);
+  const next = loadSearches().filter((s) => s.toLowerCase() !== q.toLowerCase());
   localStorage.setItem(SEARCHES_KEY, JSON.stringify(next));
   return next;
 }

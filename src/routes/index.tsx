@@ -123,6 +123,8 @@ const CATEGORIES: { label: string; q: string }[] = [
   { label: "গেমিং", q: "bangla gaming" },
 ];
 
+const POPULAR_SEARCHES = ["বাংলা নাটক", "নতুন বাংলা গান", "ওয়াজ মাহফিল", "মুভি", "খবর লাইভ", "কার্টুন", "রান্না রেসিপি"];
+
 function Eq({ className = "bg-primary" }: { className?: string }) {
   return (
     <span className="flex h-4 items-end gap-[3px]" aria-hidden>
@@ -404,6 +406,7 @@ function Index() {
   const [searches, setSearches] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [sugOpen, setSugOpen] = useState(false);
+  const isInteractingWithSugRef = useRef(false);
 
   const { user, signOut } = useAuth();
   const userId = user?.id ?? null;
@@ -790,7 +793,7 @@ function Index() {
   // live suggestions while typing (debounced)
   useEffect(() => {
     const q = input.trim();
-    if (!sugOpen || q.length < 2 || extractVideoId(q)) { setSuggestions([]); return; }
+    if (!sugOpen || !q || extractVideoId(q)) { setSuggestions([]); return; }
     let cancelled = false;
     const t = setTimeout(async () => {
       try {
@@ -799,7 +802,7 @@ function Index() {
       } catch {
         if (!cancelled) setSuggestions([]);
       }
-    }, 250);
+    }, 150);
     return () => { cancelled = true; clearTimeout(t); };
   }, [input, sugOpen, runSuggest]);
 
@@ -1505,8 +1508,13 @@ function Index() {
               <input
                 value={input}
                 onChange={(e) => { setInput(e.target.value); setSugOpen(true); }}
-                onFocus={() => setSugOpen(true)}
-                onBlur={() => setTimeout(() => setSugOpen(false), 200)}
+                onFocus={() => { setSearches(loadSearches()); setSugOpen(true); }}
+                onClick={() => { setSearches(loadSearches()); setSugOpen(true); }}
+                onBlur={() => {
+                  setTimeout(() => {
+                    if (!isInteractingWithSugRef.current) setSugOpen(false);
+                  }, 180);
+                }}
                 placeholder="গান, নাটক, লিংক খুঁজুন..."
                 aria-label="ইউটিউবে খুঁজুন"
                 className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/80"
@@ -1516,10 +1524,12 @@ function Index() {
               {input && (
                 <button
                   type="button"
-                  onMouseDown={(e) => {
+                  onPointerDown={(e) => {
                     e.preventDefault();
                     setInput("");
                     setSuggestions([]);
+                    setSearches(loadSearches());
+                    setSugOpen(true);
                   }}
                   aria-label="মুছুন"
                   className="grid size-4 shrink-0 place-items-center rounded-full bg-muted/80 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
@@ -1543,49 +1553,134 @@ function Index() {
               </button>
             </div>
 
-            {sugOpen && (suggestions.length > 0 || (input.trim().length < 2 && searches.length > 0)) && (
-              <div className="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-2xl bg-background/98 shadow-xl shadow-primary/10 ring-1 ring-border/80 backdrop-blur-xl">
-                {input.trim().length < 2 && searches.length > 0 && (
-                  <div className="flex items-center justify-between px-3.5 pt-2.5 pb-1 text-[11px] font-semibold text-muted-foreground">
-                    <span>সাম্প্রতিক সার্চ</span>
-                    <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setSearches(clearSearches())} className="font-semibold text-primary hover:underline">সব মুছুন</button>
-                  </div>
-                )}
-                <ul className="max-h-[320px] overflow-y-auto py-1.5">
-                  {(input.trim().length < 2 ? searches : suggestions).map((s) => {
-                    const recent = input.trim().length < 2;
-                    return (
-                      <li key={s} className="flex items-center justify-between gap-1 px-2 hover:bg-primary/5 transition-colors">
-                        <button
-                          type="button"
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            runTerm(s);
-                          }}
-                          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13.5px] font-medium hover:text-primary transition-colors"
-                        >
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="shrink-0 text-muted-foreground" aria-hidden>
-                            {recent ? <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></> : <><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" /></>}
-                          </svg>
-                          <span className="min-w-0 flex-1 truncate">{s}</span>
-                        </button>
-                        {recent ? (
+            {sugOpen && (() => {
+              const qTrim = input.trim();
+              const qLower = qTrim.toLowerCase();
+              const isTyping = qTrim.length > 0;
+              const matchingSearches = isTyping
+                ? searches.filter((s) => s.toLowerCase().includes(qLower))
+                : searches;
+              const cleanSuggestions = isTyping
+                ? suggestions.filter((s) => !matchingSearches.some((m) => m.toLowerCase() === s.toLowerCase()))
+                : [];
+              const hasItems = matchingSearches.length > 0 || cleanSuggestions.length > 0;
+
+              return (
+                <div
+                  onPointerDown={() => { isInteractingWithSugRef.current = true; }}
+                  onPointerUp={() => { setTimeout(() => { isInteractingWithSugRef.current = false; }, 200); }}
+                  className="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-2xl bg-background/98 shadow-xl shadow-primary/10 ring-1 ring-border/80 backdrop-blur-xl"
+                >
+                  {/* Header when not typing */}
+                  {!isTyping && matchingSearches.length > 0 && (
+                    <div className="flex items-center justify-between px-3.5 pt-2.5 pb-1 text-[11px] font-semibold text-muted-foreground">
+                      <span className="flex items-center gap-1.5">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
+                        </svg>
+                        সাম্প্রতিক সার্চ
+                      </span>
+                      <button
+                        type="button"
+                        onPointerDown={(e) => {
+                          e.preventDefault();
+                          setSearches(clearSearches());
+                        }}
+                        className="font-semibold text-primary hover:underline"
+                      >
+                        সব মুছুন
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Empty state: popular searches */}
+                  {!isTyping && matchingSearches.length === 0 && (
+                    <div className="p-3">
+                      <p className="text-[11px] font-semibold text-muted-foreground mb-2">জনপ্রিয় সার্চ</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {POPULAR_SEARCHES.map((tag) => (
+                          <button
+                            key={tag}
+                            type="button"
+                            onPointerDown={(e) => {
+                              e.preventDefault();
+                              runTerm(tag);
+                            }}
+                            onClick={() => runTerm(tag)}
+                            className="rounded-full bg-primary/10 px-3 py-1 font-display text-[12px] font-semibold text-primary hover:bg-primary/20 transition-colors"
+                          >
+                            {tag}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* List of matching recent searches and live YouTube suggestions */}
+                  {hasItems && (
+                    <ul className="max-h-[320px] overflow-y-auto py-1.5">
+                      {/* 1. Matching Recent Searches first */}
+                      {matchingSearches.map((s) => (
+                        <li key={`hist-${s}`} className="flex items-center justify-between gap-1 px-2 hover:bg-primary/5 transition-colors">
                           <button
                             type="button"
-                            onMouseDown={(e) => {
+                            onPointerDown={(e) => {
+                              e.preventDefault();
+                              runTerm(s);
+                            }}
+                            onClick={() => runTerm(s)}
+                            className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13.5px] font-medium text-foreground hover:text-primary transition-colors"
+                          >
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="shrink-0 text-primary/70" aria-hidden>
+                              <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
+                            </svg>
+                            <span className="min-w-0 flex-1 truncate">{s}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onPointerDown={(e) => {
                               e.preventDefault();
                               setSearches(removeSearch(s));
                             }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSearches(removeSearch(s));
+                            }}
                             aria-label="মুছুন"
+                            title="মুছুন"
                             className="grid size-7 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                           >
                             ✕
                           </button>
-                        ) : (
+                        </li>
+                      ))}
+
+                      {/* 2. Live YouTube Suggestions */}
+                      {cleanSuggestions.map((s) => (
+                        <li key={`sug-${s}`} className="flex items-center justify-between gap-1 px-2 hover:bg-primary/5 transition-colors">
                           <button
                             type="button"
-                            onMouseDown={(e) => {
+                            onPointerDown={(e) => {
                               e.preventDefault();
+                              runTerm(s);
+                            }}
+                            onClick={() => runTerm(s)}
+                            className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13.5px] font-medium text-foreground hover:text-primary transition-colors"
+                          >
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="shrink-0 text-muted-foreground" aria-hidden>
+                              <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
+                            </svg>
+                            <span className="min-w-0 flex-1 truncate">{s}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onPointerDown={(e) => {
+                              e.preventDefault();
+                              setInput(s);
+                              setSugOpen(true);
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setInput(s);
                               setSugOpen(true);
                             }}
@@ -1597,13 +1692,33 @@ function Index() {
                               <path d="M7 17L17 7M7 7h10v10" />
                             </svg>
                           </button>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {/* Direct search hint if user is typing and no suggestions yet */}
+                  {isTyping && !hasItems && (
+                    <div className="p-2">
+                      <button
+                        type="button"
+                        onPointerDown={(e) => {
+                          e.preventDefault();
+                          runTerm(qTrim);
+                        }}
+                        onClick={() => runTerm(qTrim)}
+                        className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13.5px] font-medium text-primary hover:bg-primary/10 transition-colors"
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="shrink-0 text-primary" aria-hidden>
+                          <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
+                        </svg>
+                        <span className="truncate">"{qTrim}" খুঁজুন</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </form>
 
           {/* Profile on Right */}

@@ -235,9 +235,8 @@ export const searchYouTube = createServerFn({ method: "GET" })
   });
 
 export const suggestYouTube = createServerFn({ method: "GET" })
-  .inputValidator((d: { q: string }) => {
-    if (typeof d?.q !== "string") throw new Error("q required");
-    return { q: d.q.slice(0, 100) };
+  .validator((d: { q?: string }) => {
+    return { q: typeof d?.q === "string" ? d.q.slice(0, 100) : "" };
   })
   .handler(async ({ data }): Promise<string[]> => {
     const q = data.q.trim();
@@ -247,9 +246,10 @@ export const suggestYouTube = createServerFn({ method: "GET" })
         `https://suggestqueries.google.com/complete/search?client=firefox&ds=yt&hl=bn&gl=BD&q=${encodeURIComponent(q)}`,
         { headers: { "user-agent": "Mozilla/5.0", "accept-language": "bn-BD,bn;q=0.9,en;q=0.8" } },
       );
+      if (!res.ok) return [];
       const raw = await res.text();
       const parsed = JSON.parse(raw) as [string, string[]];
-      return (parsed[1] ?? []).filter((s) => typeof s === "string").slice(0, 8);
+      return (parsed[1] ?? []).filter((s) => typeof s === "string" && s.trim().length > 0).slice(0, 10);
     } catch {
       return [];
     }
