@@ -314,6 +314,35 @@ function badgeTexts(vm: any): string[] {
 
 function parseLockups(data: any, videos: SearchResult[], playlists: PlaylistItem[], authorName: string, channelId: string) {
   const seen = new Set<string>();
+
+  // Modern YouTube shortsLockupViewModel for channel shorts
+  for (const sl of findAll(data, "shortsLockupViewModel")) {
+    const id =
+      sl?.onTap?.innertubeCommand?.reelWatchEndpoint?.videoId ||
+      sl?.entityId?.replace(/^shorts-shelf-item-/, "") ||
+      findAll(sl, "videoId")[0];
+    if (typeof id !== "string" || !id || seen.has(id)) continue;
+    seen.add(id);
+    const title =
+      sl?.overlayMetadata?.primaryText?.content ||
+      text(sl?.accessibilityText)?.split(",")?.[0] ||
+      "Shorts";
+    const views = sl?.overlayMetadata?.secondaryText?.content || "";
+    const thumb =
+      sl?.thumbnailViewModel?.thumbnailViewModel?.image?.sources?.[0]?.url ||
+      firstUrl(sl?.thumbnailViewModel) ||
+      `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
+    videos.push({
+      id,
+      title: title.trim() || "Shorts",
+      author: authorName,
+      thumbnail: thumb,
+      duration: "শর্টস",
+      views,
+      channelId,
+    });
+  }
+
   for (const lv of findAll(data, "lockupViewModel")) {
     const id = lv?.contentId;
     const type = String(lv?.contentType ?? "");
@@ -333,7 +362,7 @@ function parseLockups(data: any, videos: SearchResult[], playlists: PlaylistItem
         title,
         author: authorName,
         thumbnail: thumb || `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
-        duration: badges.find((b) => /^\d+(:\d+)+$/.test(b)) ?? "",
+        duration: badges.find((b) => /^\d+(:\d+)+$/.test(b)) ?? (type.includes("SHORT") ? "শর্টস" : ""),
         views: meta.find((m) => /view/i.test(m)) ?? "",
         published: meta.find((m) => /ago|streamed|premier/i.test(m)) ?? "",
         channelId,
@@ -343,7 +372,7 @@ function parseLockups(data: any, videos: SearchResult[], playlists: PlaylistItem
 }
 
 export const channelData = createServerFn({ method: "GET" })
-  .inputValidator((d: { id: string; tab?: string }) => {
+  .validator((d: { id: string; tab?: string }) => {
     if (typeof d?.id !== "string" || !d.id) throw new Error("id required");
     return { id: d.id.slice(0, 40), tab: typeof d?.tab === "string" ? d.tab : "videos" };
   })
@@ -429,7 +458,7 @@ function formatDate(iso: string): string {
 }
 
 export const videoMeta = createServerFn({ method: "GET" })
-  .inputValidator((d: { id: string }) => {
+  .validator((d: { id: string }) => {
     if (typeof d?.id !== "string" || !d.id) throw new Error("id required");
     return { id: d.id.slice(0, 20) };
   })
@@ -494,7 +523,7 @@ export const videoMeta = createServerFn({ method: "GET" })
 export type PlaylistResponse = { ok: true; title: string; videos: SearchResult[] } | { ok: false; error: string };
 
 export const playlistData = createServerFn({ method: "GET" })
-  .inputValidator((d: { id: string }) => {
+  .validator((d: { id: string }) => {
     if (typeof d?.id !== "string" || !d.id) throw new Error("id required");
     return { id: d.id.slice(0, 60) };
   })
@@ -535,7 +564,7 @@ export const playlistData = createServerFn({ method: "GET" })
 
 // resolve a channel id from a channel name (used when a row has no channelId)
 export const resolveChannel = createServerFn({ method: "GET" })
-  .inputValidator((d: { name: string }) => {
+  .validator((d: { name: string }) => {
     if (typeof d?.name !== "string") throw new Error("name required");
     return { name: d.name.slice(0, 120) };
   })
@@ -625,6 +654,33 @@ export const trendingShorts = createServerFn({ method: "GET" })
       const shorts: SearchResult[] = [];
       const seen = new Set<string>();
 
+      // Modern YouTube shortsLockupViewModel (YouTube Shorts Shelves)
+      for (const sl of findAll(json, "shortsLockupViewModel")) {
+        const id =
+          sl?.onTap?.innertubeCommand?.reelWatchEndpoint?.videoId ||
+          sl?.entityId?.replace(/^shorts-shelf-item-/, "") ||
+          findAll(sl, "videoId")[0];
+        if (typeof id !== "string" || !id || seen.has(id)) continue;
+        seen.add(id);
+        const title =
+          sl?.overlayMetadata?.primaryText?.content ||
+          text(sl?.accessibilityText)?.split(",")?.[0] ||
+          "Shorts";
+        const views = sl?.overlayMetadata?.secondaryText?.content || "";
+        const thumb =
+          sl?.thumbnailViewModel?.thumbnailViewModel?.image?.sources?.[0]?.url ||
+          firstUrl(sl?.thumbnailViewModel) ||
+          `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
+        shorts.push({
+          id,
+          title: title.trim() || "Shorts",
+          author: "YouTube Shorts",
+          thumbnail: thumb,
+          duration: "শর্টস",
+          views,
+        });
+      }
+
       for (const rir of findAll(json, "reelItemRenderer")) {
         const id = rir?.videoId;
         if (typeof id !== "string" || seen.has(id)) continue;
@@ -660,18 +716,18 @@ export const trendingShorts = createServerFn({ method: "GET" })
         }
       }
 
-      if (shorts.length < 6) {
+      if (shorts.length < 10) {
         const vids: SearchResult[] = [];
         walk(json, vids, seen);
         for (const v of vids) {
-          if (shorts.length >= 12) break;
+          if (shorts.length >= 25) break;
           if (v.title.toLowerCase().includes("short") || (v.duration && v.duration.length <= 4 && !v.duration.includes(":00"))) {
             shorts.push({ ...v, duration: "শর্টস" });
           }
         }
       }
 
-      return { ok: true, shorts: shorts.slice(0, 16) };
+      return { ok: true, shorts: shorts.slice(0, 30) };
     } catch (e) {
       console.error("trendingShorts error", e);
       return { ok: false, shorts: [] };

@@ -503,7 +503,19 @@ function Index() {
   const pipPrefLoaded = useRef(false);
   const dragRef = useRef<{ dx: number; dy: number; moved: boolean } | null>(null);
   const [pipDragging, setPipDragging] = useState(false);
-  const playerMode: "big" | "watch" | "pip" | "hidden" = bigVideo ? "big" : open ? "watch" : current && !pipDismissed ? "pip" : "hidden";
+  // Full-screen YouTube Shorts Player state
+  const [shortsOpen, setShortsOpen] = useState(false);
+  const [shortsList, setShortsList] = useState<SearchResult[]>([]);
+  const [shortsIdx, setShortsIdx] = useState(0);
+  const [likedShorts, setLikedShorts] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem("echo.liked_shorts");
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+  const playerMode: "shorts" | "big" | "watch" | "pip" | "hidden" = shortsOpen ? "shorts" : bigVideo ? "big" : open ? "watch" : current && !pipDismissed ? "pip" : "hidden";
   const pipW = pipMin ? 116 : 190;
   const pipH = pipMin ? 44 : 107;
 
@@ -821,7 +833,10 @@ function Index() {
             const hit = cacheGet<{ ok: boolean; shorts: SearchResult[] }>(`home:shorts:${shortsQuery}`);
             if (hit?.ok && hit.shorts?.length) return hit;
           }
-          const res = await runTrendingShorts({ data: { q: shortsQuery } });
+          let res = await runTrendingShorts({ data: { q: shortsQuery } });
+          if (!res.ok || !res.shorts?.length) {
+            res = await runTrendingShorts({ data: { q: "shorts trending" } });
+          }
           if (res.ok && res.shorts.length > 0) {
             cacheSet(`home:shorts:${shortsQuery}`, res, TTL.search);
           }
@@ -874,7 +889,10 @@ function Index() {
       if (term === "shorts") {
         try {
           const qStr = SHORTS_ROTATION[Math.floor(Math.random() * SHORTS_ROTATION.length)];
-          const res = await runTrendingShorts({ data: { q: qStr } });
+          let res = await runTrendingShorts({ data: { q: qStr } });
+          if (!res.ok || !res.shorts?.length) {
+            res = await runTrendingShorts({ data: { q: "shorts viral trending" } });
+          }
           if (res.ok && res.shorts.length > 0) {
             setResults(res.shorts);
             setSearchState("ok");
@@ -1196,6 +1214,188 @@ function Index() {
     return () => window.removeEventListener("popstate", onPop);
   }, [profileOpen]);
 
+  // ---- YouTube Shorts Full-screen Experience ----
+  const loadMoreShorts = useCallback(async () => {
+    try {
+      const qStr = SHORTS_ROTATION[Math.floor(Math.random() * SHORTS_ROTATION.length)];
+      const res = await runTrendingShorts({ data: { q: qStr } });
+      if (res.ok && res.shorts.length > 0) {
+        setShortsList((prev) => {
+          const seen = new Set(prev.map((s) => s.id));
+          const fresh = res.shorts.filter((s) => !seen.has(s.id));
+          return [...prev, ...fresh];
+        });
+      }
+    } catch {}
+  }, [runTrendingShorts]);
+
+  const openShorts = useCallback(
+    (list: SearchResult[], initialIdx = 0) => {
+      if (!list || list.length === 0) return;
+      const safeIdx = Math.max(0, Math.min(initialIdx, list.length - 1));
+      const target = list[safeIdx]!;
+      setShortsList(list);
+      setShortsIdx(safeIdx);
+      setShortsOpen(true);
+      setProfileOpen(false);
+      if (open) closeWatch();
+      player.playDirect({
+        id: target.id,
+        title: target.title,
+        author: target.author,
+        thumbnail: target.thumbnail,
+      });
+    },
+    [open, player],
+  );
+
+  const closeShorts = useCallback(() => {
+    setShortsOpen(false);
+  }, []);
+
+  const goToNextShort = useCallback(() => {
+    setShortsIdx((prevIdx) => {
+      if (shortsList.length === 0) return prevIdx;
+      const nextIdx = prevIdx + 1;
+      if (nextIdx < shortsList.length) {
+        const nextShort = shortsList[nextIdx]!;
+        player.playDirect({
+          id: nextShort.id,
+          title: nextShort.title,
+          author: nextShort.author,
+          thumbnail: nextShort.thumbnail,
+        });
+        flash(`পরের শর্টস: ${nextShort.title.slice(0, 24)}…`);
+        if (nextIdx >= shortsList.length - 3) {
+          void loadMoreShorts();
+        }
+        return nextIdx;
+      }
+      flash("সব শর্টস দেখা শেষ, আরও লোড হচ্ছে…");
+      void loadMoreShorts();
+      return prevIdx;
+    });
+  }, [shortsList, player, flash, loadMoreShorts]);
+
+  const goToPrevShort = useCallback(() => {
+    setShortsIdx((prevIdx) => {
+      if (prevIdx > 0) {
+        const pIdx = prevIdx - 1;
+        const prevShort = shortsList[pIdx]!;
+        player.playDirect({
+          id: prevShort.id,
+          title: prevShort.title,
+          author: prevShort.author,
+          thumbnail: prevShort.thumbnail,
+        });
+        flash(`আগের শর্টস: ${prevShort.title.slice(0, 24)}…`);
+        return pIdx;
+      }
+      flash("আপনি প্রথম শর্টসে আছেন");
+      return prevIdx;
+    });
+  }, [shortsList, player, flash]);
+
+  // Gestures for YouTube Shorts (Touch, Pointer, Wheel, Keys)
+  const shortsSwipeRef = useRef<{ startY: number; startX: number; time: number } | null>(null);
+
+  const onShortsTouchStart = useCallback((e: React.TouchEvent | React.PointerEvent) => {
+    const clientY = "touches" in e ? e.touches[0]?.clientY : e.clientY;
+    const clientX = "touches" in e ? e.touches[0]?.clientX : e.clientX;
+    if (clientY === undefined || clientX === undefined) return;
+    shortsSwipeRef.current = { startY: clientY, startX: clientX, time: Date.now() };
+  }, []);
+
+  const onShortsTouchMove = useCallback((_e: React.TouchEvent | React.PointerEvent) => {}, []);
+
+  const onShortsTouchEnd = useCallback(
+    (e: React.TouchEvent | React.PointerEvent) => {
+      const s = shortsSwipeRef.current;
+      shortsSwipeRef.current = null;
+      if (!s) return;
+      const clientY = "changedTouches" in e ? (e as React.TouchEvent).changedTouches[0]?.clientY : (e as React.PointerEvent).clientY;
+      const clientX = "changedTouches" in e ? (e as React.TouchEvent).changedTouches[0]?.clientX : (e as React.PointerEvent).clientX;
+      if (clientY === undefined || clientX === undefined) return;
+
+      const dy = clientY - s.startY;
+      const dx = clientX - s.startX;
+      const dt = Date.now() - s.time;
+
+      const isSwipe = (Math.abs(dy) > 40 || (Math.abs(dy) > 20 && dt < 280)) && Math.abs(dy) > Math.abs(dx);
+      if (isSwipe) {
+        if (dy < 0) {
+          goToNextShort();
+        } else {
+          goToPrevShort();
+        }
+      }
+    },
+    [goToNextShort, goToPrevShort],
+  );
+
+  const lastWheelTimeRef = useRef(0);
+  const onShortsWheel = useCallback(
+    (e: React.WheelEvent) => {
+      const now = Date.now();
+      if (now - lastWheelTimeRef.current < 400) return;
+      if (Math.abs(e.deltaY) > 25) {
+        lastWheelTimeRef.current = now;
+        if (e.deltaY > 0) goToNextShort();
+        else goToPrevShort();
+      }
+    },
+    [goToNextShort, goToPrevShort],
+  );
+
+  // Back button listener for Shorts Player
+  useEffect(() => {
+    if (!shortsOpen) return;
+    window.history.pushState({ page: "shorts" }, "");
+    const onPop = () => {
+      setShortsOpen(false);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [shortsOpen]);
+
+  // Keyboard navigation for Shorts (ArrowUp / ArrowDown)
+  useEffect(() => {
+    if (!shortsOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        goToNextShort();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        goToPrevShort();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        closeShorts();
+      } else if (e.key === " ") {
+        e.preventDefault();
+        player.toggle();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [shortsOpen, goToNextShort, goToPrevShort, closeShorts, player]);
+
+  const toggleShortLike = (id: string) => {
+    if (!id) return;
+    setLikedShorts((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      try {
+        localStorage.setItem("echo.liked_shorts", JSON.stringify([...next]));
+      } catch {}
+      return next;
+    });
+  };
+
+  const isShortLiked = (id: string) => likedShorts.has(id);
+  const currentShortItem = shortsOpen ? shortsList[shortsIdx] ?? current : null;
+
   // open a channel: show that channel's videos on the home list
   const chanIdRef = useRef<string | null>(null);
   const loadChannel = useCallback(
@@ -1293,6 +1493,17 @@ function Index() {
     [player.playAt, player.playDirect],
   );
 
+  const handleAnyVideoPlay = useCallback(
+    (r: Track | SearchResult | Row) => {
+      if (r.duration === "শর্টস" || r.title.toLowerCase().includes("#shorts")) {
+        openShorts([r as SearchResult], 0);
+      } else {
+        playTrack(r, savedPosOf(r.id));
+      }
+    },
+    [openShorts, playTrack, savedPosOf],
+  );
+
   // "up next" = the next queued video, else the first related one
   const queuedNext = player.index !== null ? queue[player.index + 1] ?? null : null;
   const nextUp: Track | null =
@@ -1308,6 +1519,10 @@ function Index() {
   }, [nextUp?.id, playTrack, savedPosOf]);
   // when a video finishes, record full completion retention & auto-play the related "up next" one
   endedRef.current = () => {
+    if (shortsOpen) {
+      goToNextShort();
+      return true;
+    }
     if (current && duration) {
       const g = genreOf(`${current.title} ${current.author ?? ""}`);
       setTaste((t) =>
@@ -2114,7 +2329,34 @@ function Index() {
                 <p className="glass mx-4 mt-3 rounded-3xl p-5 text-center text-[12.5px] text-muted-foreground">কোনো পোস্ট বা স্টোরি নেই।</p>
               )
             )}
-            {chanState === "ok" && chan && chanTab !== "playlists" && chanTab !== "posts" && (
+            {chanState === "ok" && chan && chanTab === "shorts" && (
+              chan.videos.length ? (
+                <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3 px-4">
+                  {chan.videos.map((s, idx) => (
+                    <button
+                      key={s.id}
+                      onClick={() => openShorts(chan.videos, idx)}
+                      className="group relative overflow-hidden rounded-2xl glass-card ring-1 ring-border/80 hover:ring-primary/40 text-left transition-all active:scale-95 shadow-sm"
+                    >
+                      <div className="relative aspect-[9/16] w-full overflow-hidden bg-black/80">
+                        <img src={s.thumbnail} alt="" className="size-full object-cover transition duration-300 group-hover:scale-105" loading="lazy" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/20" />
+                        <div className="absolute top-2 left-2">
+                          <span className="grid size-5 place-items-center rounded-full bg-red-600 text-white text-[10px] shadow-sm">▶</span>
+                        </div>
+                        <div className="absolute inset-x-2 bottom-2">
+                          <p className="line-clamp-2 font-display text-[12px] font-bold text-white leading-snug drop-shadow">{s.title}</p>
+                          {s.views && <p className="text-[10px] text-white/80 mt-0.5">{s.views}</p>}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="glass mx-4 mt-3 rounded-3xl p-5 text-center text-[12.5px] text-muted-foreground">এই চ্যানেলে কোনো শর্টস নেই।</p>
+              )
+            )}
+            {chanState === "ok" && chan && chanTab !== "playlists" && chanTab !== "posts" && chanTab !== "shorts" && (
               chan.videos.length ? (
                 <ul className="mt-3 divide-y divide-border/20">
                   {chan.videos.map((r) => (
@@ -2241,17 +2483,17 @@ function Index() {
         {/* If user picked "স্টোরি / শর্টস" category */}
         {!chanView && category === "shorts" && searchState === "ok" && results.length > 0 && (
           <div className="mt-4 px-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {results.map((s) => (
+            {results.map((s, idx) => (
               <button
                 key={s.id}
-                onClick={() => playTrack(s)}
-                className="group relative overflow-hidden rounded-2xl glass-card ring-1 ring-border/80 hover:ring-primary/40 text-left transition-all active:scale-95"
+                onClick={() => openShorts(results, idx)}
+                className="group relative overflow-hidden rounded-2xl glass-card ring-1 ring-border/80 hover:ring-primary/40 text-left transition-all active:scale-95 shadow-sm"
               >
                 <div className="relative aspect-[9/16] w-full overflow-hidden bg-black/80">
                   <img src={s.thumbnail} alt="" className="size-full object-cover transition duration-300 group-hover:scale-105" loading="lazy" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/20" />
                   <div className="absolute top-2 left-2">
-                    <span className="grid size-5 place-items-center rounded-full bg-red-600/90 text-white text-[10px]">▶</span>
+                    <span className="grid size-5 place-items-center rounded-full bg-red-600 text-white text-[10px] shadow-sm">▶</span>
                   </div>
                   <div className="absolute inset-x-2 bottom-2">
                     <p className="line-clamp-2 font-display text-[12px] font-bold text-white leading-snug drop-shadow">{s.title}</p>
@@ -2271,7 +2513,7 @@ function Index() {
                 {/* Top videos before Shorts */}
                 <ul className="divide-y divide-border/20">
                   {results.slice(0, 4).map((r) => (
-                    <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} />
+                    <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => handleAnyVideoPlay(r)} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} />
                   ))}
                 </ul>
 
@@ -2294,10 +2536,10 @@ function Index() {
                       </button>
                     </div>
                     <div className="flex gap-2.5 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                      {homeShorts.slice(0, 10).map((s) => (
+                      {homeShorts.slice(0, 25).map((s, idx) => (
                         <button
                           key={s.id}
-                          onClick={() => playTrack(s)}
+                          onClick={() => openShorts(homeShorts, idx)}
                           className="group relative w-[130px] shrink-0 overflow-hidden rounded-xl bg-black/80 text-left transition-all active:scale-95 shadow-sm"
                         >
                           <div className="relative aspect-[9/16] w-full overflow-hidden">
@@ -2318,7 +2560,7 @@ function Index() {
                 {results.length > 4 && (
                   <ul className="divide-y divide-border/20">
                     {results.slice(4).map((r) => (
-                      <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} />
+                      <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => handleAnyVideoPlay(r)} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} />
                     ))}
                   </ul>
                 )}
@@ -2326,7 +2568,7 @@ function Index() {
             ) : (
               <ul className="divide-y divide-border/20">
                 {results.map((r) => (
-                  <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} />
+                  <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => handleAnyVideoPlay(r)} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} />
                 ))}
               </ul>
             )}
@@ -3124,29 +3366,265 @@ function Index() {
         </div>
       </div>
 
-      {/* Floating player — one element, moved between big / watch slot / pop-up corner so playback never restarts */}
+      {/* Floating player — one element, moved between shorts / big / watch slot / pop-up corner so playback never restarts */}
       <div
         ref={playerBoxRef}
         className={
           docPip
             ? "size-full overflow-hidden bg-foreground"
-            : `fixed z-[45] overflow-hidden bg-foreground ${pipDragging || watchPullY > 0 ? "" : "transition-all duration-500 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)]"} ${
-                playerMode === "big" ? "grid place-items-center rounded-none" : playerMode === "pip" ? "rounded-2xl shadow-primary ring-1 ring-border" : playerMode === "watch" ? "rounded-3xl ring-1 ring-border" : "pointer-events-none opacity-0"
+            : `fixed overflow-hidden bg-foreground ${pipDragging || watchPullY > 0 ? "" : "transition-all duration-500 [transition-timing-function:cubic-bezier(0.32,0.72,0,1)]"} ${
+                playerMode === "shorts"
+                  ? "inset-0 z-50 flex items-center justify-center bg-black rounded-none"
+                  : playerMode === "big"
+                    ? "inset-0 z-[45] grid place-items-center rounded-none"
+                    : playerMode === "pip"
+                      ? "z-[45] rounded-2xl shadow-primary ring-1 ring-border"
+                      : playerMode === "watch"
+                        ? "z-[45] rounded-3xl ring-1 ring-border"
+                        : "pointer-events-none opacity-0"
               }`
         }
         style={
           docPip
             ? { position: "static", width: "100%", height: "100%" }
-            : playerMode === "big"
-              ? { inset: 0 }
-              : playerMode === "watch" && slotRect
-                ? { top: slotRect.top + watchPullY, left: slotRect.left, width: slotRect.width, height: slotRect.height }
-                : playerMode === "pip"
-                  ? { left: pipPos?.left ?? 12, top: pipPos?.top ?? 12, width: pipW, height: pipH }
-                  : { right: 12, bottom: 16, width: 1, height: 1 }
+            : playerMode === "shorts"
+              ? { inset: 0, width: "100vw", height: "100dvh" }
+              : playerMode === "big"
+                ? { inset: 0 }
+                : playerMode === "watch" && slotRect
+                  ? { top: slotRect.top + watchPullY, left: slotRect.left, width: slotRect.width, height: slotRect.height }
+                  : playerMode === "pip"
+                    ? { left: pipPos?.left ?? 12, top: pipPos?.top ?? 12, width: pipW, height: pipH }
+                    : { right: 12, bottom: 16, width: 1, height: 1 }
         }
       >
-        <div id={PLAYER_ID} className={playerMode === "big" ? "aspect-video w-full max-w-[min(100vw,calc(100dvh*16/9))]" : "size-full"} />
+        <div
+          id={PLAYER_ID}
+          className={
+            playerMode === "shorts"
+              ? "h-full w-full max-w-[min(100vw,calc(100dvh*9/16))] aspect-[9/16] object-cover pointer-events-none"
+              : playerMode === "big"
+                ? "aspect-video w-full max-w-[min(100vw,calc(100dvh*16/9))]"
+                : "size-full"
+          }
+        />
+
+        {/* Full-Screen YouTube Shorts Vertical Gesture Overlay */}
+        {playerMode === "shorts" && (
+          <div
+            className="absolute inset-0 z-30 flex flex-col justify-between touch-none select-none"
+            onTouchStart={onShortsTouchStart}
+            onTouchMove={onShortsTouchMove}
+            onTouchEnd={onShortsTouchEnd}
+            onPointerDown={onShortsTouchStart}
+            onPointerMove={onShortsTouchMove}
+            onPointerUp={onShortsTouchEnd}
+            onWheel={onShortsWheel}
+          >
+            {/* Top Bar (YouTube Shorts style) */}
+            <div className="flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 bg-gradient-to-b from-black/80 via-black/40 to-transparent text-white">
+              <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  closeShorts();
+                }}
+                aria-label="শর্টস বন্ধ করুন"
+                title="বন্ধ করুন"
+                className="grid size-10 place-items-center rounded-full bg-black/40 text-white backdrop-blur hover:bg-black/60 active:scale-90 transition-transform"
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M19 12H5M12 19l-7-7 7-7" />
+                </svg>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <span className="grid size-6 place-items-center rounded-lg bg-red-600 text-white shadow-sm shadow-red-500/50">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M17.77 10.32l-1.2-.5-1.1-.47.6-1.46c.74-1.8.06-3.9-1.63-4.9-1.92-1.12-4.38-.55-5.6 1.3l-4.2 6.8c-.85 1.37-.8 3.1.13 4.4 1 1.4 2.7 2.1 4.4 1.8l1.2.5 1.1.46-.6 1.47c-.74 1.8-.06 3.9 1.63 4.9 1.92 1.12 4.38.55 5.6-1.3l4.2-6.8c.85-1.37.8-3.1-.13-4.4-1-1.4-2.7-2.1-4.4-1.8z" />
+                  </svg>
+                </span>
+                <span className="font-display text-[15px] font-bold tracking-tight text-white drop-shadow">শর্টস</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    closeShorts();
+                  }}
+                  aria-label="পপআপে মিনিমাইজ"
+                  title="পপআপ"
+                  className="grid size-9 place-items-center rounded-full bg-black/40 text-white backdrop-blur hover:bg-black/60 active:scale-90 transition-transform"
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2.5" y="4" width="19" height="16" rx="2.5" />
+                    <rect x="12" y="12" width="8" height="6" rx="1.4" fill="currentColor" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Middle tap zone: tap to toggle play/pause */}
+            <div
+              className="flex-1 flex items-center justify-center relative cursor-pointer"
+              onClick={() => player.toggle()}
+            >
+              {!playing && (
+                <div className="grid size-16 place-items-center rounded-full bg-black/60 text-white backdrop-blur-md animate-in fade-in zoom-in-75 duration-200 shadow-xl">
+                  <PlayIcon playing={false} className="size-8 ml-1" />
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Content & Right Action Column */}
+            <div className="flex items-end justify-between px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-8 bg-gradient-to-t from-black/95 via-black/60 to-transparent text-white">
+              {/* Left Column: Author, Title, Views */}
+              <div className="min-w-0 flex-1 pr-4 space-y-2 pointer-events-auto">
+                {current?.author && (
+                  <div className="flex items-center gap-2.5">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        closeShorts();
+                        openChannel(current.author, currentShortItem?.channelId);
+                      }}
+                      className="flex items-center gap-2 group text-left"
+                    >
+                      <Avatar src={currentShortItem?.thumbnail} name={current.author} size="size-9" text="text-[12px]" />
+                      <span className="font-display text-[14px] font-bold text-white group-hover:text-primary transition-colors drop-shadow">
+                        {current.author}
+                      </span>
+                    </button>
+                  </div>
+                )}
+
+                <p className="line-clamp-2 font-display text-[14px] font-semibold text-white/95 leading-snug drop-shadow-md">
+                  {current?.title || "Shorts"}
+                </p>
+
+                {currentShortItem?.views && (
+                  <div className="flex items-center gap-2 text-[11.5px] text-white/80 font-medium">
+                    <span>{currentShortItem.views}</span>
+                    <span>•</span>
+                    <span className="text-[11px] text-white/70">সোয়াইপ করে পরের শর্টস দেখুন</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column: Like, Share, Save, Up / Down buttons */}
+              <div className="flex flex-col items-center gap-3 pb-2 pointer-events-auto">
+                {/* Like Button */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleShortLike(current?.id ?? "");
+                  }}
+                  aria-label="পছন্দ"
+                  className="flex flex-col items-center gap-1 group"
+                >
+                  <span className={`grid size-11 place-items-center rounded-full backdrop-blur-md transition-all active:scale-90 ${
+                    isShortLiked(current?.id ?? "") ? "bg-red-600 text-white shadow-lg shadow-red-500/40" : "bg-black/50 text-white hover:bg-black/70"
+                  }`}>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill={isShortLiked(current?.id ?? "") ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                    </svg>
+                  </span>
+                  <span className="text-[11px] font-semibold drop-shadow">
+                    {isShortLiked(current?.id ?? "") ? "পছন্দ" : "লাইক"}
+                  </span>
+                </button>
+
+                {/* Share Button */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (current) {
+                      navigator.share?.({ url: `https://youtube.com/shorts/${current.id}`, title: current.title }).catch(() => {});
+                    }
+                  }}
+                  aria-label="শেয়ার"
+                  className="flex flex-col items-center gap-1 group"
+                >
+                  <span className="grid size-11 place-items-center rounded-full bg-black/50 text-white backdrop-blur-md hover:bg-black/70 active:scale-90 transition-all">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                    </svg>
+                  </span>
+                  <span className="text-[11px] font-semibold drop-shadow">শেয়ার</span>
+                </button>
+
+                {/* Save to Playlist Button */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (current) setSaveModalTrack(current);
+                  }}
+                  aria-label="সংরক্ষণ"
+                  className="flex flex-col items-center gap-1 group"
+                >
+                  <span className="grid size-11 place-items-center rounded-full bg-black/50 text-white backdrop-blur-md hover:bg-black/70 active:scale-90 transition-all">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                      <path d="M12 5v14M5 12h14" />
+                    </svg>
+                  </span>
+                  <span className="text-[11px] font-semibold drop-shadow">সেভ</span>
+                </button>
+
+                {/* Previous Short (Up Arrow) */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    goToPrevShort();
+                  }}
+                  disabled={shortsIdx <= 0}
+                  aria-label="আগের শর্টস"
+                  title="আগের শর্টস"
+                  className={`grid size-10 place-items-center rounded-full bg-black/50 text-white backdrop-blur-md active:scale-90 transition-all ${
+                    shortsIdx <= 0 ? "opacity-30 cursor-not-allowed" : "hover:bg-black/70"
+                  }`}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 15l-6-6-6 6" />
+                  </svg>
+                </button>
+
+                {/* Next Short (Down Arrow) */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    goToNextShort();
+                  }}
+                  aria-label="পরের শর্টস"
+                  title="পরের শর্টস"
+                  className="grid size-10 place-items-center rounded-full bg-black/50 text-white backdrop-blur-md hover:bg-black/70 active:scale-90 transition-all"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Bottom Progress Bar */}
+            {duration > 0 && (
+              <div className="absolute inset-x-0 bottom-0 h-1 bg-white/20 pointer-events-none">
+                <div className="h-full bg-red-600 transition-all duration-150" style={{ width: `${Math.min(100, (time / duration) * 100)}%` }} />
+              </div>
+            )}
+          </div>
+        )}
         {playerMode === "big" && (
           <div
             className="absolute inset-0 touch-none"
