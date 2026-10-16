@@ -12,6 +12,7 @@ import {
   searchYouTube,
   suggestYouTube,
   videoMeta,
+  type ChannelCard,
   type ChannelPage,
   type SearchResult,
   type VideoMeta,
@@ -379,6 +380,9 @@ function Index() {
   const [chanTab, setChanTab] = useState<"videos" | "shorts" | "live" | "playlists" | "posts">("videos");
   const [meta, setMeta] = useState<VideoMeta | null>(null);
   const [searchState, setSearchState] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [searchChannel, setSearchChannel] = useState<ChannelCard | undefined>(undefined);
+  const [searchContinuationToken, setSearchContinuationToken] = useState<string | undefined>(undefined);
+  const [searchLoadingMore, setSearchLoadingMore] = useState(false);
   const [related, setRelated] = useState<SearchResult[]>([]);
   const [relatedState, setRelatedState] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [relatedTick, setRelatedTick] = useState(0);
@@ -716,24 +720,54 @@ function Index() {
 
   const doSearch = useCallback(
     async (q: string) => {
-      setLastQuery(q);
-      if (!q.trim()) {
+      const term = q.trim();
+      setLastQuery(term);
+      setSearchChannel(undefined);
+      setSearchContinuationToken(undefined);
+      if (!term) {
         await loadFeedPage(true);
         return;
       }
       feedOrder.current = [];
       setSearchState("loading");
-      const r = await fetchWithRetry(q);
-      if (r) {
-        setResults(r);
-        setSearchState("ok");
-      } else {
+      try {
+        const res = await cached(`search:v3:${term}`, TTL.search, () => runSearch({ data: { q: term } }), (r) => r.ok);
+        if (res.ok) {
+          setResults(res.results);
+          setSearchChannel(res.channel);
+          setSearchContinuationToken(res.continuationToken);
+          setSearchState("ok");
+        } else {
+          setResults([]);
+          setSearchState("error");
+        }
+      } catch {
         setResults([]);
         setSearchState("error");
       }
     },
-    [fetchWithRetry, loadFeedPage],
+    [loadFeedPage, runSearch],
   );
+
+  const loadMoreSearchResults = useCallback(async () => {
+    if (!searchContinuationToken || searchLoadingMore) return;
+    setSearchLoadingMore(true);
+    try {
+      const res = await runSearch({ data: { token: searchContinuationToken } });
+      if (res.ok && res.results.length > 0) {
+        const seenIds = new Set(resultsRef.current.map((r) => r.id));
+        const fresh = res.results.filter((r) => !seenIds.has(r.id));
+        setResults((prev) => [...prev, ...fresh]);
+        setSearchContinuationToken(res.continuationToken);
+      } else {
+        setSearchContinuationToken(undefined);
+      }
+    } catch {
+      setSearchContinuationToken(undefined);
+    } finally {
+      setSearchLoadingMore(false);
+    }
+  }, [searchContinuationToken, searchLoadingMore, runSearch]);
 
   // run a search term from the box / a suggestion / a saved search — and remember it
   const runTerm = useCallback(
@@ -806,13 +840,18 @@ function Index() {
   const isHome = lastQuery.trim().length === 0;
   useEffect(() => {
     const el = sentinel.current;
-    if (!el || !isHome || searchState !== "ok") return;
+    if (!el || searchState !== "ok") return;
     const io = new IntersectionObserver((entries) => {
-      if (entries[0]?.isIntersecting) loadFeedPage(false);
+      if (!entries[0]?.isIntersecting) return;
+      if (isHome) {
+        loadFeedPage(false);
+      } else if (searchContinuationToken) {
+        void loadMoreSearchResults();
+      }
     }, { rootMargin: "600px" });
     io.observe(el);
     return () => io.disconnect();
-  }, [isHome, searchState, loadFeedPage]);
+  }, [isHome, searchState, searchContinuationToken, loadFeedPage, loadMoreSearchResults]);
 
   // ---- persistence ----
   useEffect(() => {
@@ -990,6 +1029,9 @@ function Index() {
     setChanState("idle");
     chanIdRef.current = null;
     setCategory("");
+    setInput("");
+    setSearchChannel(undefined);
+    setSearchContinuationToken(undefined);
     doSearch("");
   };
 
@@ -1434,24 +1476,37 @@ function Index() {
 
       <main className="relative mx-auto flex min-h-screen w-full min-w-0 max-w-[420px] flex-col px-5 pb-[max(2.5rem,env(safe-area-inset-bottom))]">
         <header className="relative z-30 flex items-center gap-2.5 pt-[max(1.5rem,env(safe-area-inset-top))]">
-          {/* Logo on Left */}
-          <button onClick={backHome} className="flex shrink-0 items-center gap-2 text-left group">
-            <div className="relative grid size-9 place-items-center rounded-xl bg-gradient-to-br from-primary via-indigo-600 to-rose-500 text-primary-foreground shadow-sm shadow-primary/25 transition-transform group-active:scale-95">
-              <Eq className="bg-white" />
-            </div>
-            <span className="font-display text-lg font-black tracking-tight text-foreground hidden min-[360px]:inline">
-              Vizo<span className="text-primary font-black">Watch</span>
-            </span>
-          </button>
+          {/* Logo on Left OR Back Button when in Search mode */}
+          {isSearch ? (
+            <button
+              onClick={backHome}
+              aria-label="হোমে ফিরে যান"
+              title="হোমে ফিরুন"
+              className="grid size-9 shrink-0 place-items-center rounded-xl glass-card ring-1 ring-border/80 text-foreground hover:bg-primary/10 hover:text-primary transition-all active:scale-95"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M19 12H5M12 19l-7-7 7-7" />
+              </svg>
+            </button>
+          ) : (
+            <button onClick={backHome} className="flex shrink-0 items-center gap-2 text-left group">
+              <div className="relative grid size-9 place-items-center rounded-xl bg-gradient-to-br from-primary via-indigo-600 to-rose-500 text-primary-foreground shadow-sm shadow-primary/25 transition-transform group-active:scale-95">
+                <Eq className="bg-white" />
+              </div>
+              <span className="font-display text-lg font-black tracking-tight text-foreground hidden min-[360px]:inline">
+                Vizo<span className="text-primary font-black">Watch</span>
+              </span>
+            </button>
+          )}
 
-          {/* Search Box in the Middle (where Install was) */}
+          {/* Search Box in the Middle */}
           <form onSubmit={submit} className="relative flex min-w-0 flex-1 items-center">
             <div className="flex min-w-0 w-full items-center gap-1.5 rounded-2xl glass-card px-3 py-1.5 ring-1 ring-border/80 focus-within:ring-2 focus-within:ring-primary focus-within:shadow-md focus-within:shadow-primary/10 transition-all">
               <input
                 value={input}
                 onChange={(e) => { setInput(e.target.value); setSugOpen(true); }}
                 onFocus={() => setSugOpen(true)}
-                onBlur={() => setTimeout(() => setSugOpen(false), 150)}
+                onBlur={() => setTimeout(() => setSugOpen(false), 200)}
                 placeholder="গান, নাটক, লিংক খুঁজুন..."
                 aria-label="ইউটিউবে খুঁজুন"
                 className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/80"
@@ -1459,7 +1514,18 @@ function Index() {
                 autoComplete="off"
               />
               {input && (
-                <button type="button" onClick={() => { setInput(""); setSuggestions([]); setCategory(""); doSearch(""); }} aria-label="মুছুন" className="grid size-4 shrink-0 place-items-center rounded-full bg-muted/80 text-[10px] text-muted-foreground hover:bg-muted transition-colors">✕</button>
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setInput("");
+                    setSuggestions([]);
+                  }}
+                  aria-label="মুছুন"
+                  className="grid size-4 shrink-0 place-items-center rounded-full bg-muted/80 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                >
+                  ✕
+                </button>
               )}
               <button
                 type="submit"
@@ -1467,7 +1533,7 @@ function Index() {
                 aria-label="খুঁজুন"
                 className="shrink-0 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
               >
-                {busy ? (
+                {busy || searchState === "loading" ? (
                   <span className="inline-block size-3.5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                 ) : (
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -1489,20 +1555,48 @@ function Index() {
                   {(input.trim().length < 2 ? searches : suggestions).map((s) => {
                     const recent = input.trim().length < 2;
                     return (
-                      <li key={s} className="flex items-center gap-2 px-2">
+                      <li key={s} className="flex items-center justify-between gap-1 px-2 hover:bg-primary/5 transition-colors">
                         <button
                           type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => runTerm(s)}
-                          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13.5px] font-medium hover:bg-primary/10 hover:text-primary transition-colors"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            runTerm(s);
+                          }}
+                          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13.5px] font-medium hover:text-primary transition-colors"
                         >
                           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="shrink-0 text-muted-foreground" aria-hidden>
                             {recent ? <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></> : <><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" /></>}
                           </svg>
                           <span className="min-w-0 flex-1 truncate">{s}</span>
                         </button>
-                        {recent && (
-                          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setSearches(removeSearch(s))} aria-label="মুছুন" className="shrink-0 px-2 text-[12px] text-muted-foreground hover:text-foreground">✕</button>
+                        {recent ? (
+                          <button
+                            type="button"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              setSearches(removeSearch(s));
+                            }}
+                            aria-label="মুছুন"
+                            className="grid size-7 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                          >
+                            ✕
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              setInput(s);
+                              setSugOpen(true);
+                            }}
+                            aria-label="সার্চ বক্সে নিন"
+                            title="সার্চ বক্সে নিন"
+                            className="grid size-7 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                              <path d="M7 17L17 7M7 7h10v10" />
+                            </svg>
+                          </button>
                         )}
                       </li>
                     );
@@ -1671,15 +1765,61 @@ function Index() {
 
         {/* Search / trending */}
         {!chanView && (
-        <div className="mt-8 flex items-center justify-between">
-          <h2 className="font-display text-xl font-semibold">{channel ? `চ্যানেল · ${channel}` : catLabel ? (catLabel === "হোম" ? "আপনার জন্য" : catLabel) : isSearch ? `"${lastQuery}"` : "আপনার জন্য"}</h2>
-          {channel && (
-            <button onClick={backHome} className="rounded-full bg-glass px-3 py-1 font-display text-[12px] font-semibold ring-1 ring-border">
-              হোম
-            </button>
-          )}
-          {searchState === "loading" && <span className="text-[12px] text-muted-foreground">খোঁজা হচ্ছে…</span>}
-        </div>
+          <div className="mt-6 flex items-center justify-between">
+            <h2 className="font-display text-lg font-bold">
+              {channel ? `চ্যানেল · ${channel}` : isSearch ? `"${lastQuery}" এর ফলাফল` : catLabel && catLabel !== "হোম" ? catLabel : "আপনার জন্য"}
+            </h2>
+            {isSearch ? (
+              <button
+                onClick={backHome}
+                className="rounded-full bg-glass px-3 py-1 font-display text-[12px] font-semibold ring-1 ring-border text-primary hover:bg-primary/10 transition-colors"
+              >
+                ← হোমে ফিরুন
+              </button>
+            ) : channel ? (
+              <button
+                onClick={backHome}
+                className="rounded-full bg-glass px-3 py-1 font-display text-[12px] font-semibold ring-1 ring-border"
+              >
+                হোম
+              </button>
+            ) : null}
+            {searchState === "loading" && <span className="text-[12px] text-muted-foreground">খোঁজা হচ্ছে…</span>}
+          </div>
+        )}
+
+        {/* YouTube Channel Card (when search matches a creator/channel) */}
+        {!chanView && isSearch && searchChannel && searchState === "ok" && (
+          <div className="glass-card mt-3 overflow-hidden rounded-3xl p-3.5 ring-1 ring-border/80 shadow-md shadow-primary/5 transition-all">
+            <div className="flex items-center gap-3">
+              <Avatar src={searchChannel.avatar} name={searchChannel.name} size="size-14" text="text-lg" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <h3 className="truncate font-display text-[15px] font-bold text-foreground">{searchChannel.name}</h3>
+                  <span className="grid size-3.5 place-items-center rounded-full bg-primary text-white text-[9px]" title="ভেরিফায়েড">✓</span>
+                </div>
+                {searchChannel.handle && (
+                  <p className="truncate text-[12px] text-muted-foreground">{searchChannel.handle}</p>
+                )}
+                {(searchChannel.subs || searchChannel.videoCount) && (
+                  <p className="mt-0.5 truncate text-[11.5px] font-medium text-muted-foreground">
+                    {[searchChannel.subs, searchChannel.videoCount].filter(Boolean).join(" · ")}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => openChannel(searchChannel.name, searchChannel.id)}
+                className="shrink-0 rounded-2xl bg-gradient-to-tr from-primary to-indigo-600 px-3.5 py-1.5 font-display text-[12.5px] font-bold text-white shadow-sm shadow-primary/20 hover:opacity-95 active:scale-95 transition-all"
+              >
+                চ্যানেল দেখুন
+              </button>
+            </div>
+            {searchChannel.description && (
+              <p className="mt-2.5 line-clamp-2 text-[11.5px] text-muted-foreground/80 leading-relaxed border-t border-border/50 pt-2">
+                {searchChannel.description}
+              </p>
+            )}
+          </div>
         )}
 
         {!chanView && searchState === "loading" && <Skeleton />}
@@ -1712,9 +1852,22 @@ function Index() {
           </ul>
         )}
 
-        {!chanView && isHome && searchState === "ok" && (
+        {!chanView && searchState === "ok" && (
           <div ref={sentinel} className="py-4 text-center text-[12px] text-muted-foreground">
-            {feedLoadingMore ? "আরও ভিডিও আসছে…" : feedDone ? "আজকের মতো এটুকুই" : ""}
+            {isHome ? (
+              feedLoadingMore ? "আরও ভিডিও আসছে…" : feedDone ? "আজকের মতো এটুকুই" : ""
+            ) : (
+              searchLoadingMore ? (
+                <span className="inline-flex items-center gap-2">
+                  <span className="size-3.5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  আরও ফলাফল লোড হচ্ছে…
+                </span>
+              ) : searchContinuationToken ? (
+                "স্ক্রোল করে আরও দেখুন…"
+              ) : (
+                "সব ফলাফল দেখানো হয়েছে"
+              )
+            )}
           </div>
         )}
 

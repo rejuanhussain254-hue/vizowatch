@@ -81,6 +81,105 @@ async function fetchJson(url: string): Promise<any | null> {
   }
 }
 
+export type ChannelCard = {
+  id: string;
+  name: string;
+  handle?: string | undefined;
+  avatar: string;
+  subs?: string | undefined;
+  videoCount?: string | undefined;
+  description?: string | undefined;
+};
+
+export type SearchResponse =
+  | {
+      ok: true;
+      results: SearchResult[];
+      channel?: ChannelCard | undefined;
+      continuationToken?: string | undefined;
+    }
+  | { ok: false; error: string };
+
+function findChannelCard(node: any): ChannelCard | undefined {
+  if (!node || typeof node !== "object") return undefined;
+  if (node.channelRenderer) {
+    const cr = node.channelRenderer;
+    const rawAvatar = firstUrl(cr.thumbnail);
+    const avatar = rawAvatar.startsWith("//") ? `https:${rawAvatar}` : rawAvatar;
+    const handle = cr.navigationEndpoint?.browseEndpoint?.canonicalBaseUrl?.replace(/^\//, "") || undefined;
+    return {
+      id: cr.channelId || "",
+      name: text(cr.title),
+      handle,
+      avatar,
+      subs: text(cr.subscriberCountText) || undefined,
+      videoCount: text(cr.videoCountText) || undefined,
+      description: text(cr.descriptionSnippet) || undefined,
+    };
+  }
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      const c = findChannelCard(item);
+      if (c) return c;
+    }
+    return undefined;
+  }
+  for (const k of Object.keys(node)) {
+    if (k === "trackingParams") continue;
+    const c = findChannelCard(node[k]);
+    if (c) return c;
+  }
+  return undefined;
+}
+
+function findContinuationToken(node: any): string | undefined {
+  if (!node || typeof node !== "object") return undefined;
+  if (node.continuationItemRenderer?.continuationEndpoint?.continuationCommand?.token) {
+    return String(node.continuationItemRenderer.continuationEndpoint.continuationCommand.token);
+  }
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      const tok = findContinuationToken(item);
+      if (tok) return tok;
+    }
+    return undefined;
+  }
+  for (const k of Object.keys(node)) {
+    if (k === "trackingParams") continue;
+    const tok = findContinuationToken(node[k]);
+    if (tok) return tok;
+  }
+  return undefined;
+}
+
+async function fetchContinuation(token: string): Promise<{ results: SearchResult[]; continuationToken?: string }> {
+  const res = await fetch("https://www.youtube.com/youtubei/v1/search", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "user-agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+    },
+    body: JSON.stringify({
+      context: {
+        client: {
+          clientName: "WEB",
+          clientVersion: "2.20240410.01.00",
+          hl: "en",
+          gl: "BD",
+        },
+      },
+      continuation: token,
+    }),
+  });
+  if (!res.ok) return { results: [] };
+  const json = await res.json();
+  const out: SearchResult[] = [];
+  walk(json, out, new Set());
+  const nextToken = findContinuationToken(json);
+  return { results: out.filter((r) => r.title), continuationToken: nextToken };
+}
+
 async function fetchResults(url: string): Promise<SearchResult[]> {
   const data = await fetchJson(url);
   if (!data) return [];
@@ -89,24 +188,42 @@ async function fetchResults(url: string): Promise<SearchResult[]> {
   return out.filter((r) => r.title).slice(0, 30);
 }
 
-export type SearchResponse = { ok: true; results: SearchResult[] } | { ok: false; error: string };
-
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export const searchYouTube = createServerFn({ method: "GET" })
-  .inputValidator((d: { q: string }) => {
-    if (typeof d?.q !== "string") throw new Error("q required");
-    return { q: d.q.slice(0, 200) };
+  .validator((d: { q?: string; token?: string }) => {
+    return {
+      q: typeof d?.q === "string" ? d.q.slice(0, 200) : "",
+      token: typeof d?.token === "string" ? d.token.slice(0, 2000) : undefined,
+    };
   })
   .handler(async ({ data }): Promise<SearchResponse> => {
+    if (data.token) {
+      try {
+        const cont = await fetchContinuation(data.token);
+        return { ok: true, results: cont.results, continuationToken: cont.continuationToken };
+      } catch (e) {
+        const err = e instanceof Error ? e.message : "continuation failed";
+        return { ok: false, error: err };
+      }
+    }
+
     const q = data.q.trim() || "trending videos bangladesh today";
-    const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}&sp=EgIQAQ%253D%253D&gl=BD&hl=en`;
+    const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}&gl=BD&hl=en`;
     let lastErr = "";
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const results = await fetchResults(url);
-        // An empty parse on a real query usually means YouTube served a consent/bot page — retry.
-        if (results.length || attempt === 2) return { ok: true, results };
+        const raw = await fetchJson(url);
+        if (raw) {
+          const out: SearchResult[] = [];
+          walk(raw, out, new Set());
+          const valid = out.filter((r) => r.title).slice(0, 30);
+          if (valid.length || attempt === 2) {
+            const channel = findChannelCard(raw);
+            const continuationToken = findContinuationToken(raw);
+            return { ok: true, results: valid, channel, continuationToken };
+          }
+        }
         lastErr = "empty";
       } catch (e) {
         lastErr = e instanceof Error ? e.message : "fetch failed";
