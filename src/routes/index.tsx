@@ -1617,36 +1617,130 @@ function Index() {
     [runChannel],
   );
 
-  const openChannel = (name?: string, channelId?: string) => {
-    const n = (name ?? "").trim();
-    if (!n && !channelId) return;
-    if (open) closeWatch();
-    setProfileOpen(false);
-    setCategory(null);
-    setChannel(n || channelId!);
-    setInput("");
-    setSugOpen(false);
-    setChanTab("videos");
-    setChan(null);
-    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
-    void (async () => {
-      let id = channelId ?? null;
-      setChanState("loading");
-      if (!id) {
-        try {
-          id = await cached(`chanid:${n}`, TTL.channel, () => runResolveChannel({ data: { name: n } }), (v) => !!v);
-        } catch {
-          id = null;
+  const [subscribedChannels, setSubscribedChannels] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem("echo.subscribed_channels");
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  const toggleSubscribe = useCallback(
+    (chanName: string) => {
+      if (!chanName) return;
+      setSubscribedChannels((prev) => {
+        const next = new Set(prev);
+        const isSub = next.has(chanName);
+        if (isSub) {
+          next.delete(chanName);
+          flash(`আনসাবস্ক্রাইব করা হয়েছে: ${chanName}`);
+        } else {
+          next.add(chanName);
+          flash(`সাবস্ক্রাইব করা হয়েছে: ${chanName}`);
         }
-      }
-      chanIdRef.current = id;
-      if (id) void loadChannel(id, "videos");
-      else {
-        setChanState("idle");
-        void doSearch(`${n} ভিডিও`);
-      }
-    })();
-  };
+        try {
+          localStorage.setItem("echo.subscribed_channels", JSON.stringify([...next]));
+        } catch {}
+        return next;
+      });
+    },
+    [flash],
+  );
+
+  const playChannelVideos = useCallback(
+    (videos: SearchResult[], startIndex = 0) => {
+      if (!videos || videos.length === 0) return;
+      const safeIdx = Math.max(0, Math.min(startIndex, videos.length - 1));
+      const target = videos[safeIdx]!;
+      const remaining: Track[] = videos.slice(safeIdx + 1).map((v) => ({
+        id: v.id,
+        title: v.title,
+        author: v.author,
+        thumbnail: v.thumbnail,
+      }));
+      setQueue(remaining);
+      playTrack(target, 0);
+      flash(`${target.author || "চ্যানেল"} প্লেলিস্ট চালু হয়েছে (${videos.length}টি ভিডিও)`);
+    },
+    [playTrack, flash],
+  );
+
+  const shuffleChannelVideos = useCallback(
+    (videos: SearchResult[]) => {
+      if (!videos || videos.length === 0) return;
+      const shuffled = [...videos].sort(() => Math.random() - 0.5);
+      playChannelVideos(shuffled, 0);
+    },
+    [playChannelVideos],
+  );
+
+  const openChannel = useCallback(
+    (name?: string, channelId?: string, videoId?: string) => {
+      const n = (name ?? "").trim();
+      if (!n && !channelId && !videoId) return;
+      if (open) closeWatch();
+      setShortsOpen(false);
+      setProfileOpen(false);
+      setCategory(null);
+      setChannel(n || channelId || "চ্যানেল");
+      setInput("");
+      setSugOpen(false);
+      setChanTab("videos");
+      setChan(null);
+      if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+
+      void (async () => {
+        let id = channelId ?? null;
+        setChanState("loading");
+
+        if (!id && videoId) {
+          try {
+            const m = await runVideoMeta({ data: { id: videoId } });
+            if (m?.channelId) id = m.channelId;
+            if (m?.author) setChannel(m.author);
+          } catch {}
+        }
+
+        if (!id && n) {
+          try {
+            id = await cached(`chanid:${n}`, TTL.channel, () => runResolveChannel({ data: { name: n } }), (v) => !!v);
+          } catch {
+            id = null;
+          }
+        }
+
+        chanIdRef.current = id;
+        if (id) {
+          void loadChannel(id, "videos");
+        } else {
+          try {
+            const sRes = await runSearch({ data: { q: n } });
+            if (sRes.ok && sRes.results.length > 0) {
+              const firstWithThumb = sRes.results.find((r) => r.channelThumb);
+              setChan({
+                id: n,
+                name: n,
+                handle: n.startsWith("@") ? n : "",
+                avatar: firstWithThumb?.channelThumb || "",
+                banner: "",
+                subs: "",
+                videoCount: `${sRes.results.length}+ ভিডিও`,
+                tabs: ["videos"],
+                videos: sRes.results,
+                playlists: [],
+                posts: [],
+              });
+              setChanState("ok");
+              return;
+            }
+          } catch {}
+          setChanState("error");
+        }
+      })();
+    },
+    [open, closeWatch, runVideoMeta, runResolveChannel, loadChannel, runSearch],
+  );
 
   const openChannelTab = (tab: typeof chanTab) => {
     setChanTab(tab);
@@ -1996,6 +2090,20 @@ function Index() {
   const isSearch = lastQuery.trim().length > 0;
   const catLabel = CATEGORIES.find((c) => c.q === category)?.label ?? null;
   const chanView = !!channel && chanState !== "idle";
+
+  // Browser back button support for Channel View
+  useEffect(() => {
+    if (!chanView) return;
+    window.history.pushState({ page: "channel" }, "");
+    const onPop = () => {
+      setChannel(null);
+      setChan(null);
+      setChanState("idle");
+      chanIdRef.current = null;
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [chanView]);
 
   // ---- YouTube-style Pull to Refresh ----
   const [pullY, setPullY] = useState(0);
@@ -2460,81 +2568,179 @@ function Index() {
           })}
         </nav>
 
-        {/* Channel page */}
+        {/* Channel page — YouTube Mobile Standard */}
         {chanView && (
-          <section className="mt-4">
-            <div className="flex items-center justify-between px-4">
-              <button onClick={backHome} className="rounded-full bg-glass px-3 py-1 font-display text-[12px] font-semibold ring-1 ring-border">← হোম</button>
-              {chanState === "loading" && <span className="text-[12px] text-muted-foreground">লোড হচ্ছে…</span>}
-            </div>
-            {chan?.banner && (
-              <img src={chan.banner} alt="" className="mt-3 aspect-[6/1] w-full object-cover ring-1 ring-border" referrerPolicy="no-referrer" />
-            )}
-            <div className="mt-3 flex items-center gap-3 px-4">
-              <Avatar src={chan?.avatar} name={chan?.name ?? channel ?? "?"} size="size-16" text="text-xl" />
-              <div className="min-w-0 flex-1">
-                <h2 className="truncate font-display text-lg font-bold">{chan?.name || channel}</h2>
-                <p className="truncate text-[12px] text-muted-foreground">
-                  {[chan?.handle, chan?.subs, chan?.videoCount].filter(Boolean).join(" · ") || "চ্যানেল"}
-                </p>
+          <section className="mt-2 pb-12">
+            {/* Channel Top Header Bar */}
+            <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-2.5 bg-background/95 backdrop-blur-md border-b border-border/40">
+              <button
+                onClick={backHome}
+                className="flex items-center gap-1.5 rounded-full bg-glass px-3 py-1.5 font-display text-[12.5px] font-bold text-foreground ring-1 ring-border/80 hover:bg-primary/10 hover:text-primary transition-all active:scale-95"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M19 12H5M12 19l-7-7 7-7" />
+                </svg>
+                <span>হোম</span>
+              </button>
+              <h1 className="font-display text-[14px] font-bold text-foreground truncate max-w-[200px]">
+                {chan?.name || channel}
+              </h1>
+              <div className="w-14 text-right">
+                {chanState === "loading" && <span className="text-[11.5px] text-muted-foreground animate-pulse">লোড হচ্ছে…</span>}
               </div>
             </div>
-            <nav aria-label="চ্যানেল ট্যাব" className="mt-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+
+            {/* Channel Banner */}
+            {chan?.banner ? (
+              <div className="relative aspect-[16/5] w-full overflow-hidden bg-muted/60">
+                <img src={chan.banner} alt="" className="size-full object-cover" referrerPolicy="no-referrer" />
+                <div className="absolute inset-0 bg-gradient-to-t from-background/40 to-transparent" />
+              </div>
+            ) : null}
+
+            {/* Channel Profile Header */}
+            <div className="px-4 pt-4">
+              <div className="flex items-start gap-3.5">
+                <Avatar
+                  src={chan?.avatar}
+                  name={chan?.name ?? channel ?? "?"}
+                  size="size-16"
+                  text="text-xl"
+                  className="ring-2 ring-primary/30 shadow-md shrink-0"
+                />
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <h2 className="truncate font-display text-[18px] font-extrabold text-foreground leading-tight">
+                    {chan?.name || channel}
+                  </h2>
+                  <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[12px] text-muted-foreground font-medium">
+                    {chan?.handle && <span className="text-foreground/90 font-semibold">{chan.handle}</span>}
+                    {chan?.subs && <span>• {chan.subs}</span>}
+                    {chan?.videoCount && <span>• {chan.videoCount}</span>}
+                  </p>
+                  {chan?.description && (
+                    <p className="mt-1 line-clamp-2 text-[11.5px] text-muted-foreground/90 leading-relaxed">
+                      {chan.description}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* YouTube Action Buttons: Play All, Shuffle, Subscribe */}
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                {chanState === "ok" && chan && chan.videos.length > 0 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => playChannelVideos(chan.videos, 0)}
+                      className="flex items-center gap-2 rounded-full bg-gradient-to-tr from-primary to-indigo-600 px-4 py-2 font-display text-[13px] font-bold text-primary-foreground shadow-md shadow-primary/25 hover:opacity-95 active:scale-95 transition-all"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="5 3 19 12 5 21 5 3" />
+                      </svg>
+                      <span>সব চালান ({chan.videos.length})</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => shuffleChannelVideos(chan.videos)}
+                      className="flex items-center gap-1.5 rounded-full glass-card px-3.5 py-2 font-display text-[12.5px] font-semibold text-foreground ring-1 ring-border/80 hover:bg-muted active:scale-95 transition-all"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
+                      </svg>
+                      <span>এলোমেলো</span>
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() => toggleSubscribe(chan?.name || channel || "")}
+                  className={`flex items-center gap-1.5 rounded-full px-4 py-2 font-display text-[12.5px] font-bold transition-all active:scale-95 ${
+                    subscribedChannels.has(chan?.name || channel || "")
+                      ? "bg-muted text-muted-foreground ring-1 ring-border"
+                      : "bg-foreground text-background shadow-sm hover:opacity-90"
+                  }`}
+                >
+                  {subscribedChannels.has(chan?.name || channel || "") ? "✓ সাবস্ক্রাইবড" : "+ সাবস্ক্রাইব"}
+                </button>
+              </div>
+            </div>
+
+            {/* Channel Tabs */}
+            <nav aria-label="চ্যানেল ট্যাব" className="mt-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden border-b border-border/30">
               {CHANNEL_TABS.map((t) => (
                 <button
                   key={t.key}
                   onClick={() => openChannelTab(t.key)}
-                  className={`shrink-0 rounded-full px-3.5 py-1.5 font-display text-[13px] font-semibold ring-1 transition active:scale-95 ${chanTab === t.key ? "bg-primary text-primary-foreground ring-primary shadow-primary" : "bg-glass ring-border"}`}
+                  className={`shrink-0 rounded-full px-4 py-1.5 font-display text-[13px] font-semibold transition active:scale-95 ${
+                    chanTab === t.key
+                      ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20 ring-1 ring-primary/40"
+                      : "glass-card text-foreground/80 hover:text-foreground ring-1 ring-border/70"
+                  }`}
                 >
                   {t.label}
                 </button>
               ))}
             </nav>
 
+            {/* Tab content states */}
             {chanState === "loading" && <Skeleton />}
             {chanState === "error" && (
-              <div className="glass mx-4 mt-3 rounded-3xl p-5 text-center">
-                <p className="font-display text-sm font-semibold">চ্যানেল আনা যায়নি</p>
-                <button onClick={() => chanIdRef.current && loadChannel(chanIdRef.current, chanTab)} className="mt-3 rounded-2xl bg-primary px-4 py-2 font-display text-[13px] font-semibold text-primary-foreground shadow-primary">আবার চেষ্টা</button>
+              <div className="glass mx-4 mt-4 rounded-3xl p-5 text-center">
+                <p className="font-display text-sm font-semibold">চ্যানেলের তথ্য আনা যায়নি</p>
+                <button
+                  onClick={() => chanIdRef.current && loadChannel(chanIdRef.current, chanTab)}
+                  className="mt-3 rounded-2xl bg-primary px-4 py-2 font-display text-[13px] font-semibold text-primary-foreground shadow-primary"
+                >
+                  আবার চেষ্টা করুন
+                </button>
               </div>
             )}
+
+            {/* Playlists tab */}
             {chanState === "ok" && chan && chanTab === "playlists" && (
               chan.playlists.length ? (
-                <ul className="mt-3 grid grid-cols-2 gap-3 px-4">
+                <ul className="mt-4 grid grid-cols-2 gap-3 px-4">
                   {chan.playlists.map((p) => (
                     <li key={p.id}>
-                      <button onClick={() => openPlaylist(p.id, p.title)} className="block w-full text-left">
-                        <span className="relative block">
-                          <img src={p.thumbnail} alt="" className="aspect-video w-full rounded-2xl object-cover ring-1 ring-border" loading="lazy" referrerPolicy="no-referrer" />
-                          {p.count && <span className="absolute right-1.5 bottom-1.5 rounded-md bg-foreground/80 px-1.5 py-0.5 text-[10.5px] font-medium text-background">{p.count}</span>}
+                      <button onClick={() => openPlaylist(p.id, p.title)} className="block w-full text-left group">
+                        <span className="relative block aspect-video w-full overflow-hidden rounded-2xl bg-black/60 ring-1 ring-border">
+                          <img src={p.thumbnail} alt="" className="size-full object-cover transition duration-300 group-hover:scale-105" loading="lazy" referrerPolicy="no-referrer" />
+                          <div className="absolute inset-y-0 right-0 w-9 bg-black/75 backdrop-blur-[2px] flex flex-col items-center justify-center text-white gap-0.5">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z" /></svg>
+                            <span className="text-[10px] font-bold">{p.count}</span>
+                          </div>
                         </span>
-                        <span className="mt-1.5 line-clamp-2 block font-display text-[13.5px] font-semibold leading-snug">{p.title}</span>
+                        <span className="mt-1.5 line-clamp-2 block font-display text-[13px] font-semibold leading-snug group-hover:text-primary transition-colors">{p.title}</span>
                       </button>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="glass mx-4 mt-3 rounded-3xl p-5 text-center text-[12.5px] text-muted-foreground">এই চ্যানেলে প্লেলিস্ট নেই।</p>
+                <p className="glass mx-4 mt-4 rounded-3xl p-5 text-center text-[12.5px] text-muted-foreground">এই চ্যানেলে কোনো প্লেলিস্ট পাওয়া যায়নি।</p>
               )
             )}
+
+            {/* Posts / Community tab */}
             {chanState === "ok" && chan && chanTab === "posts" && (
               chan.posts.length ? (
-                <ul className="mt-3 space-y-3 px-4">
+                <ul className="mt-4 space-y-3 px-4">
                   {chan.posts.map((p) => (
-                    <li key={p.id} className="glass rounded-3xl p-3 ring-1 ring-border">
-                      <p className="whitespace-pre-line text-[13px] leading-relaxed">{p.text}</p>
-                      {p.image && <img src={p.image} alt="" className="mt-2 w-full rounded-2xl object-cover" loading="lazy" referrerPolicy="no-referrer" />}
-                      {p.published && <p className="mt-1.5 text-[11px] text-muted-foreground">{p.published}</p>}
+                    <li key={p.id} className="glass rounded-3xl p-4 ring-1 ring-border/80">
+                      <p className="whitespace-pre-line text-[13.5px] leading-relaxed">{p.text}</p>
+                      {p.image && <img src={p.image} alt="" className="mt-3 w-full rounded-2xl object-cover" loading="lazy" referrerPolicy="no-referrer" />}
+                      {p.published && <p className="mt-2 text-[11px] text-muted-foreground">{p.published}</p>}
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="glass mx-4 mt-3 rounded-3xl p-5 text-center text-[12.5px] text-muted-foreground">কোনো পোস্ট বা স্টোরি নেই।</p>
+                <p className="glass mx-4 mt-4 rounded-3xl p-5 text-center text-[12.5px] text-muted-foreground">কোনো পোস্ট বা স্টোরি নেই।</p>
               )
             )}
+
+            {/* Shorts tab */}
             {chanState === "ok" && chan && chanTab === "shorts" && (
               chan.videos.length ? (
-                <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3 px-4">
+                <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3 px-4">
                   {chan.videos.map((s, idx) => (
                     <button
                       key={s.id}
@@ -2556,18 +2762,29 @@ function Index() {
                   ))}
                 </div>
               ) : (
-                <p className="glass mx-4 mt-3 rounded-3xl p-5 text-center text-[12.5px] text-muted-foreground">এই চ্যানেলে কোনো শর্টস নেই।</p>
+                <p className="glass mx-4 mt-4 rounded-3xl p-5 text-center text-[12.5px] text-muted-foreground">এই চ্যানেলে কোনো শর্টস নেই।</p>
               )
             )}
+
+            {/* Videos / Live tabs */}
             {chanState === "ok" && chan && chanTab !== "playlists" && chanTab !== "posts" && chanTab !== "shorts" && (
               chan.videos.length ? (
-                <ul className="mt-3 divide-y divide-border/20">
-                  {chan.videos.map((r) => (
-                    <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} onMore={() => setActionSheetTrack(r)} />
+                <ul className="mt-2 divide-y divide-border/20">
+                  {chan.videos.map((r, idx) => (
+                    <VideoRow
+                      key={r.id}
+                      r={r}
+                      active={current?.id === r.id}
+                      playing={playing}
+                      progress={progressOf(r.id)}
+                      onPlay={() => playChannelVideos(chan.videos, idx)}
+                      onQueue={() => addToQueue(r)}
+                      onMore={() => setActionSheetTrack(r)}
+                    />
                   ))}
                 </ul>
               ) : (
-                <p className="glass mx-4 mt-3 rounded-3xl p-5 text-center text-[12.5px] text-muted-foreground">এই ট্যাবে কিছু নেই।</p>
+                <p className="glass mx-4 mt-4 rounded-3xl p-5 text-center text-[12.5px] text-muted-foreground">এই ট্যাবে কোনো ভিডিও নেই।</p>
               )
             )}
           </section>
@@ -2716,7 +2933,7 @@ function Index() {
                 {/* Top videos before Shorts */}
                 <ul className="divide-y divide-border/20">
                   {results.slice(0, 4).map((r) => (
-                    <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => handleAnyVideoPlay(r)} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} onMore={() => setActionSheetTrack(r)} />
+                    <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => handleAnyVideoPlay(r)} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId, r.id)} onMore={() => setActionSheetTrack(r)} />
                   ))}
                 </ul>
 
@@ -2763,7 +2980,7 @@ function Index() {
                 {results.length > 4 && (
                   <ul className="divide-y divide-border/20">
                     {results.slice(4).map((r) => (
-                      <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => handleAnyVideoPlay(r)} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} onMore={() => setActionSheetTrack(r)} />
+                      <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => handleAnyVideoPlay(r)} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId, r.id)} onMore={() => setActionSheetTrack(r)} />
                     ))}
                   </ul>
                 )}
@@ -2771,7 +2988,7 @@ function Index() {
             ) : (
               <ul className="divide-y divide-border/20">
                 {results.map((r) => (
-                  <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => handleAnyVideoPlay(r)} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} onMore={() => setActionSheetTrack(r)} />
+                  <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => handleAnyVideoPlay(r)} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId, r.id)} onMore={() => setActionSheetTrack(r)} />
                 ))}
               </ul>
             )}
@@ -3458,14 +3675,14 @@ function Index() {
 
             {current?.author && (
               <div className="mt-2.5 flex items-center justify-between">
-                <button onClick={() => openChannel(current.author, meta?.channelId)} className="inline-flex items-center gap-2 text-left group">
+                <button onClick={() => openChannel(current.author, meta?.channelId, current.id)} className="inline-flex items-center gap-2 text-left group">
                   <Avatar src={meta?.channelThumb} name={current.author} size="size-7" text="text-[11px]" />
                   <div className="flex flex-col">
                     <span className="truncate font-display text-[13px] font-semibold group-hover:text-primary transition-colors">{current.author}</span>
                     {meta?.subs && <span className="text-[10.5px] text-muted-foreground">{meta.subs}</span>}
                   </div>
                 </button>
-                <button onClick={() => openChannel(current.author, meta?.channelId)} className="rounded-full bg-lilac/30 hover:bg-lilac/60 px-3 py-1 font-display text-[11.5px] font-semibold text-primary transition active:scale-95">
+                <button onClick={() => openChannel(current.author, meta?.channelId, current.id)} className="rounded-full bg-lilac/30 hover:bg-lilac/60 px-3 py-1 font-display text-[11.5px] font-semibold text-primary transition active:scale-95">
                   চ্যানেল দেখুন →
                 </button>
               </div>
@@ -3566,7 +3783,7 @@ function Index() {
             {relatedState === "ok" && related.length > 0 && (
               <ul className="mt-2 divide-y divide-border/20">
                 {related.map((r) => (
-                  <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId)} onMore={() => setActionSheetTrack(r)} />
+                  <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => playTrack(r, savedPosOf(r.id))} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId, r.id)} onMore={() => setActionSheetTrack(r)} />
                 ))}
               </ul>
             )}
@@ -3707,14 +3924,39 @@ function Index() {
                       onClick={(e) => {
                         e.stopPropagation();
                         closeShorts();
-                        openChannel(currentShortItem?.author || current.author, currentShortItem?.channelId);
+                        openChannel(
+                          currentShortItem?.author || current?.author,
+                          currentShortItem?.channelId,
+                          currentShortItem?.id || current?.id,
+                        );
                       }}
-                      className="flex items-center gap-2 group text-left"
+                      className="flex items-center gap-2 group text-left min-w-0"
                     >
-                      <Avatar src={currentShortItem?.channelThumb || currentShortItem?.thumbnail} name={currentShortItem?.author || current.author} size="size-9" text="text-[12px]" />
-                      <span className="font-display text-[14px] font-bold text-white group-hover:text-primary transition-colors drop-shadow">
-                        {currentShortItem?.author || current.author}
+                      <Avatar
+                        src={currentShortItem?.channelThumb || currentShortItem?.thumbnail}
+                        name={currentShortItem?.author || current?.author || "?"}
+                        size="size-9"
+                        text="text-[12px]"
+                      />
+                      <span className="font-display text-[14px] font-bold text-white group-hover:text-primary transition-colors drop-shadow truncate max-w-[160px]">
+                        {currentShortItem?.author || current?.author}
                       </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        closeShorts();
+                        openChannel(
+                          currentShortItem?.author || current?.author,
+                          currentShortItem?.channelId,
+                          currentShortItem?.id || current?.id,
+                        );
+                      }}
+                      className="rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-md px-2.5 py-1 text-[11px] font-bold text-white ring-1 ring-white/30 active:scale-95 transition-all flex items-center gap-1 shrink-0 shadow-sm"
+                    >
+                      <span>চ্যানেল</span>
+                      <span>→</span>
                     </button>
                   </div>
                 )}
@@ -4278,13 +4520,13 @@ function Index() {
                 <span>শেয়ার করুন</span>
               </button>
 
-              {actionSheetTrack.channelId && (
+              {(actionSheetTrack.channelId || actionSheetTrack.author) && (
                 <button
                   type="button"
                   onClick={() => {
                     const ch = actionSheetTrack;
                     setActionSheetTrack(null);
-                    openChannel(ch.author, ch.channelId);
+                    openChannel(ch.author, ch.channelId, ch.id);
                   }}
                   className="flex w-full items-center gap-3.5 px-3 py-3 rounded-2xl text-left font-display text-[14px] font-semibold text-foreground hover:bg-muted/60 active:scale-[0.99] transition-all"
                 >

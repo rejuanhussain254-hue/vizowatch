@@ -589,7 +589,39 @@ export const videoMeta = createServerFn({ method: "GET" })
             /* ignore */
           }
         }
-        if (out.published || out.views || out.channelThumb) return out;
+
+        // If channelId is still missing, fetch shorts endpoint which reliably provides channel info for Shorts
+        if (!out.channelId) {
+          try {
+            const sRes = await fetch(`https://www.youtube.com/shorts/${encodeURIComponent(data.id)}?hl=en&gl=BD`, {
+              headers: {
+                "user-agent":
+                  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+                cookie: "CONSENT=YES+1; SOCS=CAI",
+              },
+            });
+            const sHtml = await sRes.text();
+            const sPr =
+              sHtml.match(/ytInitialPlayerResponse\s*=\s*(\{.+?\});\s*(?:var|<\/script>)/s) ||
+              sHtml.match(/var ytInitialPlayerResponse = (\{.+?\});/s);
+            if (sPr) {
+              const sp = JSON.parse(sPr[1]!);
+              if (sp?.videoDetails?.channelId) out.channelId = sp.videoDetails.channelId;
+              if (sp?.videoDetails?.author && !out.author) out.author = sp.videoDetails.author;
+            }
+            const sIdm = sHtml.match(/var ytInitialData = (\{.*?\});<\/script>/s);
+            if (sIdm) {
+              const sd = JSON.parse(sIdm[1]!);
+              const av = findAll(sd, "avatarViewModel")[0];
+              const avUrl = firstUrl(av?.image);
+              if (avUrl) out.channelThumb = avUrl;
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+
+        if (out.published || out.views || out.channelThumb || out.channelId) return out;
       } catch (e) {
         console.error("videoMeta", e instanceof Error ? e.message : e);
       }
@@ -651,13 +683,20 @@ export const resolveChannel = createServerFn({ method: "GET" })
   .handler(async ({ data }): Promise<string | null> => {
     const q = data.name.trim();
     if (!q) return null;
+    if (q.startsWith("@")) return q;
     try {
-      const json = await fetchJson(
+      let json = await fetchJson(
         `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}&sp=EgIQAg%253D%253D&hl=en&gl=BD`,
       );
-      if (!json) return null;
-      const cr = findAll(json, "channelRenderer")[0];
-      const id = cr?.channelId ?? findAll(json, "browseEndpoint").find((b: any) => String(b?.browseId ?? "").startsWith("UC"))?.browseId;
+      let cr = findAll(json, "channelRenderer")[0];
+      let id = cr?.channelId ?? findAll(json, "browseEndpoint").find((b: any) => String(b?.browseId ?? "").startsWith("UC"))?.browseId;
+      if (id) return typeof id === "string" ? id : null;
+
+      json = await fetchJson(
+        `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}&hl=en&gl=BD`,
+      );
+      cr = findAll(json, "channelRenderer")[0];
+      id = cr?.channelId ?? findAll(json, "browseEndpoint").find((b: any) => String(b?.browseId ?? "").startsWith("UC"))?.browseId;
       return typeof id === "string" ? id : null;
     } catch {
       return null;
