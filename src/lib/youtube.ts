@@ -3,6 +3,11 @@ export type Track = {
   title: string;
   author: string;
   thumbnail: string;
+  views?: string;
+  published?: string;
+  duration?: string | number;
+  channelId?: string;
+  channelThumb?: string;
 };
 
 export const STORAGE_KEY = "echo.queue.v1";

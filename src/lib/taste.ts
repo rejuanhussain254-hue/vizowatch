@@ -314,8 +314,9 @@ export function calculateAlgorithmScore(
   }
 
   // 2. Genre Affinity
-  if (options.genre && t.genres[options.genre]) {
-    score += Math.min(t.genres[options.genre] * 1.2, 2.0);
+  const genreScore = options.genre ? t.genres[options.genre] : undefined;
+  if (genreScore) {
+    score += Math.min(genreScore * 1.2, 2.0);
   }
 
   // 3. Search Term Matching
