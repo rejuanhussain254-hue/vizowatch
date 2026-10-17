@@ -1648,6 +1648,21 @@ function Index() {
     [flash],
   );
 
+  const playTrack = useCallback(
+    (track: Track, startAt = 0) => {
+      const q = loadQueue();
+      const idx = q.findIndex((t) => t.id === track.id);
+      if (idx !== -1) {
+        player.playAt(idx, startAt);
+      } else {
+        player.playDirect(track, startAt);
+      }
+      openWatch(track.id);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [player.playAt, player.playDirect],
+  );
+
   const playChannelVideos = useCallback(
     (videos: SearchResult[], startIndex = 0) => {
       if (!videos || videos.length === 0) return;
@@ -1773,21 +1788,6 @@ function Index() {
       flash("প্লেলিস্ট আনা যায়নি");
     }
   };
-
-  const playTrack = useCallback(
-    (track: Track, startAt = 0) => {
-      const q = loadQueue();
-      const idx = q.findIndex((t) => t.id === track.id);
-      if (idx !== -1) {
-        player.playAt(idx, startAt);
-      } else {
-        player.playDirect(track, startAt);
-      }
-      openWatch(track.id);
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [player.playAt, player.playDirect],
-  );
 
   const handleAnyVideoPlay = useCallback(
     (r: Track | SearchResult | Row) => {
