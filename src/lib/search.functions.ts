@@ -275,7 +275,7 @@ async function fetchContinuation(initialToken: string): Promise<{ results: Searc
       const nextToken = findContinuationToken(json);
       const valid = out.filter((r) => r.title);
       if (valid.length > 0 || !nextToken) {
-        return { results: valid, continuationToken: nextToken };
+        return nextToken ? { results: valid, continuationToken: nextToken } : { results: valid };
       }
       currentToken = nextToken;
     } catch {
