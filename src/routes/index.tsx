@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useCallback, useEffect, useRef, useState, type FormEvent, type PointerEvent as RPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as RPointerEvent } from "react";
 import { usePlayer } from "@/hooks/usePlayer";
 import { useAuth } from "@/hooks/useAuth";
 import { clearCloudHistory, mergeHistoryOnSignIn, updateCloudPosition, upsertCloudHistory } from "@/lib/history-sync";
@@ -1291,16 +1291,40 @@ function Index() {
 
   const lastSaved = useRef(0);
   useEffect(() => {
-    if (!current || !duration) return;
-    if (Math.abs(time - lastSaved.current) < 5) return;
+    if (!current) return;
+    if (Math.abs(time - lastSaved.current) < 2.5) return;
     lastSaved.current = time;
-    updateHistoryPosition(current.id, time, duration);
+    updateHistoryPosition(current.id, time, duration || 0);
     setHistory(loadHistory());
     if (userId) {
       const item = loadHistory().find((h) => h.id === current.id);
       if (item) updateCloudPosition(userId, current.id, item.position, item.duration);
     }
   }, [time, duration, current, userId]);
+
+  // Instantly save exact watch position when paused so resume is always up to the second
+  useEffect(() => {
+    if (!current || playing || time <= 0) return;
+    updateHistoryPosition(current.id, time, duration || 0);
+    setHistory(loadHistory());
+    if (userId) {
+      updateCloudPosition(userId, current.id, Math.floor(time), Math.floor(duration || 0));
+    }
+  }, [playing, current, time, duration, userId]);
+
+  // Instantly sync & update history, resume card, and saved playlists whenever Profile page opens
+  useEffect(() => {
+    if (!profileOpen) return;
+    if (current && (time > 0 || duration > 0)) {
+      updateHistoryPosition(current.id, time, duration || 0);
+      if (userId) {
+        updateCloudPosition(userId, current.id, Math.floor(time), Math.floor(duration || 0));
+      }
+    }
+    setHistory([...loadHistory()]);
+    setUserPlaylists([...loadUserPlaylists()]);
+  }, [profileOpen, current, time, duration, userId]);
+
 
   // watched progress per video, kept fresh across feed/related switches
   const progressOf = useCallback(
@@ -2125,7 +2149,24 @@ function Index() {
     else if (player.index === i) player.setIndex(null);
   }
 
-  const resume = history.find((h) => h.position > 10 && (!playing || h.id !== current?.id));
+  const resume = useMemo(() => {
+    if (current && (time > 1 || duration > 0)) {
+      return {
+        id: current.id,
+        title: current.title,
+        author: current.author,
+        thumbnail: current.thumbnail,
+        position: Math.floor(time),
+        duration: Math.floor(duration),
+        at: Date.now(),
+      };
+    }
+    const latest = history[0];
+    if (latest && (latest.position > 1 || latest.duration > 0)) {
+      return latest;
+    }
+    return history.find((h) => h.position > 1) ?? history[0] ?? null;
+  }, [current, time, duration, history]);
   const upNext = player.index !== null && queue.length > 1 ? queue.slice(player.index + 1, player.index + 6) : [];
   const isSearch = lastQuery.trim().length > 0;
   const catLabel = CATEGORIES.find((c) => c.q === category)?.label ?? null;
@@ -3139,7 +3180,7 @@ function Index() {
             <div
               onClick={() => {
                 setProfileOpen(false);
-                playTrack(resume, resume.position);
+                playTrack(resume, current?.id === resume.id ? time : resume.position);
               }}
               className="glass-card mt-4 overflow-hidden rounded-3xl p-3 ring-1 ring-primary/30 shadow-md shadow-primary/5 transition-all hover:shadow-lg hover:shadow-primary/10 cursor-pointer active:scale-[0.99] group"
             >
@@ -3147,16 +3188,32 @@ function Index() {
                 <div className="relative shrink-0 overflow-hidden rounded-2xl ring-1 ring-border/50">
                   <img src={resume.thumbnail} alt="" className="h-16 w-28 object-cover group-hover:scale-105 transition-transform" />
                   <span className="absolute inset-0 bg-black/20" />
-                  {resume.duration ? (
+                  {(resume.duration > 0 || (current?.id === resume.id && duration > 0)) && (
                     <span className="absolute inset-x-1.5 bottom-1.5 h-1 overflow-hidden rounded-full bg-white/30 backdrop-blur-sm">
-                      <span className="block h-full rounded-full bg-primary" style={{ width: `${Math.min(100, (resume.position / resume.duration) * 100)}%` }} />
+                      <span
+                        className="block h-full rounded-full bg-primary"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            (current?.id === resume.id && duration > 0
+                              ? (time / duration) * 100
+                              : resume.duration > 0
+                              ? (resume.position / resume.duration) * 100
+                              : 0)
+                          )}%`,
+                        }}
+                      />
                     </span>
-                  ) : null}
+                  )}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 text-[11px] font-bold text-primary">
                     <span className="size-1.5 rounded-full bg-primary animate-pulse" />
-                    <span>যেখানে ছেড়েছিলেন · {formatTime(resume.position)}</span>
+                    <span>
+                      {current?.id === resume.id && playing
+                        ? `এখন চলছে · ${formatTime(time)}`
+                        : `যেখানে ছেড়েছিলেন · ${formatTime(current?.id === resume.id ? time : resume.position)}`}
+                    </span>
                   </div>
                   <p className="mt-0.5 line-clamp-1 font-display text-[14px] font-bold text-foreground group-hover:text-primary transition-colors">{resume.title}</p>
                   <p className="line-clamp-1 text-[11.5px] font-medium text-muted-foreground">{resume.author}</p>
@@ -3166,12 +3223,12 @@ function Index() {
                   onClick={(e) => {
                     e.stopPropagation();
                     setProfileOpen(false);
-                    playTrack(resume, resume.position);
+                    playTrack(resume, current?.id === resume.id ? time : resume.position);
                   }}
                   aria-label="চালান"
                   className="grid size-10 shrink-0 place-items-center rounded-2xl bg-gradient-to-tr from-primary to-indigo-600 text-primary-foreground shadow-md shadow-primary/30 transition-all hover:opacity-95 active:scale-90"
                 >
-                  <PlayIcon playing={false} />
+                  <PlayIcon playing={current?.id === resume.id && playing} />
                 </button>
               </div>
             </div>
@@ -3360,41 +3417,53 @@ function Index() {
                         active={current?.id === h.id}
                         playing={playing}
                         progress={progressOf(h.id)}
-                        onPlay={() => { setProfileOpen(false); playTrack(h, h.position); }}
+                        onPlay={() => { setProfileOpen(false); playTrack(h, current?.id === h.id ? time : h.position); }}
                         onQueue={() => addToQueue(h)}
                         onMore={() => setActionSheetTrack(h)}
-                        sub={`${timeAgo(h.at)}${h.position > 10 ? ` · ${formatTime(h.position)} থেকে` : ""}`}
+                        sub={`${timeAgo(h.at)}${(current?.id === h.id ? time : h.position) > 3 ? ` · ${formatTime(current?.id === h.id ? time : h.position)} থেকে` : ""}`}
                       />
                     ))}
                   </ul>
                 ) : (
                   <div className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-2 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                    {history.slice(0, 15).map((h) => (
-                      <button
-                        key={h.id}
-                        onClick={() => { setProfileOpen(false); playTrack(h, h.position); }}
-                        className="group relative w-[148px] shrink-0 text-left transition-all active:scale-95"
-                      >
-                        <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-muted ring-1 ring-border/80 group-hover:ring-primary/40">
-                          <img src={h.thumbnail} alt="" className="size-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
-                          {h.duration ? (
-                            <span className="absolute inset-x-1.5 bottom-1.5 h-1 overflow-hidden rounded-full bg-white/30 backdrop-blur-sm">
-                              <span
-                                className="block h-full rounded-full bg-primary"
-                                style={{ width: `${Math.min(100, (h.position / h.duration) * 100)}%` }}
-                              />
-                            </span>
-                          ) : null}
-                          {h.position > 10 && (
-                            <span className="absolute top-1.5 right-1.5 rounded-md bg-black/75 px-1 py-0.5 text-[9.5px] font-medium text-white backdrop-blur-[2px]">
-                              {formatTime(h.position)}
-                            </span>
-                          )}
-                        </div>
-                        <p className="mt-1.5 line-clamp-2 font-display text-[12px] font-bold text-foreground leading-snug group-hover:text-primary transition-colors">{h.title}</p>
-                        <p className="mt-0.5 truncate text-[10.5px] text-muted-foreground">{h.author}</p>
-                      </button>
-                    ))}
+                    {history.slice(0, 15).map((h) => {
+                      const isCurrent = current?.id === h.id;
+                      const livePos = isCurrent ? Math.floor(time) : h.position;
+                      const liveDur = isCurrent && duration ? Math.floor(duration) : h.duration;
+                      const liveProg = isCurrent && duration ? time / duration : (h.duration ? h.position / h.duration : 0);
+                      return (
+                        <button
+                          key={h.id}
+                          onClick={() => { setProfileOpen(false); playTrack(h, livePos); }}
+                          className="group relative w-[148px] shrink-0 text-left transition-all active:scale-95"
+                        >
+                          <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-muted ring-1 ring-border/80 group-hover:ring-primary/40">
+                            <img src={h.thumbnail} alt="" className="size-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
+                            {liveDur > 0 && liveProg > 0.01 && (
+                              <span className="absolute inset-x-1.5 bottom-1.5 h-1 overflow-hidden rounded-full bg-white/30 backdrop-blur-sm">
+                                <span
+                                  className="block h-full rounded-full bg-primary"
+                                  style={{ width: `${Math.min(100, liveProg * 100)}%` }}
+                                />
+                              </span>
+                            )}
+                            {livePos > 3 && (
+                              <span className="absolute top-1.5 right-1.5 rounded-md bg-black/75 px-1 py-0.5 text-[9.5px] font-medium text-white backdrop-blur-[2px]">
+                                {formatTime(livePos)}
+                              </span>
+                            )}
+                            {isCurrent && playing && (
+                              <span className="absolute top-1.5 left-1.5 rounded-md bg-primary/95 px-1.5 py-0.5 text-[9px] font-bold text-white shadow-sm flex items-center gap-1">
+                                <span className="size-1 rounded-full bg-white animate-pulse" />
+                                চলছে
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-1.5 line-clamp-2 font-display text-[12px] font-bold text-foreground leading-snug group-hover:text-primary transition-colors">{h.title}</p>
+                          <p className="mt-0.5 truncate text-[10.5px] text-muted-foreground">{h.author}</p>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </section>
