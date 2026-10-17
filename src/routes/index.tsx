@@ -1648,6 +1648,8 @@ function Index() {
     [flash],
   );
 
+  // playTrack is declared further down; reach it through a ref to avoid using it before it exists.
+  const playTrackRef = useRef<(track: Track, startAt?: number) => void>(() => {});
   const playChannelVideos = useCallback(
     (videos: SearchResult[], startIndex = 0) => {
       if (!videos || videos.length === 0) return;
@@ -1660,10 +1662,10 @@ function Index() {
         thumbnail: v.thumbnail,
       }));
       setQueue(remaining);
-      playTrack(target, 0);
+      playTrackRef.current(target, 0);
       flash(`${target.author || "চ্যানেল"} প্লেলিস্ট চালু হয়েছে (${videos.length}টি ভিডিও)`);
     },
-    [playTrack, flash],
+    [flash],
   );
 
   const shuffleChannelVideos = useCallback(
@@ -1788,6 +1790,7 @@ function Index() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [player.playAt, player.playDirect],
   );
+  playTrackRef.current = playTrack;
 
   const handleAnyVideoPlay = useCallback(
     (r: Track | SearchResult | Row) => {
