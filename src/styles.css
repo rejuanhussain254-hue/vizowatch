@@ -145,3 +145,28 @@
 ::-webkit-scrollbar-thumb:hover {
   background: oklch(0.45 0.22 285 / 50%);
 }
+
+/* ==========================================================================
+   Hide / Remove Lovable Badge & Watermark
+   ========================================================================== */
+#lovable-badge,
+[id*="lovable-badge"],
+[class*="lovable-badge"],
+[data-lovable-badge],
+div[style*="z-index: 2147483647"]:has(a[href*="lovable"]),
+div[style*="z-index: 999999"]:has(a[href*="lovable"]),
+a[href*="lovable.dev?utm_source="],
+a[href*="lovable.dev"][target="_blank"]:has(svg),
+iframe[src*="lovable.dev"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  position: absolute !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  z-index: -99999 !important;
+}
+

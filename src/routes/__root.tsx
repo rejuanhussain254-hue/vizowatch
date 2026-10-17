@@ -108,10 +108,54 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="en">
       <head>
         <HeadContent />
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
+              #lovable-badge,
+              [id*="lovable-badge"],
+              [class*="lovable-badge"],
+              [data-lovable-badge],
+              div[style*="z-index: 2147483647"]:has(a[href*="lovable"]),
+              div[style*="z-index: 999999"]:has(a[href*="lovable"]),
+              a[href*="lovable.dev?utm_source="],
+              a[href*="lovable.dev"][target="_blank"]:has(svg),
+              iframe[src*="lovable.dev"] {
+                display: none !important;
+                visibility: hidden !important;
+                opacity: 0 !important;
+                pointer-events: none !important;
+                position: absolute !important;
+                width: 0 !important;
+                height: 0 !important;
+                overflow: hidden !important;
+                clip: rect(0, 0, 0, 0) !important;
+                z-index: -99999 !important;
+              }
+            `,
+          }}
+        />
       </head>
       <body>
         {children}
         <Scripts />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function(){
+                function purge(){
+                  try {
+                    var els = document.querySelectorAll('#lovable-badge, [id*="lovable-badge"], [class*="lovable-badge"], [data-lovable-badge], a[href*="lovable.dev"]');
+                    for(var i=0; i<els.length; i++) els[i].remove();
+                  } catch(e){}
+                }
+                purge();
+                if(window.MutationObserver){
+                  new MutationObserver(purge).observe(document.documentElement, {childList:true, subtree:true});
+                }
+              })();
+            `,
+          }}
+        />
       </body>
     </html>
   );
@@ -120,6 +164,21 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  useEffect(() => {
+    const purge = () => {
+      try {
+        const els = document.querySelectorAll(
+          '#lovable-badge, [id*="lovable-badge"], [class*="lovable-badge"], [data-lovable-badge], a[href*="lovable.dev"]'
+        );
+        els.forEach((el) => el.remove());
+      } catch {}
+    };
+    purge();
+    const observer = new MutationObserver(purge);
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
@@ -127,3 +186,4 @@ function RootComponent() {
     </QueryClientProvider>
   );
 }
+

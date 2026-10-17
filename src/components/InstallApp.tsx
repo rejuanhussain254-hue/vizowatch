@@ -73,7 +73,7 @@ export function InstallApp() {
           <p className="text-sm text-muted-foreground">Facebook বা Messenger-এর ভেতরে খুললে আগে ফোনের Chrome বা Safari-তে খুলুন।</p>
           {preview && (
             <Button asChild>
-              <a href="https://vizowatch.lovable.app" target="_blank" rel="noopener noreferrer"><ExternalLink aria-hidden="true" /> প্রকাশিত অ্যাপ খুলুন</a>
+              <a href={typeof window !== "undefined" ? window.location.origin : "/"} target="_blank" rel="noopener noreferrer"><ExternalLink aria-hidden="true" /> অ্যাপ খুলুন</a>
             </Button>
           )}
         </DialogContent>
