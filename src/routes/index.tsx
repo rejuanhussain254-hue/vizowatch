@@ -255,10 +255,12 @@ function Skeleton() {
   );
 }
 
-function Avatar({ src, name, size = "size-9", text = "text-[13px]" }: { src?: string | undefined; name?: string | undefined; size?: string; text?: string }) {
+type Row = Track;
+
+function Avatar({ src, name, size = "size-9", text = "text-[13px]", className = "" }: { src?: string | undefined; name?: string | undefined; size?: string; text?: string; className?: string }) {
   const initial = (name ?? "?").trim()[0]?.toUpperCase() ?? "?";
-  if (src) return <img src={src} alt="" className={`${size} shrink-0 rounded-full bg-lilac/30 object-cover ring-2 ring-background/80 shadow-sm`} loading="lazy" referrerPolicy="no-referrer" />;
-  return <span className={`grid ${size} shrink-0 place-items-center rounded-full bg-gradient-to-tr from-primary to-indigo-600 font-display ${text} font-bold text-primary-foreground shadow-sm`}>{initial}</span>;
+  if (src) return <img src={src} alt="" className={`${size} shrink-0 rounded-full bg-lilac/30 object-cover ring-2 ring-background/80 shadow-sm ${className}`} loading="lazy" referrerPolicy="no-referrer" />;
+  return <span className={`grid ${size} shrink-0 place-items-center rounded-full bg-gradient-to-tr from-primary to-indigo-600 font-display ${text} font-bold text-primary-foreground shadow-sm ${className}`}>{initial}</span>;
 }
 
 function VideoRow({ r, active, playing, onPlay, onQueue, onChannel, onMore, sub, progress, compact }: { r: Row; active: boolean; playing: boolean; onPlay: () => void; onQueue?: () => void; onChannel?: () => void; onMore?: () => void; sub?: string; progress?: number; compact?: boolean }) {
@@ -1648,6 +1650,8 @@ function Index() {
     [flash],
   );
 
+  // playTrack is declared further down; reach it through a ref so it is never used before it exists.
+  const playTrackRef = useRef<(track: Track, startAt?: number) => void>(() => {});
   const playChannelVideos = useCallback(
     (videos: SearchResult[], startIndex = 0) => {
       if (!videos || videos.length === 0) return;
@@ -1660,10 +1664,10 @@ function Index() {
         thumbnail: v.thumbnail,
       }));
       setQueue(remaining);
-      playTrack(target, 0);
+      playTrackRef.current(target, 0);
       flash(`${target.author || "চ্যানেল"} প্লেলিস্ট চালু হয়েছে (${videos.length}টি ভিডিও)`);
     },
-    [playTrack, flash],
+    [flash],
   );
 
   const shuffleChannelVideos = useCallback(
@@ -1788,6 +1792,7 @@ function Index() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [player.playAt, player.playDirect],
   );
+  playTrackRef.current = playTrack;
 
   const handleAnyVideoPlay = useCallback(
     (r: Track | SearchResult | Row) => {
@@ -4589,7 +4594,7 @@ function Index() {
               if (homeShorts.length > 0) {
                 openShorts(homeShorts, 0);
               } else {
-                runTrendingShorts().then((res) => {
+                runTrendingShorts({ data: {} }).then((res) => {
                   if (res.ok && res.shorts.length > 0) {
                     setHomeShorts(res.shorts);
                     openShorts(res.shorts, 0);

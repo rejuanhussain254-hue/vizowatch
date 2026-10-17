@@ -371,6 +371,7 @@ export type ChannelPage = {
   banner: string;
   subs: string;
   videoCount: string;
+  description?: string;
   tabs: string[];
   videos: SearchResult[];
   playlists: PlaylistItem[];
