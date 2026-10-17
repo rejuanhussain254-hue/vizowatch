@@ -4594,7 +4594,7 @@ function Index() {
               if (homeShorts.length > 0) {
                 openShorts(homeShorts, 0);
               } else {
-                runTrendingShorts().then((res) => {
+                runTrendingShorts({ data: {} }).then((res) => {
                   if (res.ok && res.shorts.length > 0) {
                     setHomeShorts(res.shorts);
                     openShorts(res.shorts, 0);
