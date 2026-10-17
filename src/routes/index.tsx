@@ -257,13 +257,55 @@ function Skeleton() {
 
 type Row = Track;
 
+const channelAvatarMap = new Map<string, string>();
+export function registerChannelAvatar(thumb?: string, channelId?: string, author?: string) {
+  if (!thumb) return;
+  const cleanThumb = thumb.startsWith("//") ? `https:${thumb}` : thumb;
+  if (channelId) channelAvatarMap.set(channelId, cleanThumb);
+  if (author) {
+    channelAvatarMap.set(author.trim().toLowerCase(), cleanThumb);
+    channelAvatarMap.set(author.trim(), cleanThumb);
+  }
+}
+export function getChannelAvatar(idOrName?: string): string | undefined {
+  if (!idOrName) return undefined;
+  const trimmed = idOrName.trim();
+  return channelAvatarMap.get(trimmed) || channelAvatarMap.get(trimmed.toLowerCase());
+}
+
 function Avatar({ src, name, size = "size-9", text = "text-[13px]", className = "" }: { src?: string | undefined; name?: string | undefined; size?: string; text?: string; className?: string }) {
+  const [imgErr, setImgErr] = useState(false);
+  useEffect(() => {
+    setImgErr(false);
+  }, [src]);
+
+  const fallback = name ? getChannelAvatar(name) : undefined;
+  const effectiveSrc = (!imgErr && src) ? src : (!imgErr && fallback ? fallback : undefined);
+
   const initial = (name ?? "?").trim()[0]?.toUpperCase() ?? "?";
-  if (src) return <img src={src} alt="" className={`${size} shrink-0 rounded-full bg-lilac/30 object-cover ring-2 ring-background/80 shadow-sm ${className}`} loading="lazy" referrerPolicy="no-referrer" />;
+  if (effectiveSrc) {
+    return (
+      <img
+        src={effectiveSrc}
+        alt=""
+        onError={() => setImgErr(true)}
+        className={`${size} shrink-0 rounded-full bg-lilac/30 object-cover ring-2 ring-background/80 shadow-sm ${className}`}
+        loading="lazy"
+        referrerPolicy="no-referrer"
+      />
+    );
+  }
   return <span className={`grid ${size} shrink-0 place-items-center rounded-full bg-gradient-to-tr from-primary to-indigo-600 font-display ${text} font-bold text-primary-foreground shadow-sm ${className}`}>{initial}</span>;
 }
 
 function VideoRow({ r, active, playing, onPlay, onQueue, onChannel, onMore, sub, progress, compact }: { r: Row; active: boolean; playing: boolean; onPlay: () => void; onQueue?: () => void; onChannel?: () => void; onMore?: () => void; sub?: string; progress?: number; compact?: boolean }) {
+  if (r.channelThumb) {
+    registerChannelAvatar(r.channelThumb, r.channelId, r.author);
+  }
+  const effectiveThumb =
+    r.channelThumb ||
+    (r.channelId ? getChannelAvatar(r.channelId) : undefined) ||
+    (r.author ? getChannelAvatar(r.author) : undefined);
   const meta = sub ?? [r.author, r.views, r.published].filter(Boolean).join(" · ");
 
   if (compact) {
@@ -334,10 +376,10 @@ function VideoRow({ r, active, playing, onPlay, onQueue, onChannel, onMore, sub,
       <div className="flex items-start gap-3 px-3.5 pt-3 pb-1">
         {onChannel ? (
           <button onClick={onChannel} aria-label={`${r.author} চ্যানেল দেখুন`} className="shrink-0 transition active:scale-95 hover:opacity-85">
-            <Avatar src={r.channelThumb} name={r.author} size="size-9" />
+            <Avatar src={effectiveThumb} name={r.author} size="size-9" />
           </button>
         ) : (
-          <Avatar src={r.channelThumb} name={r.author} size="size-9" />
+          <Avatar src={effectiveThumb} name={r.author} size="size-9" />
         )}
         <div className="min-w-0 flex-1">
           <button onClick={onPlay} className="block w-full text-left">
@@ -1668,15 +1710,71 @@ function Index() {
       try {
         const res = await cached(`chan:${id}:${tab}`, TTL.channel, () => runChannel({ data: { id, tab } }), (r) => r.ok);
         if (chanIdRef.current !== id) return;
-        if (res.ok) {
+        if (res.ok && res.channel) {
           setChan(res.channel);
+          registerChannelAvatar(res.channel.avatar, res.channel.id, res.channel.name);
           setChanState("ok");
-        } else setChanState("error");
+        } else {
+          // Graceful fallback to search for channel
+          const fallbackTerm = channel || id;
+          if (fallbackTerm) {
+            try {
+              const sRes = await runSearch({ data: { q: fallbackTerm } });
+              if (chanIdRef.current !== id) return;
+              if (sRes.ok && sRes.results.length > 0) {
+                const firstWithThumb = sRes.results.find((r) => r.channelThumb);
+                const thumb = sRes.channel?.avatar || firstWithThumb?.channelThumb || getChannelAvatar(fallbackTerm) || "";
+                registerChannelAvatar(thumb, sRes.channel?.id || id, fallbackTerm);
+                setChan({
+                  id,
+                  name: sRes.channel?.name || fallbackTerm,
+                  handle: sRes.channel?.handle || (fallbackTerm.startsWith("@") ? fallbackTerm : ""),
+                  avatar: thumb,
+                  banner: "",
+                  subs: sRes.channel?.subs || "",
+                  videoCount: sRes.channel?.videoCount || `${sRes.results.length}+ ভিডিও`,
+                  tabs: ["videos"],
+                  videos: sRes.results,
+                  playlists: [],
+                  posts: [],
+                });
+                setChanState("ok");
+                return;
+              }
+            } catch {}
+          }
+          setChanState("error");
+        }
       } catch {
+        const fallbackTerm = channel || id;
+        if (fallbackTerm) {
+          try {
+            const sRes = await runSearch({ data: { q: fallbackTerm } });
+            if (chanIdRef.current === id && sRes.ok && sRes.results.length > 0) {
+              const firstWithThumb = sRes.results.find((r) => r.channelThumb);
+              const thumb = sRes.channel?.avatar || firstWithThumb?.channelThumb || getChannelAvatar(fallbackTerm) || "";
+              setChan({
+                id,
+                name: sRes.channel?.name || fallbackTerm,
+                handle: sRes.channel?.handle || "",
+                avatar: thumb,
+                banner: "",
+                subs: sRes.channel?.subs || "",
+                videoCount: `${sRes.results.length}+ ভিডিও`,
+                tabs: ["videos"],
+                videos: sRes.results,
+                playlists: [],
+                posts: [],
+              });
+              setChanState("ok");
+              return;
+            }
+          } catch {}
+        }
         setChanState("error");
       }
     },
-    [runChannel],
+    [channel, runChannel, runSearch],
   );
 
   const [subscribedChannels, setSubscribedChannels] = useState<Set<string>>(() => {
@@ -1763,6 +1861,7 @@ function Index() {
             const m = await runVideoMeta({ data: { id: videoId } });
             if (m?.channelId) id = m.channelId;
             if (m?.author) setChannel(m.author);
+            if (m?.channelThumb) registerChannelAvatar(m.channelThumb, m.channelId, m.author);
           } catch {}
         }
 
@@ -1774,36 +1873,12 @@ function Index() {
           }
         }
 
-        chanIdRef.current = id;
-        if (id) {
-          void loadChannel(id, "videos");
-        } else {
-          try {
-            const sRes = await runSearch({ data: { q: n } });
-            if (sRes.ok && sRes.results.length > 0) {
-              const firstWithThumb = sRes.results.find((r) => r.channelThumb);
-              setChan({
-                id: n,
-                name: n,
-                handle: n.startsWith("@") ? n : "",
-                avatar: firstWithThumb?.channelThumb || "",
-                banner: "",
-                subs: "",
-                videoCount: `${sRes.results.length}+ ভিডিও`,
-                tabs: ["videos"],
-                videos: sRes.results,
-                playlists: [],
-                posts: [],
-              });
-              setChanState("ok");
-              return;
-            }
-          } catch {}
-          setChanState("error");
-        }
+        const effectiveId = id || n || "চ্যানেল";
+        chanIdRef.current = effectiveId;
+        void loadChannel(effectiveId, "videos");
       })();
     },
-    [open, closeWatch, runVideoMeta, runResolveChannel, loadChannel, runSearch],
+    [open, closeWatch, runVideoMeta, runResolveChannel, loadChannel],
   );
 
   const openChannelTab = (tab: typeof chanTab) => {
@@ -1929,6 +2004,9 @@ function Index() {
       try {
         const m = await cached(`meta:${current.id}`, TTL.meta, () => runVideoMeta({ data: { id: current.id } }), (x) => !!x && Object.keys(x).length > 0);
         if (cancelled) return;
+        if (m?.channelThumb) {
+          registerChannelAvatar(m.channelThumb, m.channelId, m.author || current.author);
+        }
         setMeta((prev) => ({ ...(prev ?? {}), ...m }));
       } catch {
         /* keep list metadata */
@@ -2769,7 +2847,10 @@ function Index() {
               <div className="glass mx-4 mt-4 rounded-3xl p-5 text-center">
                 <p className="font-display text-sm font-semibold">চ্যানেলের তথ্য আনা যায়নি</p>
                 <button
-                  onClick={() => chanIdRef.current && loadChannel(chanIdRef.current, chanTab)}
+                  onClick={() => {
+                    const target = chanIdRef.current || channel;
+                    if (target) void loadChannel(target, chanTab);
+                  }}
                   className="mt-3 rounded-2xl bg-primary px-4 py-2 font-display text-[13px] font-semibold text-primary-foreground shadow-primary"
                 >
                   আবার চেষ্টা করুন
@@ -4042,7 +4123,11 @@ function Index() {
                       className="flex items-center gap-2 group text-left min-w-0"
                     >
                       <Avatar
-                        src={currentShortItem?.channelThumb || currentShortItem?.thumbnail}
+                        src={
+                          currentShortItem?.channelThumb ||
+                          (currentShortItem?.channelId ? getChannelAvatar(currentShortItem.channelId) : undefined) ||
+                          (currentShortItem?.author ? getChannelAvatar(currentShortItem.author) : undefined)
+                        }
                         name={currentShortItem?.author || current?.author || "?"}
                         size="size-9"
                         text="text-[12px]"
