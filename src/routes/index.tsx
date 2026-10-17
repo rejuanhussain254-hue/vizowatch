@@ -543,9 +543,17 @@ function Index() {
       return new Set();
     }
   });
+
+  const isCurrentShort = Boolean(
+    current && (
+      (shortsList.length > 0 && shortsList.some((s) => s.id === current.id)) ||
+      current.duration === "শর্টস" ||
+      current.title?.toLowerCase().includes("#shorts")
+    )
+  );
   const playerMode: "shorts" | "big" | "watch" | "pip" | "hidden" = shortsOpen ? "shorts" : bigVideo ? "big" : open ? "watch" : current && !pipDismissed ? "pip" : "hidden";
-  const pipW = pipMin ? 116 : 190;
-  const pipH = pipMin ? 44 : 107;
+  const pipW = pipMin ? 116 : isCurrentShort ? 112 : 190;
+  const pipH = pipMin ? 44 : isCurrentShort ? 186 : 107;
 
   // keep the pop-up inside the screen (rotation / keyboard / resize)
   const clampPip = useCallback(
@@ -1443,6 +1451,34 @@ function Index() {
     setShortsOpen(false);
   }, []);
 
+  const expandVideo = useCallback(() => {
+    if (!current) return;
+    if (isCurrentShort) {
+      if (open) closeWatch();
+      const foundIdx = shortsList.findIndex((s) => s.id === current.id);
+      if (foundIdx !== -1) {
+        setShortsIdx(foundIdx);
+      } else {
+        const fallbackList: SearchResult[] = [
+          {
+            id: current.id,
+            title: current.title,
+            author: current.author,
+            thumbnail: current.thumbnail,
+            duration: "শর্টস",
+          },
+          ...homeShorts.filter((s) => s.id !== current.id),
+        ];
+        setShortsList(fallbackList);
+        setShortsIdx(0);
+      }
+      setShortsOpen(true);
+    } else {
+      openWatch(current.id);
+    }
+  }, [current, isCurrentShort, open, closeWatch, shortsList, homeShorts]);
+
+
   const goToNextShort = useCallback(() => {
     setShortsIdx((prevIdx) => {
       if (shortsList.length === 0) return prevIdx;
@@ -1820,7 +1856,7 @@ function Index() {
   }, [nextUp?.id, playTrack, savedPosOf]);
   // when a video finishes, record full completion retention & auto-play the related "up next" one
   endedRef.current = () => {
-    if (shortsOpen) {
+    if (shortsOpen || isCurrentShort) {
       goToNextShort();
       return true;
     }
@@ -4110,7 +4146,7 @@ function Index() {
               className="absolute inset-0 touch-none"
               onPointerDown={pipDragStart}
               onPointerMove={pipDragMove}
-              onPointerUp={() => { if (!pipDragEnd() && current) openWatch(current.id); }}
+              onPointerUp={() => { if (!pipDragEnd() && current) expandVideo(); }}
               onPointerCancel={pipDragEnd}
             />
 
@@ -4132,17 +4168,17 @@ function Index() {
               </svg>
             </button>
 
-            {/* Top-Left Expand to Watch Page Button */}
+            {/* Top-Left Expand to Full Player Button */}
             <button
               type="button"
               onPointerDown={(e) => e.stopPropagation()}
               onTouchStart={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
-                if (current) openWatch(current.id);
+                if (current) expandVideo();
               }}
-              aria-label="ভিডিও খুলুন"
-              title="ভিডিও খুলুন"
+              aria-label={isCurrentShort ? "শর্টস খুলুন" : "ভিডিও খুলুন"}
+              title={isCurrentShort ? "শর্টস খুলুন" : "ভিডিও খুলুন"}
               className="absolute top-1.5 left-1.5 z-30 grid size-7 place-items-center rounded-full bg-black/75 text-white shadow-md backdrop-blur hover:bg-black active:scale-90 transition-transform"
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -4173,7 +4209,14 @@ function Index() {
                 type="button"
                 onPointerDown={(e) => e.stopPropagation()}
                 onTouchStart={(e) => e.stopPropagation()}
-                onClick={(e) => { e.stopPropagation(); player.next(); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (isCurrentShort) {
+                    goToNextShort();
+                  } else {
+                    player.next();
+                  }
+                }}
                 aria-label="পরের"
                 className="grid size-8 place-items-center rounded-xl bg-white/20 backdrop-blur hover:bg-white/30 transition-all active:scale-90"
               >
@@ -4210,7 +4253,7 @@ function Index() {
             className="absolute inset-0 flex touch-none items-center justify-between bg-foreground px-1.5 text-background"
             onPointerDown={pipDragStart}
             onPointerMove={pipDragMove}
-            onPointerUp={pipDragEnd}
+            onPointerUp={() => { if (!pipDragEnd() && current) expandVideo(); }}
             onPointerCancel={pipDragEnd}
           >
             <button
@@ -4590,6 +4633,10 @@ function Index() {
             type="button"
             onClick={() => {
               try { if ("vibrate" in navigator) navigator.vibrate?.(10); } catch {}
+              if (isCurrentShort && current) {
+                expandVideo();
+                return;
+              }
               if (homeShorts.length > 0) {
                 openShorts(homeShorts, 0);
               } else {
