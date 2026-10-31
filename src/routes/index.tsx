@@ -1546,6 +1546,7 @@ function Index() {
             author: current.author,
             thumbnail: current.thumbnail,
             duration: "শর্টস",
+            views: "",
           },
           ...homeShorts.filter((s) => s.id !== current.id),
         ];
