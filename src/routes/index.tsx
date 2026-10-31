@@ -2058,7 +2058,7 @@ function Index() {
           const res = await cached(`search:${q}`, TTL.search, () => runSearch({ data: { q } }), (r) => r.ok);
           if (res.ok) {
             for (const r of res.results) {
-              if (seen.has(r.id)) continue;
+              if (seen.has(r.id) || isShortVideo(r)) continue;
               seen.add(r.id);
               list.push(r);
             }
@@ -2106,7 +2106,7 @@ function Index() {
         const seen = relSeenRef.current;
         const add: SearchResult[] = [];
         for (const r of res.results) {
-          if (seen.has(r.id)) continue;
+          if (seen.has(r.id) || isShortVideo(r)) continue;
           seen.add(r.id);
           add.push(r);
         }
