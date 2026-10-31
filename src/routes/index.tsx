@@ -108,6 +108,20 @@ function genreOf(text: string) {
   return "";
 }
 
+// detect Shorts / Reels so they never land in the watch page's related list
+export function isShortVideo(r: { duration?: string; title?: string }): boolean {
+  if (r.duration === "শর্টস") return true;
+  if (/#shorts|youtube\s*shorts|\bshorts\b/i.test(r.title ?? "")) return true;
+  const d = r.duration ?? "";
+  const m = d.match(/^(\d{1,2}):(\d{2})$/);
+  if (m) {
+    const secs = parseInt(m[1]!, 10) * 60 + parseInt(m[2]!, 10);
+    if (secs < 90) return true;
+  }
+  return false;
+}
+
+
 const CHANNEL_TABS: { key: "videos" | "shorts" | "live" | "playlists" | "posts"; label: string }[] = [
   { key: "videos", label: "ভিডিও" },
   { key: "shorts", label: "শর্টস" },
@@ -1532,6 +1546,7 @@ function Index() {
             author: current.author,
             thumbnail: current.thumbnail,
             duration: "শর্টস",
+            views: "",
           },
           ...homeShorts.filter((s) => s.id !== current.id),
         ];
@@ -2044,7 +2059,7 @@ function Index() {
           const res = await cached(`search:${q}`, TTL.search, () => runSearch({ data: { q } }), (r) => r.ok);
           if (res.ok) {
             for (const r of res.results) {
-              if (seen.has(r.id)) continue;
+              if (seen.has(r.id) || isShortVideo(r)) continue;
               seen.add(r.id);
               list.push(r);
             }
@@ -2092,7 +2107,7 @@ function Index() {
         const seen = relSeenRef.current;
         const add: SearchResult[] = [];
         for (const r of res.results) {
-          if (seen.has(r.id)) continue;
+          if (seen.has(r.id) || isShortVideo(r)) continue;
           seen.add(r.id);
           add.push(r);
         }
