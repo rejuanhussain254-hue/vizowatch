@@ -608,7 +608,7 @@ export const channelData = createServerFn({ method: "GET" })
     // 2. Fetch channel via Innertube browse if resolved to UC...
     if (targetId.startsWith("UC")) {
       try {
-        const tabParam = TAB_PARAMS[data.tab] ?? TAB_PARAMS.videos;
+        const tabParam = TAB_PARAMS[data["tab"]] ?? TAB_PARAMS["videos"];
         const json = await innertubePost("browse", { browseId: targetId, params: tabParam });
         if (json) {
           const header =
