@@ -95,8 +95,16 @@ export function updateHistoryPosition(id: string, position: number, duration: nu
   localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
 }
 
-export function clearHistory() {
+export function removeFromHistory(id: string): HistoryItem[] {
+  const prev = loadHistory();
+  const next = prev.filter((h) => h.id !== id);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+  return next;
+}
+
+export function clearHistory(): HistoryItem[] {
   localStorage.removeItem(HISTORY_KEY);
+  return [];
 }
 
 export function timeAgo(ts: number) {

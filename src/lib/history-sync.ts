@@ -58,9 +58,22 @@ export async function updateCloudPosition(userId: string, id: string, position: 
   if (error) console.warn("position sync failed", error.message);
 }
 
+export async function removeCloudHistoryItem(userId: string, videoId: string) {
+  try {
+    const { error } = await supabase.from("watch_history").delete().eq("user_id", userId).eq("video_id", videoId);
+    if (error) console.warn("remove cloud history item failed", error.message);
+  } catch (err) {
+    console.warn("remove cloud history error", err);
+  }
+}
+
 export async function clearCloudHistory(userId: string) {
-  const { error } = await supabase.from("watch_history").delete().eq("user_id", userId);
-  if (error) console.warn("clear sync failed", error.message);
+  try {
+    const { error } = await supabase.from("watch_history").delete().eq("user_id", userId);
+    if (error) console.warn("clear sync failed", error.message);
+  } catch (err) {
+    console.warn("clear cloud history error", err);
+  }
 }
 
 /** On sign-in: merge local history into the cloud (newest wins), then return the merged list and cache it locally. */

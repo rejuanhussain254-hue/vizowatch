@@ -5,7 +5,7 @@ import { usePlayer } from "@/hooks/usePlayer";
 import { AudioSettingsModal } from "@/components/AudioSettingsModal";
 import { loadAudioSettings, AUDIO_PRESETS, type AudioSettings } from "@/lib/audio-settings";
 import { useAuth } from "@/hooks/useAuth";
-import { clearCloudHistory, mergeHistoryOnSignIn, updateCloudPosition, upsertCloudHistory } from "@/lib/history-sync";
+import { clearCloudHistory, mergeHistoryOnSignIn, removeCloudHistoryItem, updateCloudPosition, upsertCloudHistory } from "@/lib/history-sync";
 import { cached, cacheGet, cacheSet, TTL } from "@/lib/cache";
 import {
   channelData,
@@ -24,6 +24,7 @@ import {
 } from "@/lib/search.functions";
 import {
   clearHistory,
+  removeFromHistory,
   extractVideoId,
   fetchTrack,
   formatTime,
@@ -678,6 +679,27 @@ function Index() {
   const { user, signOut } = useAuth();
   const userId = user?.id ?? null;
   const [syncing, setSyncing] = useState(false);
+  const handleRemoveSingleHistory = useCallback(
+    (id: string) => {
+      const next = removeFromHistory(id);
+      setHistory(next);
+      if (userId) void removeCloudHistoryItem(userId, id);
+      flash("ইতিহাস থেকে মুছে ফেলা হয়েছে");
+    },
+    [userId],
+  );
+
+  const handleClearAllHistory = useCallback(() => {
+    if (history.length === 0) return;
+    if (typeof window !== "undefined" && !window.confirm("আপনি কি সমস্ত দেখার ইতিহাস মুছে ফেলতে চান?")) {
+      return;
+    }
+    clearHistory();
+    setHistory([]);
+    if (userId) void clearCloudHistory(userId);
+    flash("সমস্ত দেখার ইতিহাস মুছে ফেলা হয়েছে");
+  }, [history.length, userId]);
+
   const { current, playing, time, duration } = player;
   const open = !!search.v;
 
@@ -3642,18 +3664,32 @@ function Index() {
                   <p className="mt-0.5 line-clamp-1 font-display text-[14px] font-bold text-foreground group-hover:text-primary transition-colors">{resume.title}</p>
                   <p className="line-clamp-1 text-[11.5px] font-medium text-muted-foreground">{resume.author}</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setProfileOpen(false);
-                    playTrack(resume, current?.id === resume.id ? time : resume.position);
-                  }}
-                  aria-label="চালান"
-                  className="grid size-10 shrink-0 place-items-center rounded-2xl bg-gradient-to-tr from-primary to-indigo-600 text-primary-foreground shadow-md shadow-primary/30 transition-all hover:opacity-95 active:scale-90"
-                >
-                  <PlayIcon playing={current?.id === resume.id && playing} />
-                </button>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setProfileOpen(false);
+                      playTrack(resume, current?.id === resume.id ? time : resume.position);
+                    }}
+                    aria-label="চালান"
+                    className="grid size-10 place-items-center rounded-2xl bg-gradient-to-tr from-primary to-indigo-600 text-primary-foreground shadow-md shadow-primary/30 transition-all hover:opacity-95 active:scale-90"
+                  >
+                    <PlayIcon playing={current?.id === resume.id && playing} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="মুছে ফেলুন"
+                    title="মুছে ফেলুন"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRemoveSingleHistory(resume.id);
+                    }}
+                    className="grid size-8 place-items-center rounded-xl bg-muted/60 text-muted-foreground hover:bg-rose-500/15 hover:text-rose-500 transition-colors active:scale-90"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -3811,20 +3847,27 @@ function Index() {
                   </div>
                   <div className="flex items-center gap-2">
                     {history.length > 0 && (
-                      <button
-                        onClick={() => setHistoryExpanded((v) => !v)}
-                        className="text-[12px] font-bold text-primary hover:underline"
-                      >
-                        {historyExpanded ? "← সংক্ষেপ" : "সব দেখুন"}
-                      </button>
-                    )}
-                    {historyExpanded && history.length > 0 && (
-                      <button
-                        onClick={() => { clearHistory(); setHistory([]); if (userId) clearCloudHistory(userId); }}
-                        className="text-[11.5px] text-rose-500 hover:underline"
-                      >
-                        সব মুছুন
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setHistoryExpanded((v) => !v)}
+                          className="text-[12px] font-bold text-primary hover:underline transition-colors"
+                        >
+                          {historyExpanded ? "← সংক্ষেপ" : "সব দেখুন"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleClearAllHistory}
+                          className="flex items-center gap-1 rounded-full bg-rose-500/10 hover:bg-rose-500/20 px-2.5 py-1 text-[11.5px] font-bold text-rose-500 transition-all active:scale-95"
+                          title="সমস্ত ইতিহাস মুছে ফেলুন"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3 6 5 6 21 6" />
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                          </svg>
+                          <span>সব মুছুন</span>
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -3856,36 +3899,51 @@ function Index() {
                       const liveDur = isCurrent && duration ? Math.floor(duration) : h.duration;
                       const liveProg = isCurrent && duration ? time / duration : (h.duration ? h.position / h.duration : 0);
                       return (
-                        <button
-                          key={h.id}
-                          onClick={() => { setProfileOpen(false); playTrack(h, livePos); }}
-                          className="group relative w-[148px] shrink-0 text-left transition-all active:scale-95"
-                        >
-                          <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-muted ring-1 ring-border/80 group-hover:ring-primary/40">
-                            <img src={h.thumbnail} alt="" className="size-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
-                            {liveDur > 0 && liveProg > 0.01 && (
-                              <span className="absolute inset-x-1.5 bottom-1.5 h-1 overflow-hidden rounded-full bg-white/30 backdrop-blur-sm">
-                                <span
-                                  className="block h-full rounded-full bg-primary"
-                                  style={{ width: `${Math.min(100, liveProg * 100)}%` }}
-                                />
-                              </span>
-                            )}
-                            {livePos > 3 && (
-                              <span className="absolute top-1.5 right-1.5 rounded-md bg-black/75 px-1 py-0.5 text-[9.5px] font-medium text-white backdrop-blur-[2px]">
-                                {formatTime(livePos)}
-                              </span>
-                            )}
-                            {isCurrent && playing && (
-                              <span className="absolute top-1.5 left-1.5 rounded-md bg-primary/95 px-1.5 py-0.5 text-[9px] font-bold text-white shadow-sm flex items-center gap-1">
-                                <span className="size-1 rounded-full bg-white animate-pulse" />
-                                চলছে
-                              </span>
-                            )}
-                          </div>
-                          <p className="mt-1.5 line-clamp-2 font-display text-[12px] font-bold text-foreground leading-snug group-hover:text-primary transition-colors">{h.title}</p>
-                          <p className="mt-0.5 truncate text-[10.5px] text-muted-foreground">{h.author}</p>
-                        </button>
+                        <div key={h.id} className="group relative w-[148px] shrink-0 text-left">
+                          <button
+                            type="button"
+                            onClick={() => { setProfileOpen(false); playTrack(h, livePos); }}
+                            className="block w-full text-left transition-all active:scale-95"
+                          >
+                            <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-muted ring-1 ring-border/80 group-hover:ring-primary/40">
+                              <img src={h.thumbnail} alt="" className="size-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
+                              {liveDur > 0 && liveProg > 0.01 && (
+                                <span className="absolute inset-x-1.5 bottom-1.5 h-1 overflow-hidden rounded-full bg-white/30 backdrop-blur-sm">
+                                  <span
+                                    className="block h-full rounded-full bg-primary"
+                                    style={{ width: `${Math.min(100, liveProg * 100)}%` }}
+                                  />
+                                </span>
+                              )}
+                              {livePos > 3 && (
+                                <span className="absolute top-1.5 right-1.5 rounded-md bg-black/75 px-1 py-0.5 text-[9.5px] font-medium text-white backdrop-blur-[2px]">
+                                  {formatTime(livePos)}
+                                </span>
+                              )}
+                              {isCurrent && playing && (
+                                <span className="absolute top-1.5 left-1.5 rounded-md bg-primary/95 px-1.5 py-0.5 text-[9px] font-bold text-white shadow-sm flex items-center gap-1">
+                                  <span className="size-1 rounded-full bg-white animate-pulse" />
+                                  চলছে
+                                </span>
+                              )}
+                            </div>
+                            <p className="mt-1.5 line-clamp-2 font-display text-[12px] font-bold text-foreground leading-snug group-hover:text-primary transition-colors">{h.title}</p>
+                            <p className="mt-0.5 truncate text-[10.5px] text-muted-foreground">{h.author}</p>
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="অপশন"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActionSheetTrack(h);
+                            }}
+                            className="absolute top-1.5 right-1.5 grid size-6 place-items-center rounded-full bg-black/60 text-white/90 hover:text-white hover:bg-black/85 transition-colors shadow-sm"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                              <circle cx="12" cy="5" r="2.5" /><circle cx="12" cy="12" r="2.5" /><circle cx="12" cy="19" r="2.5" />
+                            </svg>
+                          </button>
+                        </div>
                       );
                     })}
                   </div>
@@ -5028,6 +5086,29 @@ function Index() {
 
             {/* Action buttons */}
             <div className="py-2 space-y-1">
+              {/* If video is in watch history, show Remove from History button */}
+              {history.some((h) => h.id === actionSheetTrack.id) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const id = actionSheetTrack.id;
+                    setActionSheetTrack(null);
+                    handleRemoveSingleHistory(id);
+                  }}
+                  className="flex w-full items-center gap-3.5 px-3 py-3 rounded-2xl text-left font-display text-[14px] font-semibold text-rose-500 hover:bg-rose-500/10 active:scale-[0.99] transition-all"
+                >
+                  <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-rose-500/10 text-rose-500">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      <line x1="10" y1="11" x2="10" y2="17" />
+                      <line x1="14" y1="11" x2="14" y2="17" />
+                    </svg>
+                  </div>
+                  <span>ইতিহাস থেকে মুছুন</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => {
