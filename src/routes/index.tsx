@@ -3502,15 +3502,6 @@ function Index() {
             )}
           </div>
         )}
-
-        <section className="glass mx-4 mt-8 rounded-3xl p-4 text-[12.5px] leading-relaxed text-muted-foreground">
-          <p className="font-display text-sm font-semibold text-foreground">ব্যাকগ্রাউন্ডে চালাতে</p>
-          <ul className="mt-1.5 list-disc space-y-1 pl-4">
-            <li>ব্রাউজারের মেনু থেকে <b className="text-foreground">Add to Home screen</b> করে অ্যাপের মতো খুলুন।</li>
-            <li>প্লে চালু রেখে স্ক্রিন অফ করুন — লক-স্ক্রিন থেকেই প্লে/পজ, পরের ভিডিও করা যাবে।</li>
-            <li>ইউটিউবে সাইন-ইন লাগবে না।</li>
-          </ul>
-        </section>
       </main>
 
       {/* Profile Page — Dedicated Full-Screen "You" Page */}
