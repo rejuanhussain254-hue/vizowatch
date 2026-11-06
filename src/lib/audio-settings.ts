@@ -20,16 +20,27 @@ export type EqBands = {
   "14000": number; // Treble / Brilliance
 };
 
+export type CustomSettings = {
+  bands: EqBands;
+  bassBoost: number;
+  vocalBoost: number;
+  surround3D: boolean;
+  volumeBoost: number;
+  speed: number;
+};
+
 export type AudioSettings = {
+  enabled: boolean; // Master ON/OFF Switch
   preset: AudioPresetId;
   bands: EqBands;
   bassBoost: number; // 0 - 100
   vocalBoost: number; // 0 - 100
   surround3D: boolean;
-  volumeBoost: number; // 100 - 150%
+  volumeBoost: number; // 0 - 100%
   hqAudio: boolean; // High-Fidelity 160kbps Opus stream
   loudnessNorm: boolean; // Auto-normalize loudness
   speed: number; // 0.75 - 2.0x
+  lastCustom?: CustomSettings; // Preserved user customizations
 };
 
 export type PresetDefinition = {
@@ -150,11 +161,33 @@ export const AUDIO_PRESETS: PresetDefinition[] = [
     vocalBoost: 20,
     surround3D: false,
   },
+  {
+    id: "custom",
+    name: "কাস্টম টিউনিং (আমার পছন্দ)",
+    enName: "My Custom Tuning",
+    desc: "আপনার নিজস্ব সেভ করা বেস, ভোকাল ও ৫-ব্যান্ড ইকুয়ালাইজার সেটিং",
+    icon: "🎛️",
+    badge: "ব্যক্তিগত",
+    bands: { "60": 0, "230": 2, "910": 4, "3600": 5, "14000": 3 },
+    bassBoost: 40,
+    vocalBoost: 70,
+    surround3D: true,
+  },
 ];
 
-const STORAGE_KEY = "echo.audio_settings_v1";
+const STORAGE_KEY = "echo.audio_settings_v2";
+
+export const DEFAULT_CUSTOM_SETTINGS: CustomSettings = {
+  bands: { "60": 0, "230": 2, "910": 4, "3600": 5, "14000": 3 },
+  bassBoost: 40,
+  vocalBoost: 70,
+  surround3D: true,
+  volumeBoost: 100,
+  speed: 1.0,
+};
 
 export const DEFAULT_AUDIO_SETTINGS: AudioSettings = {
+  enabled: true,
   preset: "tilawat",
   bands: { "60": -1, "230": 4, "910": 5, "3600": 7, "14000": 3 },
   bassBoost: 30,
@@ -164,15 +197,25 @@ export const DEFAULT_AUDIO_SETTINGS: AudioSettings = {
   hqAudio: true,
   loudnessNorm: true,
   speed: 1.0,
+  lastCustom: DEFAULT_CUSTOM_SETTINGS,
 };
 
 export function loadAudioSettings(): AudioSettings {
   if (typeof window === "undefined") return DEFAULT_AUDIO_SETTINGS;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem("echo.audio_settings_v1");
     if (!raw) return DEFAULT_AUDIO_SETTINGS;
     const parsed = JSON.parse(raw);
+    const lastCustom: CustomSettings = parsed.lastCustom ?? {
+      bands: { ...DEFAULT_CUSTOM_SETTINGS.bands, ...(parsed.bands ?? {}) },
+      bassBoost: typeof parsed.bassBoost === "number" ? parsed.bassBoost : DEFAULT_CUSTOM_SETTINGS.bassBoost,
+      vocalBoost: typeof parsed.vocalBoost === "number" ? parsed.vocalBoost : DEFAULT_CUSTOM_SETTINGS.vocalBoost,
+      surround3D: typeof parsed.surround3D === "boolean" ? parsed.surround3D : DEFAULT_CUSTOM_SETTINGS.surround3D,
+      volumeBoost: typeof parsed.volumeBoost === "number" ? parsed.volumeBoost : DEFAULT_CUSTOM_SETTINGS.volumeBoost,
+      speed: typeof parsed.speed === "number" ? parsed.speed : DEFAULT_CUSTOM_SETTINGS.speed,
+    };
     return {
+      enabled: typeof parsed.enabled === "boolean" ? parsed.enabled : true,
       preset: parsed.preset ?? DEFAULT_AUDIO_SETTINGS.preset,
       bands: { ...DEFAULT_AUDIO_SETTINGS.bands, ...(parsed.bands ?? {}) },
       bassBoost: typeof parsed.bassBoost === "number" ? parsed.bassBoost : DEFAULT_AUDIO_SETTINGS.bassBoost,
@@ -182,6 +225,7 @@ export function loadAudioSettings(): AudioSettings {
       hqAudio: typeof parsed.hqAudio === "boolean" ? parsed.hqAudio : DEFAULT_AUDIO_SETTINGS.hqAudio,
       loudnessNorm: typeof parsed.loudnessNorm === "boolean" ? parsed.loudnessNorm : DEFAULT_AUDIO_SETTINGS.loudnessNorm,
       speed: typeof parsed.speed === "number" ? parsed.speed : DEFAULT_AUDIO_SETTINGS.speed,
+      lastCustom,
     };
   } catch {
     return DEFAULT_AUDIO_SETTINGS;
@@ -225,6 +269,7 @@ export function playAudioEffectTest(
   sliderTarget?: string
 ) {
   if (typeof window === "undefined") return;
+  if (!settings.enabled) return;
   try {
     const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioCtx) return;

@@ -3592,8 +3592,16 @@ function Index() {
                     <h3 className="font-display text-[14.5px] font-bold text-foreground group-hover:text-primary transition-colors">
                       প্রফেশনাল সাউন্ড সেটিংস
                     </h3>
-                    <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[9.5px] font-black text-primary">
-                      {AUDIO_PRESETS.find((p) => p.id === currentAudioSettings.preset)?.name.split(" ")[0] ?? "প্রিসেট"}
+                    <span className={`rounded-full px-2 py-0.5 text-[9.5px] font-black ${
+                      currentAudioSettings.enabled
+                        ? "bg-primary/20 text-primary"
+                        : "bg-muted text-muted-foreground"
+                    }`}>
+                      {currentAudioSettings.enabled
+                        ? (currentAudioSettings.preset === "custom"
+                            ? "কাস্টম"
+                            : AUDIO_PRESETS.find((p) => p.id === currentAudioSettings.preset)?.name.split(" ")[0] ?? "প্রিসেট")
+                        : "বন্ধ (OFF)"}
                     </span>
                   </div>
                   <p className="text-[11.5px] text-muted-foreground mt-0.5">
@@ -4294,12 +4302,17 @@ function Index() {
                   type="button"
                   onClick={() => setAudioSettingsOpen(true)}
                   aria-label="সাউন্ড সেটিংস ও ইকুয়ালাইজার"
-                  className="shrink-0 flex items-center gap-1.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary px-3 py-1.5 text-[11.5px] font-bold ring-1 ring-primary/30 transition-all active:scale-95 shadow-sm"
+                  className={`shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11.5px] font-bold ring-1 transition-all active:scale-95 shadow-sm ${
+                    currentAudioSettings.enabled
+                      ? "bg-primary/10 hover:bg-primary/20 text-primary ring-primary/30"
+                      : "bg-muted/50 hover:bg-muted text-muted-foreground ring-border/80"
+                  }`}
                 >
+                  <span className={`size-1.5 rounded-full ${currentAudioSettings.enabled ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground/40"}`} />
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" />
                   </svg>
-                  <span>সাউন্ড সেটিংস</span>
+                  <span>সাউন্ড {currentAudioSettings.enabled ? "অন" : "অফ"}</span>
                 </button>
                 <button
                   onClick={() => addToQueue(current)}
@@ -4953,6 +4966,7 @@ function Index() {
       <AudioSettingsModal
         open={audioSettingsOpen}
         onClose={() => setAudioSettingsOpen(false)}
+        onApply={(s) => setCurrentAudioSettings(s)}
       />
 
       {/* YouTube-style Save to Playlist Modal / Bottom Sheet */}

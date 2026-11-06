@@ -190,9 +190,14 @@ export function usePlayer(queue: Track[], containerId: string, onEnded?: () => b
               setDuration(e.target.getDuration());
               try {
                 const s = loadAudioSettings();
-                if (s.hqAudio) e.target.setPlaybackQuality?.("medium");
-                if (s.speed && s.speed !== 1.0) e.target.setPlaybackRate?.(s.speed);
-                e.target.setVolume?.(Math.min(100, Math.round(s.volumeBoost)));
+                if (!s.enabled) {
+                  e.target.setVolume?.(100);
+                  e.target.setPlaybackRate?.(1.0);
+                } else {
+                  if (s.hqAudio) e.target.setPlaybackQuality?.("medium");
+                  if (s.speed) e.target.setPlaybackRate?.(s.speed);
+                  e.target.setVolume?.(Math.max(0, Math.min(100, Math.round(s.volumeBoost))));
+                }
               } catch {}
               // Ask the player to load the captions module so it reports available tracks.
               try { e.target.loadModule?.("captions"); } catch { /* noop */ }
@@ -325,9 +330,14 @@ export function usePlayer(queue: Track[], containerId: string, onEnded?: () => b
       const p = playerRef.current;
       if (!p) return;
       try {
+        if (!s.enabled) {
+          p.setVolume?.(100);
+          p.setPlaybackRate?.(1.0);
+          return;
+        }
         if (s.speed) p.setPlaybackRate?.(s.speed);
         if (s.hqAudio) p.setPlaybackQuality?.("medium");
-        p.setVolume?.(Math.min(100, Math.round(s.volumeBoost)));
+        p.setVolume?.(Math.max(0, Math.min(100, Math.round(s.volumeBoost))));
       } catch {}
     };
     window.addEventListener("echo:audio-settings-change", handler);
