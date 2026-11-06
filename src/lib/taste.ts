@@ -293,74 +293,75 @@ export function calculateAlgorithmScore(
   const lowTitle = video.title.toLowerCase();
   const author = video.author?.trim();
 
-  // 1. Channel Affinity (Gentle nudge - capped so one channel can NEVER monopolize the feed)
+  // 1. Channel Affinity (Primary YouTube signal: what creator the user loves watching)
   if (author) {
     const chanScore = t.channels[author] ?? 0;
     if (chanScore > 0) {
-      score += Math.min(chanScore * 0.35, 1.2);
+      score += Math.min(chanScore * 1.6, 5.0); // Strong boost for favored channels
     }
 
-    // Historical average completion bonus
+    // Historical completion bonus (if user consistently watches this creator to the end)
     const avgRatio = t.watchRatio[author];
     if (avgRatio !== undefined) {
-      score += (avgRatio - 0.5) * 1.0;
+      if (avgRatio >= 0.5) score += (avgRatio - 0.5) * 3.5; // High completion bonus (+1.75)
+      else score -= (0.5 - avgRatio) * 2.0; // Low completion / quick skip penalty
     }
 
     // Penalty deduction for previously skipped channels
     const penalty = t.penalties[author] ?? 0;
     if (penalty > 0) {
-      score -= penalty * 2.5;
+      score -= penalty * 3.0;
     }
   }
 
-  // 2. Genre Affinity
+  // 2. Genre / Topic Affinity (Strong boost matching watched topics)
   const genreScore = options.genre ? t.genres[options.genre] : undefined;
   if (genreScore) {
-    score += Math.min(genreScore * 1.2, 2.0);
+    score += Math.min(genreScore * 1.8, 4.0);
   }
 
-  // 3. Search Term Matching
+  // 3. Search Term & Topic Matching
   for (const [term, v] of Object.entries(t.terms)) {
     const words = term.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
     if (words.length && words.some((w) => lowTitle.includes(w))) {
-      score += v * 0.7;
+      score += Math.min(v * 1.2, 3.0);
     }
   }
 
-  // 4. Repeat Video Affinity (Favorite songs / re-watches)
+  // 4. Repeat Video Affinity (Favorite items re-watched)
   const repeats = t.repeatVideos[video.id] ?? 0;
   if (repeats > 0) {
-    score += Math.min(repeats * 2.0, 5.0);
+    score += Math.min(repeats * 2.5, 6.0);
   }
 
-  // 5. Popularity (Logarithmic views velocity)
+  // 5. Popularity (Logarithmic views velocity — balanced so viral content doesn't drown user taste)
   const views = parseViewCount(video.views);
   if (views > 0) {
-    score += Math.min(Math.log10(views) * 0.55, 4.0);
+    score += Math.min(Math.log10(views) * 0.4, 2.5);
   }
 
   // 6. Content Freshness
   const fresh = parseFreshness(video.published);
-  score += fresh * 0.8;
+  score += fresh * 0.9;
 
   // 7. Context Continuity (If on watch page / Up next)
   if (options.currentPlayingGenre && options.genre === options.currentPlayingGenre) {
     score += 2.5; // Maintain current vibe (e.g. keep playing gazal or music)
   }
   if (options.currentPlayingAuthor && author && author.toLowerCase() === options.currentPlayingAuthor.toLowerCase()) {
-    score += 2.0; // Same artist / creator continuation
+    score += 2.2; // Same artist / creator continuation
   }
 
-  // 8. Channel Fatigue Prevention (YouTube de-clustering)
+  // 8. Session Momentum & Channel De-clustering
+  // Reward active session creator interest
+  if (author && t.recentChannels.slice(-3).includes(author)) {
+    score += 1.8; // Active interest boost
+  }
+
   // Penalize if the same channel already appeared multiple times in this feed batch
   const occurrences = options.channelOccurrencesInFeed ?? 0;
   if (occurrences > 0) {
-    score -= occurrences * 3.2; // Diminishing returns so 1 creator doesn't hijack the feed
-  }
-
-  // Immediate history fatigue (if played in last 3 sessions, give slight discount)
-  if (author && t.recentChannels.slice(-3).includes(author)) {
-    score -= 1.5;
+    score -= occurrences * 3.5; // Diminishing returns so 1 creator doesn't hijack the feed
   }
 
   // 9. Deprioritize already-watched / seen videos so user sees FRESH videos on reload
@@ -497,6 +498,24 @@ const DIVERSE_DISCOVERY_BUCKETS = [
  * Samples candidate queries from non-overlapping topical buckets and user interests
  * so that no single channel or genre can monopolize the candidate pool
  */
+/** Clean noisy video title strings to extract strong topical search seeds */
+export function extractCleanKeywords(title: string, author?: string): string {
+  if (!title) return author || "";
+  let s = title
+    .replace(/[\[\(][^\]\)]*[\]\)]/g, " ")
+    .replace(/[|•–—\-_:;\\\/]/g, " ")
+    .replace(/\b(official|video|audio|full|hd|4k|1080p|new|latest|2023|2024|2025|2026|shorts|reels|special|bangla|video song|natok)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const words = s.split(" ").filter((w) => w.length > 1);
+  const core = words.slice(0, 4).join(" ");
+  if (author && !core.toLowerCase().includes(author.toLowerCase())) {
+    return `${core} ${author}`.trim();
+  }
+  return core || title;
+}
+
 export function buildYouTubeCandidateQueries(
   t: Taste,
   history: { title: string; author?: string; position?: number; duration?: number }[],
@@ -507,40 +526,79 @@ export function buildYouTubeCandidateQueries(
 
   const add = (q: string) => {
     const clean = q.trim();
-    if (clean && !seen.has(clean)) {
-      seen.add(clean);
+    if (clean && !seen.has(clean.toLowerCase())) {
+      seen.add(clean.toLowerCase());
       queries.push(clean);
     }
   };
 
-  // 1. Pick 1 seed from each diverse discovery bucket (shuffled)
-  const shuffledBuckets = [...DIVERSE_DISCOVERY_BUCKETS].sort(() => Math.random() - 0.5);
-  for (const bucket of shuffledBuckets) {
-    const pick = bucket[Math.floor(Math.random() * bucket.length)];
-    if (pick) add(pick);
-  }
+  const hasHistory = Array.isArray(history) && history.length > 0;
+  const topChannels = Object.entries(t.channels || {})
+    .sort((a, b) => b[1] - a[1])
+    .map(([chan]) => chan)
+    .filter(Boolean);
 
-  // 2. User's Top Genres with dynamic exploration modifiers
-  const topGenres = topTaste(t.genres, 3);
-  const genreModifiers = ["নতুন", "সেরা গান", "trending", "viral", "unplugged"];
-  for (const g of topGenres) {
-    const mod = genreModifiers[Math.floor(Math.random() * genreModifiers.length)]!;
-    add(`${g} ${mod}`);
-  }
+  if (hasHistory || topChannels.length > 0) {
+    // =========================================================================
+    // PERSONALIZED CANDIDATE GENERATION (Inspired by YouTube Deep Recommendations)
+    // 80% candidates driven by: User's Watched Creators + Recent Watch Seeds + Genres
+    // =========================================================================
 
-  // 3. Exploration from category pool (avoiding redundant trending terms)
-  const categoryPool = baseCategories
-    .filter((c) => c.q && !c.q.includes("trending"))
-    .map((c) => c.q);
-  const shuffledCats = [...categoryPool].sort(() => Math.random() - 0.5);
-  for (const exp of shuffledCats.slice(0, 4)) {
-    add(exp);
-  }
+    // 1. FAVORITE CHANNELS (The creators user watches most frequently)
+    for (const chan of topChannels.slice(0, 4)) {
+      add(`${chan} new video`);
+      add(`${chan}`);
+    }
 
-  // 4. User Search Terms (if any)
-  const topTerms = topTaste(t.terms, 2);
-  for (const term of topTerms) {
-    add(term);
+    // 2. RECENT WATCH SEEDS (Watch-Next: Similar topics to user's last watched videos)
+    const recentVideos = (history || []).slice(0, 5);
+    for (const item of recentVideos) {
+      if (item.author) {
+        add(`${item.author} popular`);
+      }
+      const kw = extractCleanKeywords(item.title, item.author);
+      if (kw) {
+        add(kw);
+      }
+    }
+
+    // 3. TOP USER GENRES & HIGH WATCH-TIME CATEGORIES
+    const topGenres = topTaste(t.genres, 3);
+    for (const g of topGenres) {
+      add(`${g} new`);
+      add(`${g} trending`);
+    }
+
+    // 4. USER SEARCH TERMS
+    const topTerms = topTaste(t.terms, 2);
+    for (const term of topTerms) {
+      add(term);
+    }
+
+    // 5. FRESH DISCOVERY SEEDS (20% Serendipity / Exploration - Prevents echo chamber)
+    const shuffledBuckets = [...DIVERSE_DISCOVERY_BUCKETS].sort(() => Math.random() - 0.5);
+    for (const bucket of shuffledBuckets.slice(0, 2)) {
+      const pick = bucket[Math.floor(Math.random() * bucket.length)];
+      if (pick) add(pick);
+    }
+  } else {
+    // =========================================================================
+    // COLD START (Brand new user with 0 history)
+    // Curated variety of popular content across diverse buckets
+    // =========================================================================
+    const shuffledBuckets = [...DIVERSE_DISCOVERY_BUCKETS].sort(() => Math.random() - 0.5);
+    for (const bucket of shuffledBuckets) {
+      const pick = bucket[Math.floor(Math.random() * bucket.length)];
+      if (pick) add(pick);
+    }
+
+    const categoryPool = baseCategories
+      .filter((c) => c.q && !c.q.includes("trending"))
+      .map((c) => c.q);
+    const shuffledCats = [...categoryPool].sort(() => Math.random() - 0.5);
+    for (const exp of shuffledCats.slice(0, 4)) {
+      add(exp);
+    }
   }
 
   return queries;
