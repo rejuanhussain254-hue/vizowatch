@@ -3882,7 +3882,7 @@ function Index() {
                 </div>
 
                 {hydrated && history.length === 0 ? (
-                  <p className="glass rounded-2xl p-4 text-center text-[12.5px] text-muted-foreground">এখনো কিছু দেখা হয়নি। যা চালাবেন তা এখানে জমা থাকবে।</p>
+                  <p className="glass rounded-2xl p-4 text-center text-[12.5px] text-muted-foreground">কোনো দেখার ইতিহাস নেই</p>
                 ) : historyExpanded ? (
                   <ul className="mt-2 space-y-2.5">
                     {history.map((h) => (
@@ -4022,7 +4022,7 @@ function Index() {
                 )}
 
                 {userPlaylists.length === 0 ? (
-                  <p className="glass rounded-2xl p-4 text-center text-[12.5px] text-muted-foreground">কোনো প্লেলিস্ট নেই। উপরে <b className="text-foreground">+ নতুন</b> চাপুন অথবা যেকোনো ভিডিওর নিচের <b className="text-foreground">+</b> বাটনে চাপুন।</p>
+                  <p className="glass rounded-2xl p-4 text-center text-[12.5px] text-muted-foreground">কোনো প্লেলিস্ট নেই</p>
                 ) : playlistsExpanded ? (
                   <ul className="space-y-2.5">
                     {userPlaylists.map((pl) => {
@@ -4590,8 +4590,6 @@ function Index() {
                 {currentShortItem?.views && (
                   <div className="flex items-center gap-2 text-[11.5px] text-white/80 font-medium">
                     <span>{currentShortItem.views}</span>
-                    <span>•</span>
-                    <span className="text-[11px] text-white/70">সোয়াইপ করে পরের শর্টস দেখুন</span>
                   </div>
                 )}
               </div>
@@ -4717,9 +4715,7 @@ function Index() {
               const dir = Math.abs(dy) > Math.abs(dx) ? dy : dx;
               if (dir < 0) { player.next(); flash("পরের ভিডিও"); } else { player.prev(); flash("আগের ভিডিও"); }
             }}
-          >
-            <p className="pointer-events-none absolute inset-x-0 top-16 text-center text-[11px] text-background/70">উপরে সোয়াইপ করলে পরের ভিডিও · ট্যাপ করলে প্লে/পজ</p>
-          </div>
+          />
         )}
         {playerMode === "pip" && !pipMin && (
           <>
