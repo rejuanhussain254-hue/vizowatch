@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Track } from "@/lib/youtube";
+import { loadAudioSettings, type AudioSettings } from "@/lib/audio-settings";
 
 export type CaptionTrack = { code: string; name: string };
 
@@ -187,6 +188,12 @@ export function usePlayer(queue: Track[], containerId: string, onEnded?: () => b
             setPlaying(st === 1);
             if (st === 1) {
               setDuration(e.target.getDuration());
+              try {
+                const s = loadAudioSettings();
+                if (s.hqAudio) e.target.setPlaybackQuality?.("hd1080");
+                if (s.speed && s.speed !== 1.0) e.target.setPlaybackRate?.(s.speed);
+                e.target.setVolume?.(Math.min(100, Math.round(s.volumeBoost)));
+              } catch {}
               // Ask the player to load the captions module so it reports available tracks.
               try { e.target.loadModule?.("captions"); } catch { /* noop */ }
               setTimeout(readTracks, 800);
@@ -310,5 +317,34 @@ export function usePlayer(queue: Track[], containerId: string, onEnded?: () => b
 
 
 
-  return { ready, current, index, playing, time, duration, loaded, repeat, setRepeat, playAt, playDirect, next, prev, toggle, pause, stop, seek, setIndex, captionTracks, captionsOn, captionLang, setCaptions };
+  // Listen to audio settings change
+  useEffect(() => {
+    const handler = (e: any) => {
+      const s = e.detail as AudioSettings;
+      if (!s) return;
+      const p = playerRef.current;
+      if (!p) return;
+      try {
+        if (s.speed) p.setPlaybackRate?.(s.speed);
+        if (s.hqAudio) p.setPlaybackQuality?.("hd1080");
+        p.setVolume?.(Math.min(100, Math.round(s.volumeBoost)));
+      } catch {}
+    };
+    window.addEventListener("echo:audio-settings-change", handler);
+    return () => window.removeEventListener("echo:audio-settings-change", handler);
+  }, []);
+
+  const setVolume = useCallback((v: number) => {
+    playerRef.current?.setVolume?.(Math.max(0, Math.min(100, v)));
+  }, []);
+
+  const setPlaybackRate = useCallback((r: number) => {
+    playerRef.current?.setPlaybackRate?.(r);
+  }, []);
+
+  const setPlaybackQuality = useCallback((q: string) => {
+    playerRef.current?.setPlaybackQuality?.(q);
+  }, []);
+
+  return { ready, current, index, playing, time, duration, loaded, repeat, setRepeat, playAt, playDirect, next, prev, toggle, pause, stop, seek, setIndex, captionTracks, captionsOn, captionLang, setCaptions, setVolume, setPlaybackRate, setPlaybackQuality };
 }

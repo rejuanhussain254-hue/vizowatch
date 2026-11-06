@@ -2,6 +2,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as RPointerEvent } from "react";
 import { usePlayer } from "@/hooks/usePlayer";
+import { AudioSettingsModal } from "@/components/AudioSettingsModal";
+import { loadAudioSettings, AUDIO_PRESETS, type AudioSettings } from "@/lib/audio-settings";
 import { useAuth } from "@/hooks/useAuth";
 import { clearCloudHistory, mergeHistoryOnSignIn, updateCloudPosition, upsertCloudHistory } from "@/lib/history-sync";
 import { cached, cacheGet, cacheSet, TTL } from "@/lib/cache";
@@ -479,6 +481,16 @@ function Index() {
   const [editingPlId, setEditingPlId] = useState<string | null>(null);
   const [editPlTitle, setEditPlTitle] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
+  const [audioSettingsOpen, setAudioSettingsOpen] = useState(false);
+  const [currentAudioSettings, setCurrentAudioSettings] = useState<AudioSettings>(loadAudioSettings);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      if (e.detail) setCurrentAudioSettings(e.detail);
+    };
+    window.addEventListener("echo:audio-settings-change", handler);
+    return () => window.removeEventListener("echo:audio-settings-change", handler);
+  }, []);
   const [bigVideo, setBigVideo] = useState(false);
   const toggleBigVideo = () => {
     const next = !bigVideo;
@@ -3234,7 +3246,17 @@ function Index() {
             <span>হোমে ফিরুন</span>
           </button>
           <h1 className="font-display text-[16px] font-bold text-foreground">আপনার প্রোফাইল</h1>
-          <div className="w-[104px]" aria-hidden="true" />
+          <button
+            type="button"
+            onClick={() => setAudioSettingsOpen(true)}
+            aria-label="সাউন্ড সেটিংস"
+            className="flex items-center gap-1.5 rounded-full bg-glass px-3 py-1.5 font-display text-[12px] font-bold text-foreground ring-1 ring-border/80 hover:bg-primary/10 hover:text-primary transition-all active:scale-95"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" />
+            </svg>
+            <span>সাউন্ড সেটিংস</span>
+          </button>
         </header>
         <div className="flex-1 overflow-y-auto px-4 pb-[max(5.5rem,calc(env(safe-area-inset-bottom)+4.5rem))]">
           {user ? (
@@ -3274,6 +3296,61 @@ function Index() {
               </div>
             </div>
           )}
+
+          {/* Professional Audio & Sound Settings Card */}
+          <div
+            onClick={() => setAudioSettingsOpen(true)}
+            className="glass-card mt-4 rounded-3xl p-4 ring-1 ring-primary/30 shadow-md shadow-primary/5 hover:shadow-lg hover:shadow-primary/10 transition-all cursor-pointer group active:scale-[0.99]"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-tr from-primary to-indigo-600 text-white shadow-md shadow-primary/25 group-hover:scale-105 transition-transform">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-display text-[14.5px] font-bold text-foreground group-hover:text-primary transition-colors">
+                      প্রফেশনাল সাউন্ড সেটিংস
+                    </h3>
+                    <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[9.5px] font-black text-primary">
+                      {AUDIO_PRESETS.find((p) => p.id === currentAudioSettings.preset)?.name.split(" ")[0] ?? "প্রিসেট"}
+                    </span>
+                  </div>
+                  <p className="text-[11.5px] text-muted-foreground mt-0.5">
+                    ডিপ বেস বুস্ট, স্পষ্ট ভোকাল ও ৫-ব্যান্ড স্টুডিও ইকুয়ালাইজার
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="grid size-8 place-items-center rounded-xl bg-muted/70 text-muted-foreground group-hover:text-foreground text-xs"
+              >
+                ⚙️
+              </button>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2 pt-2.5 border-t border-border/50 text-[11px] font-semibold text-muted-foreground">
+              <span className="flex items-center gap-1 rounded-full bg-muted/60 px-2.5 py-1">
+                <span>🔊 বেস:</span>
+                <span className="text-primary font-bold">{currentAudioSettings.bassBoost}%</span>
+              </span>
+              <span className="flex items-center gap-1 rounded-full bg-muted/60 px-2.5 py-1">
+                <span>🎙️ ভোকাল:</span>
+                <span className="text-primary font-bold">{currentAudioSettings.vocalBoost}%</span>
+              </span>
+              {currentAudioSettings.hqAudio && (
+                <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 text-emerald-600 px-2.5 py-1 font-bold">
+                  <span>💎 Hi-Fi Audio</span>
+                </span>
+              )}
+              {currentAudioSettings.surround3D && (
+                <span className="flex items-center gap-1 rounded-full bg-indigo-500/15 text-indigo-600 px-2.5 py-1 font-bold">
+                  <span>🎧 3D Surround</span>
+                </span>
+              )}
+            </div>
+          </div>
 
           {/* Resume video card */}
           {resume && (
@@ -3899,6 +3976,17 @@ function Index() {
 
             {current && (
               <div className="mt-2.5 flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <button
+                  type="button"
+                  onClick={() => setAudioSettingsOpen(true)}
+                  aria-label="সাউন্ড সেটিংস ও ইকুয়ালাইজার"
+                  className="shrink-0 flex items-center gap-1.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary px-3 py-1.5 text-[11.5px] font-bold ring-1 ring-primary/30 transition-all active:scale-95 shadow-sm"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" />
+                  </svg>
+                  <span>সাউন্ড সেটিংস</span>
+                </button>
                 <button
                   onClick={() => addToQueue(current)}
                   className="shrink-0 flex items-center gap-1.5 rounded-full glass-card px-3 py-1.5 text-[11.5px] font-semibold ring-1 ring-border/80 hover:bg-white transition-all active:scale-95"
@@ -4543,6 +4631,12 @@ function Index() {
         )}
 
       </div>
+
+      {/* Professional Audio Settings Modal */}
+      <AudioSettingsModal
+        open={audioSettingsOpen}
+        onClose={() => setAudioSettingsOpen(false)}
+      />
 
       {/* YouTube-style Save to Playlist Modal / Bottom Sheet */}
       {saveModalTrack && (
