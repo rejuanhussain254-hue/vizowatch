@@ -3478,28 +3478,26 @@ function Index() {
         )}
 
         {!chanView && searchState === "ok" && (
-          <div ref={sentinel} className="py-4 text-center text-[12px] text-muted-foreground px-4">
+          <div ref={sentinel} className="min-h-[56px] flex items-center justify-center py-4 px-4">
             {isHome ? (
-              feedLoadingMore ? "আরও ভিডিও আসছে…" : feedDone ? "আজকের মতো এটুকুই" : ""
-            ) : category === "shorts" ? (
-              searchLoadingMore ? (
-                <span className="inline-flex items-center gap-2 text-primary font-semibold">
-                  <span className="size-3.5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                  আরও শর্টস লোড হচ্ছে…
-                </span>
-              ) : (
-                "স্ক্রোল করে আরও শর্টস দেখুন…"
-              )
-            ) : (
-              searchLoadingMore ? (
-                <span className="inline-flex items-center gap-2 text-primary font-semibold">
-                  <span className="size-3.5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                  আরও সম্পর্কিত ভিডিও লোড হচ্ছে…
-                </span>
-              ) : (
-                "স্ক্রোল করে আরও সম্পর্কিত ভিডিও দেখুন…"
-              )
-            )}
+              feedLoadingMore ? (
+                <div className="flex items-center justify-center py-2" role="status" aria-label="লোড হচ্ছে">
+                  <svg className="size-6 animate-spin text-primary" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                    <path className="opacity-85" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                  </svg>
+                </div>
+              ) : feedDone ? (
+                <p className="text-center text-[12px] text-muted-foreground">আজকের মতো এটুকুই</p>
+              ) : null
+            ) : searchLoadingMore ? (
+              <div className="flex items-center justify-center py-2" role="status" aria-label="লোড হচ্ছে">
+                <svg className="size-6 animate-spin text-primary" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                  <path className="opacity-85" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                </svg>
+              </div>
+            ) : null}
           </div>
         )}
       </main>
@@ -4401,8 +4399,15 @@ function Index() {
               </ul>
             )}
             {relatedState === "ok" && (
-              <div ref={relSentinelRef} className="py-4 text-center text-[11.5px] text-muted-foreground px-4">
-                {relatedMore ? "আরও ভিডিও আসছে…" : relQueriesRef.current.length === 0 ? "" : " "}
+              <div ref={relSentinelRef} className="min-h-[48px] flex items-center justify-center py-3 px-4">
+                {relatedMore ? (
+                  <div className="flex items-center justify-center py-1" role="status" aria-label="লোড হচ্ছে">
+                    <svg className="size-5 animate-spin text-primary" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                      <path className="opacity-85" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                    </svg>
+                  </div>
+                ) : null}
               </div>
             )}
             </div>
