@@ -351,6 +351,15 @@ export function playAudioEffectTest(
       osc.start(now);
       osc.stop(now + durationSec + 0.05);
     });
+
+    // Auto-suspend AudioContext after preview sound ends to let mobile audio hardware sleep
+    setTimeout(() => {
+      try {
+        if (ctx && ctx.state === "running") {
+          ctx.suspend().catch(() => {});
+        }
+      } catch {}
+    }, Math.ceil((durationSec + 0.3) * 1000));
   } catch (e) {
     console.error("playAudioEffectTest error", e);
   }

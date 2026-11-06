@@ -1549,17 +1549,37 @@ function Index() {
   }, [time, duration, current]);
 
   const lastSaved = useRef(0);
+  const lastCloudSaved = useRef(0);
   useEffect(() => {
     if (!current) return;
-    if (Math.abs(time - lastSaved.current) < 2.5) return;
-    lastSaved.current = time;
-    updateHistoryPosition(current.id, time, duration || 0);
-    setHistory(loadHistory());
-    if (userId) {
-      const item = loadHistory().find((h) => h.id === current.id);
-      if (item) updateCloudPosition(userId, current.id, item.position, item.duration);
+    // Local storage position updated smoothly without triggering whole React page re-renders
+    if (Math.abs(time - lastSaved.current) >= 4) {
+      lastSaved.current = time;
+      updateHistoryPosition(current.id, time, duration || 0);
+    }
+    // Throttle cloud HTTP network requests to once every 35s to prevent mobile modem overheating
+    if (userId && Math.abs(time - lastCloudSaved.current) >= 35) {
+      lastCloudSaved.current = time;
+      updateCloudPosition(userId, current.id, Math.floor(time), Math.floor(duration || 0));
     }
   }, [time, duration, current, userId]);
+
+  // Dynamic Battery & Thermal Optimizer: Adapt YouTube playback quality to screen mode
+  useEffect(() => {
+    if (!playing) return;
+    try {
+      if (playerMode === "hidden" || playerMode === "pip") {
+        // In PiP or hidden background: drop to 144p to save CPU, GPU & battery
+        player.setPlaybackQuality("tiny");
+      } else if (playerMode === "big") {
+        // Full screen
+        player.setPlaybackQuality("hd720");
+      } else {
+        // Normal watch / shorts: 360p is sharp on mobile screens and runs cool
+        player.setPlaybackQuality("medium");
+      }
+    } catch {}
+  }, [playerMode, playing, player.setPlaybackQuality]);
 
   // Instantly save exact watch position when paused so resume is always up to the second
   useEffect(() => {

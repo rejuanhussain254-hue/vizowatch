@@ -190,7 +190,7 @@ export function usePlayer(queue: Track[], containerId: string, onEnded?: () => b
               setDuration(e.target.getDuration());
               try {
                 const s = loadAudioSettings();
-                if (s.hqAudio) e.target.setPlaybackQuality?.("hd1080");
+                if (s.hqAudio) e.target.setPlaybackQuality?.("medium");
                 if (s.speed && s.speed !== 1.0) e.target.setPlaybackRate?.(s.speed);
                 e.target.setVolume?.(Math.min(100, Math.round(s.volumeBoost)));
               } catch {}
@@ -326,7 +326,7 @@ export function usePlayer(queue: Track[], containerId: string, onEnded?: () => b
       if (!p) return;
       try {
         if (s.speed) p.setPlaybackRate?.(s.speed);
-        if (s.hqAudio) p.setPlaybackQuality?.("hd1080");
+        if (s.hqAudio) p.setPlaybackQuality?.("medium");
         p.setVolume?.(Math.min(100, Math.round(s.volumeBoost)));
       } catch {}
     };
