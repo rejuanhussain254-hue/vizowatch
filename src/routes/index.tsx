@@ -112,7 +112,8 @@ function genreOf(text: string) {
 
 // detect Shorts / Reels so they never land in the watch page's related list
 export function isShortVideo(r: { duration?: string; title?: string }): boolean {
-  if (r.duration === "শর্টস") return true;
+  if (!r) return false;
+  if (r.duration === "শর্টস" || r.duration?.toLowerCase() === "shorts") return true;
   if (/#shorts|youtube\s*shorts|\bshorts\b/i.test(r.title ?? "")) return true;
   const d = r.duration ?? "";
   const m = d.match(/^(\d{1,2}):(\d{2})$/);
@@ -454,6 +455,126 @@ function VideoRow({ r, active, playing, onPlay, onQueue, onChannel, onMore, sub,
   );
 }
 
+
+// YouTube-Style 4-Shorts Group (2x2 grid on mobile, 4 columns on tablet/desktop)
+function YouTubeShortsGroup({
+  group,
+  startIndex,
+  allShorts,
+  onOpenShorts,
+  onMore,
+  onViewAll,
+  groupLabel = "শর্টস",
+}: {
+  group: SearchResult[];
+  startIndex: number;
+  allShorts: SearchResult[];
+  onOpenShorts: (list: SearchResult[], idx: number) => void;
+  onMore?: (r: SearchResult) => void;
+  onViewAll?: () => void;
+  groupLabel?: string;
+}) {
+  if (!group || group.length === 0) return null;
+  // YouTube displays exactly 4 shorts per group
+  const displayItems = group.slice(0, 4);
+
+  return (
+    <div className="my-3 py-3.5 border-y border-border/25 bg-muted/[0.03]">
+      {/* Header with YouTube Shorts Icon */}
+      <div className="flex items-center justify-between px-4 mb-3">
+        <div className="flex items-center gap-2">
+          <span className="grid size-6 place-items-center rounded-lg bg-red-600 text-white shadow-sm shadow-red-500/30">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M17.77 10.32l-1.2-.5-1.1-.47.6-1.46c.74-1.8.06-3.9-1.63-4.9-1.92-1.12-4.38-.55-5.6 1.3l-4.2 6.8c-.85 1.37-.8 3.1.13 4.4 1 1.4 2.7 2.1 4.4 1.8l1.2.5 1.1.46-.6 1.47c-.74 1.8-.06 3.9 1.63 4.9 1.92 1.12 4.38.55 5.6-1.3l4.2-6.8c.85-1.37.8-3.1-.13-4.4-1-1.4-2.7-2.1-4.4-1.8z" />
+            </svg>
+          </span>
+          <div className="flex items-center gap-1.5">
+            <h3 className="font-display text-[15px] font-bold text-foreground tracking-tight">
+              {groupLabel}
+            </h3>
+            <span className="rounded-full bg-red-600/10 px-2 py-0.5 text-[10px] font-bold text-red-600">
+              ৪টি শর্টস
+            </span>
+          </div>
+        </div>
+        {onViewAll && (
+          <button
+            type="button"
+            onClick={onViewAll}
+            className="flex items-center gap-1 text-[12px] font-semibold text-primary hover:underline active:scale-95 transition-transform"
+          >
+            <span>সব দেখুন</span>
+            <span>→</span>
+          </button>
+        )}
+      </div>
+
+      {/* 4-Item Grid: 2 columns on mobile (2x2 grid), 4 columns on tablet/desktop */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 px-4">
+        {displayItems.map((s, idx) => {
+          const globalIdx = startIndex + idx;
+          return (
+            <div
+              key={s.id || `short-${startIndex}-${idx}`}
+              onClick={() => onOpenShorts(allShorts, globalIdx)}
+              className="group relative aspect-[9/16] w-full overflow-hidden rounded-2xl bg-neutral-900 shadow-md ring-1 ring-border/60 hover:ring-primary/50 text-left transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+            >
+              <img
+                src={s.thumbnail}
+                alt=""
+                className="size-full object-cover transition duration-300 group-hover:scale-105"
+                loading="lazy"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/35 to-black/30 pointer-events-none" />
+
+              {/* Top Bar: Play badge & 3-dots menu */}
+              <div className="absolute top-2 inset-x-2 flex items-center justify-between">
+                <span className="grid size-5 place-items-center rounded-full bg-red-600 text-white text-[9px] shadow-sm">
+                  ▶
+                </span>
+                {onMore && (
+                  <button
+                    type="button"
+                    aria-label="অপশন"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onMore(s);
+                    }}
+                    className="grid size-6 place-items-center rounded-full bg-black/40 hover:bg-black/70 text-white/90 hover:text-white transition-colors"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                      <circle cx="12" cy="5" r="2.5" /><circle cx="12" cy="12" r="2.5" /><circle cx="12" cy="19" r="2.5" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+
+              {/* Bottom text */}
+              <div className="absolute inset-x-2.5 bottom-2.5 pointer-events-none">
+                <p className="line-clamp-2 font-display text-[12px] font-bold text-white leading-snug drop-shadow">
+                  {s.title}
+                </p>
+                <div className="mt-1 flex items-center gap-1.5 text-[10.5px] font-medium text-white/80">
+                  {s.views ? (
+                    <span>{s.views}</span>
+                  ) : (
+                    <span>শর্টস</span>
+                  )}
+                  {s.author && (
+                    <>
+                      <span>·</span>
+                      <span className="truncate max-w-[70px]">{s.author}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function Index() {
   const [queue, setQueue] = useState<Track[]>([]);
@@ -1255,6 +1376,51 @@ function Index() {
   }, [category, runTrendingShorts, SHORTS_ROTATION]);
 
   // infinite scroll for the home feed, shorts page, and search results
+  // Split results into regular long-form videos and shorts so shorts are NEVER rendered as standard landscape rows
+  const { regularFeedVideos, feedShorts } = useMemo(() => {
+    const regular: SearchResult[] = [];
+    const shorts: SearchResult[] = [];
+    for (const r of results) {
+      if (isShortVideo(r)) {
+        shorts.push(r as SearchResult);
+      } else {
+        regular.push(r as SearchResult);
+      }
+    }
+    return { regularFeedVideos: regular, feedShorts: shorts };
+  }, [results]);
+
+  // Unified shorts pool for Home feed (curated homeShorts + any shorts returned from feed)
+  const allHomeShorts = useMemo(() => {
+    const seen = new Set<string>();
+    const list: SearchResult[] = [];
+    for (const s of homeShorts) {
+      if (!seen.has(s.id)) {
+        seen.add(s.id);
+        list.push(s);
+      }
+    }
+    for (const s of feedShorts) {
+      if (!seen.has(s.id)) {
+        seen.add(s.id);
+        list.push(s);
+      }
+    }
+    return list;
+  }, [homeShorts, feedShorts]);
+
+  // Group shorts into sets of exactly 4 (YouTube-style 4-groups)
+  const shortsGroupsOf4 = useMemo(() => {
+    const groups: SearchResult[][] = [];
+    for (let i = 0; i < allHomeShorts.length; i += 4) {
+      const chunk = allHomeShorts.slice(i, i + 4);
+      if (chunk.length >= 2) {
+        groups.push(chunk);
+      }
+    }
+    return groups;
+  }, [allHomeShorts]);
+
   const isHome = lastQuery.trim().length === 0;
   useEffect(() => {
     const el = sentinel.current;
@@ -1960,14 +2126,14 @@ function Index() {
   playTrackRef.current = playTrack;
   const handleAnyVideoPlay = useCallback(
     (r: Track | SearchResult | Row) => {
-      if (r.duration === "শর্টস" || r.title.toLowerCase().includes("#shorts")) {
-        const others = homeShorts.filter((s) => s.id !== r.id);
+      if (isShortVideo(r)) {
+        const others = allHomeShorts.filter((s) => s.id !== r.id);
         openShorts([r as SearchResult, ...others], 0);
       } else {
         playTrack(r, savedPosOf(r.id));
       }
     },
-    [homeShorts, openShorts, playTrack, savedPosOf],
+    [allHomeShorts, openShorts, playTrack, savedPosOf],
   );
 
   // "up next" = the next queued video, else the first related one
@@ -3118,72 +3284,153 @@ function Index() {
           </div>
         )}
 
-        {/* Regular Videos List - Seamless YouTube Mobile Feed */}
-        {!chanView && category !== "playlists" && category !== "shorts" && searchState === "ok" && results.length > 0 && (
+        {/* Regular Videos List + YouTube-style 4-Shorts Groups */}
+        {!chanView && category !== "playlists" && category !== "shorts" && searchState === "ok" && (regularFeedVideos.length > 0 || shortsGroupsOf4.length > 0) && (
           <div className="mt-2">
             {isHome ? (
               <>
-                {/* Top videos before Shorts */}
-                <ul className="divide-y divide-border/20">
-                  {results.slice(0, 4).map((r) => (
-                    <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => handleAnyVideoPlay(r)} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId, r.id)} onMore={() => setActionSheetTrack(r)} />
-                  ))}
-                </ul>
-
-                {/* Embedded Shorts Shelf */}
-                {homeShorts.length > 0 && (
-                  <div className="my-2 py-3 border-y border-border/20">
-                    <div className="flex items-center justify-between px-4 mb-2.5">
-                      <div className="flex items-center gap-2">
-                        <span className="grid size-6 place-items-center rounded-lg bg-red-600 text-white shadow-sm shadow-red-500/30">
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M17.77 10.32l-1.2-.5-1.1-.47.6-1.46c.74-1.8.06-3.9-1.63-4.9-1.92-1.12-4.38-.55-5.6 1.3l-4.2 6.8c-.85 1.37-.8 3.1.13 4.4 1 1.4 2.7 2.1 4.4 1.8l1.2.5 1.1.46-.6 1.47c-.74 1.8-.06 3.9 1.63 4.9 1.92 1.12 4.38.55 5.6-1.3l4.2-6.8c.85-1.37.8-3.1-.13-4.4-1-1.4-2.7-2.1-4.4-1.8z" />
-                          </svg>
-                        </span>
-                        <div>
-                          <h3 className="font-display text-[14.5px] font-bold text-foreground">শর্টস</h3>
-                        </div>
-                      </div>
-                      <button onClick={() => { setCategory("shorts"); doSearch("shorts"); }} className="text-[12px] font-semibold text-primary hover:underline">
-                        সব দেখুন →
-                      </button>
-                    </div>
-                    <div className="flex gap-2.5 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                      {homeShorts.slice(0, 25).map((s, idx) => (
-                        <button
-                          key={s.id}
-                          onClick={() => openShorts(homeShorts, idx)}
-                          className="group relative w-[130px] shrink-0 overflow-hidden rounded-xl bg-black/80 text-left transition-all active:scale-95 shadow-sm"
-                        >
-                          <div className="relative aspect-[9/16] w-full overflow-hidden">
-                            <img src={s.thumbnail} alt="" className="size-full object-cover transition duration-300 group-hover:scale-105" loading="lazy" />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/20" />
-                            <div className="absolute inset-x-2 bottom-2">
-                              <p className="line-clamp-2 font-display text-[12px] font-bold text-white leading-snug drop-shadow">{s.title}</p>
-                              {s.views && <p className="text-[10px] text-white/80 mt-0.5">{s.views}</p>}
-                            </div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                {/* Batch 1: First 4 regular videos */}
+                {regularFeedVideos.slice(0, 4).length > 0 && (
+                  <ul className="divide-y divide-border/20">
+                    {regularFeedVideos.slice(0, 4).map((r) => (
+                      <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => handleAnyVideoPlay(r)} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId, r.id)} onMore={() => setActionSheetTrack(r)} />
+                    ))}
+                  </ul>
                 )}
 
-                {/* Remaining Videos */}
-                {results.length > 4 && (
+                {/* Shorts Group 1: 4 shorts in a 2x2 grid */}
+                {shortsGroupsOf4[0] && (
+                  <YouTubeShortsGroup
+                    group={shortsGroupsOf4[0]}
+                    startIndex={0}
+                    allShorts={allHomeShorts}
+                    onOpenShorts={openShorts}
+                    onMore={(s) => setActionSheetTrack(s)}
+                    onViewAll={() => { setCategory("shorts"); doSearch("shorts"); }}
+                    groupLabel="শর্টস"
+                  />
+                )}
+
+                {/* Batch 2: Next 6 regular videos (4 to 10) */}
+                {regularFeedVideos.slice(4, 10).length > 0 && (
                   <ul className="divide-y divide-border/20">
-                    {results.slice(4).map((r) => (
+                    {regularFeedVideos.slice(4, 10).map((r) => (
+                      <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => handleAnyVideoPlay(r)} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId, r.id)} onMore={() => setActionSheetTrack(r)} />
+                    ))}
+                  </ul>
+                )}
+
+                {/* Shorts Group 2: Next 4 shorts in a 2x2 grid */}
+                {shortsGroupsOf4[1] && (
+                  <YouTubeShortsGroup
+                    group={shortsGroupsOf4[1]}
+                    startIndex={4}
+                    allShorts={allHomeShorts}
+                    onOpenShorts={openShorts}
+                    onMore={(s) => setActionSheetTrack(s)}
+                    onViewAll={() => { setCategory("shorts"); doSearch("shorts"); }}
+                    groupLabel="ট্রেন্ডিং শর্টস"
+                  />
+                )}
+
+                {/* Batch 3: Next 6 regular videos (10 to 16) */}
+                {regularFeedVideos.slice(10, 16).length > 0 && (
+                  <ul className="divide-y divide-border/20">
+                    {regularFeedVideos.slice(10, 16).map((r) => (
+                      <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => handleAnyVideoPlay(r)} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId, r.id)} onMore={() => setActionSheetTrack(r)} />
+                    ))}
+                  </ul>
+                )}
+
+                {/* Shorts Group 3: Next 4 shorts in a 2x2 grid */}
+                {shortsGroupsOf4[2] && (
+                  <YouTubeShortsGroup
+                    group={shortsGroupsOf4[2]}
+                    startIndex={8}
+                    allShorts={allHomeShorts}
+                    onOpenShorts={openShorts}
+                    onMore={(s) => setActionSheetTrack(s)}
+                    onViewAll={() => { setCategory("shorts"); doSearch("shorts"); }}
+                    groupLabel="জনপ্রিয় শর্টস"
+                  />
+                )}
+
+                {/* Batch 4: Next 6 regular videos (16 to 22) */}
+                {regularFeedVideos.slice(16, 22).length > 0 && (
+                  <ul className="divide-y divide-border/20">
+                    {regularFeedVideos.slice(16, 22).map((r) => (
+                      <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => handleAnyVideoPlay(r)} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId, r.id)} onMore={() => setActionSheetTrack(r)} />
+                    ))}
+                  </ul>
+                )}
+
+                {/* Shorts Group 4: Next 4 shorts in a 2x2 grid */}
+                {shortsGroupsOf4[3] && (
+                  <YouTubeShortsGroup
+                    group={shortsGroupsOf4[3]}
+                    startIndex={12}
+                    allShorts={allHomeShorts}
+                    onOpenShorts={openShorts}
+                    onMore={(s) => setActionSheetTrack(s)}
+                    onViewAll={() => { setCategory("shorts"); doSearch("shorts"); }}
+                    groupLabel="শর্টস রিলস"
+                  />
+                )}
+
+                {/* Remaining regular videos (22+) */}
+                {regularFeedVideos.slice(22).length > 0 && (
+                  <ul className="divide-y divide-border/20">
+                    {regularFeedVideos.slice(22).map((r) => (
                       <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => handleAnyVideoPlay(r)} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId, r.id)} onMore={() => setActionSheetTrack(r)} />
                     ))}
                   </ul>
                 )}
               </>
             ) : (
-              <ul className="divide-y divide-border/20">
-                {results.map((r) => (
-                  <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => handleAnyVideoPlay(r)} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId, r.id)} onMore={() => setActionSheetTrack(r)} />
-                ))}
-              </ul>
+              <>
+                {/* Search / Category mode with Shorts grouping */}
+                {regularFeedVideos.slice(0, 4).length > 0 && (
+                  <ul className="divide-y divide-border/20">
+                    {regularFeedVideos.slice(0, 4).map((r) => (
+                      <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => handleAnyVideoPlay(r)} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId, r.id)} onMore={() => setActionSheetTrack(r)} />
+                    ))}
+                  </ul>
+                )}
+
+                {/* Related Shorts Group of 4 */}
+                {shortsGroupsOf4[0] && (
+                  <YouTubeShortsGroup
+                    group={shortsGroupsOf4[0]}
+                    startIndex={0}
+                    allShorts={allHomeShorts}
+                    onOpenShorts={openShorts}
+                    onMore={(s) => setActionSheetTrack(s)}
+                    onViewAll={() => { setCategory("shorts"); doSearch("shorts"); }}
+                    groupLabel="সম্পর্কিত শর্টস"
+                  />
+                )}
+
+                {/* Remaining regular search results */}
+                {regularFeedVideos.slice(4).length > 0 && (
+                  <ul className="divide-y divide-border/20">
+                    {regularFeedVideos.slice(4).map((r) => (
+                      <VideoRow key={r.id} r={r} active={current?.id === r.id} playing={playing} progress={progressOf(r.id)} onPlay={() => handleAnyVideoPlay(r)} onQueue={() => addToQueue(r)} onChannel={() => openChannel(r.author, r.channelId, r.id)} onMore={() => setActionSheetTrack(r)} />
+                    ))}
+                  </ul>
+                )}
+
+                {shortsGroupsOf4[1] && (
+                  <YouTubeShortsGroup
+                    group={shortsGroupsOf4[1]}
+                    startIndex={4}
+                    allShorts={allHomeShorts}
+                    onOpenShorts={openShorts}
+                    onMore={(s) => setActionSheetTrack(s)}
+                    onViewAll={() => { setCategory("shorts"); doSearch("shorts"); }}
+                    groupLabel="আরও শর্টস"
+                  />
+                )}
+              </>
             )}
           </div>
         )}
