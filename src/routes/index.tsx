@@ -1140,7 +1140,10 @@ function Index() {
     (q: string) => {
       const term = q.trim();
       if (!term) return;
-      setInput(term);
+      setInput("");
+      if (typeof document !== "undefined") {
+        (document.activeElement as HTMLElement)?.blur?.();
+      }
       setSugOpen(false);
       setSuggestions([]);
       setCategory(null);
@@ -2498,8 +2501,9 @@ function Index() {
                     setSearches(loadSearches());
                     setSugOpen(true);
                   }}
-                  aria-label="মুছুন"
-                  className="grid size-4 shrink-0 place-items-center rounded-full bg-muted/80 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                  aria-label="সার্চ বক্স খালি করুন"
+                  title="মুছুন"
+                  className="grid size-6 shrink-0 place-items-center rounded-full bg-muted/80 text-[12px] font-bold text-muted-foreground hover:bg-muted hover:text-foreground transition-colors active:scale-90"
                 >
                   ✕
                 </button>
